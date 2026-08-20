@@ -1,0 +1,158 @@
+{
+  "policies": [
+    {
+      "id": "CG-DOMAIN-001",
+      "name": "Approved Domain Navigation",
+      "action_type": "navigate",
+      "condition": "is_approved_domain",
+      "severity": "low",
+      "decision": "ALLOW",
+      "description": "Navigation to an approved trusted domain is permitted.",
+      "enabled": true,
+      "risk_contribution": 0
+    },
+    {
+      "id": "CG-DOMAIN-002",
+      "name": "Blocked Domain Navigation",
+      "action_type": "navigate",
+      "condition": "is_blocked_domain",
+      "severity": "critical",
+      "decision": "BLOCK",
+      "description": "Navigation to a known malicious or blocked domain is unconditionally blocked.",
+      "enabled": true,
+      "risk_contribution": 70
+    },
+    {
+      "id": "CG-DOMAIN-003",
+      "name": "Unknown Domain Navigation",
+      "action_type": "navigate",
+      "condition": "is_unknown_domain",
+      "severity": "medium",
+      "decision": "WARN",
+      "description": "Navigation to a domain not on the approved list. Warn and increase risk score.",
+      "enabled": true,
+      "risk_contribution": 20
+    },
+    {
+      "id": "CG-SENSITIVE-001",
+      "name": "Password Field Interaction",
+      "action_type": "fill",
+      "condition": "is_password_field",
+      "severity": "high",
+      "decision": "REQUIRE_APPROVAL",
+      "description": "Filling or submitting a password or PIN field requires human approval.",
+      "enabled": true,
+      "risk_contribution": 30
+    },
+    {
+      "id": "CG-SENSITIVE-002",
+      "name": "Payment Field Interaction",
+      "action_type": "fill",
+      "condition": "is_payment_field",
+      "severity": "critical",
+      "decision": "REQUIRE_APPROVAL",
+      "description": "Any interaction with payment or billing fields requires human approval.",
+      "enabled": true,
+      "risk_contribution": 35
+    },
+    {
+      "id": "CG-SENSITIVE-003",
+      "name": "Sensitive Form Submission",
+      "action_type": "submit",
+      "condition": "is_sensitive_form_submit",
+      "severity": "high",
+      "decision": "REQUIRE_APPROVAL",
+      "description": "Submitting a form that contains sensitive personal or financial data requires approval.",
+      "enabled": true,
+      "risk_contribution": 30
+    },
+    {
+      "id": "CG-UPLOAD-001",
+      "name": "File Upload",
+      "action_type": "upload",
+      "condition": "is_file_upload",
+      "severity": "high",
+      "decision": "REQUIRE_APPROVAL",
+      "description": "All file upload actions require explicit human approval.",
+      "enabled": true,
+      "risk_contribution": 30
+    },
+    {
+      "id": "CG-UPLOAD-002",
+      "name": "File Upload to External Domain",
+      "action_type": "upload",
+      "condition": "is_upload_to_external",
+      "severity": "critical",
+      "decision": "BLOCK",
+      "description": "Uploading files to an external or unknown domain is blocked to prevent data exfiltration.",
+      "enabled": true,
+      "risk_contribution": 70
+    },
+    {
+      "id": "CG-DOWNLOAD-001",
+      "name": "Executable File Download",
+      "action_type": "download",
+      "condition": "is_executable_download",
+      "severity": "critical",
+      "decision": "BLOCK",
+      "description": "Downloading executable files (.exe, .bat, .ps1, etc.) is blocked unconditionally.",
+      "enabled": true,
+      "risk_contribution": 60
+    },
+    {
+      "id": "CG-DOWNLOAD-002",
+      "name": "Download from Unknown Domain",
+      "action_type": "download",
+      "condition": "is_download_unknown_domain",
+      "severity": "high",
+      "decision": "REQUIRE_APPROVAL",
+      "description": "Downloads from domains not on the approved list require human approval.",
+      "enabled": true,
+      "risk_contribution": 40
+    },
+    {
+      "id": "CG-CROSS-SITE-001",
+      "name": "Cross-Site Sensitive Data Transfer",
+      "action_type": "submit",
+      "condition": "is_cross_site_sensitive",
+      "severity": "critical",
+      "decision": "BLOCK",
+      "description": "Submitting or transferring sensitive data across different domains is blocked.",
+      "enabled": true,
+      "risk_contribution": 65
+    },
+    {
+      "id": "CG-INJECTION-001",
+      "name": "Prompt Injection from Page Content",
+      "action_type": "any",
+      "condition": "is_prompt_injection",
+      "severity": "critical",
+      "decision": "BLOCK",
+      "description": "Actions whose source contains prompt-injection patterns are blocked. Prompt injection attempts to override agent instructions via untrusted page content.",
+      "enabled": true,
+      "risk_contribution": 55
+    },
+    {
+      "id": "CG-EXFIL-001",
+      "name": "Data Exfiltration Chain",
+      "action_type": "upload",
+      "condition": "is_data_exfiltration",
+      "severity": "critical",
+      "decision": "BLOCK",
+      "description": "Detects extract-then-transmit exfiltration chains: tainted data being sent to an external domain.",
+      "enabled": true,
+      "risk_contribution": 75
+    },
+    {
+      "id": "CG-APPROVAL-001",
+      "name": "Irreversible Action Approval",
+      "action_type": "submit",
+      "condition": "is_irreversible_action",
+      "severity": "high",
+      "decision": "REQUIRE_APPROVAL",
+      "description": "Actions that are difficult or impossible to reverse require explicit human approval before execution.",
+      "enabled": true,
+      "risk_contribution": 20
+    }
+  ]
+}
