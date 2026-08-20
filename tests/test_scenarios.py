@@ -9,13 +9,15 @@ exercising models, core engines, services, and database persistence.
 
 from __future__ import annotations
 
-import sqlite3
+import atexit
+import os
+import tempfile
 import uuid
 from typing import Any, Dict
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, inspect, event
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker
 
 # ---------------------------------------------------------------------------
@@ -36,36 +38,38 @@ import app.database.database as _db_module
 from app.core.taint_tracker import taint_tracker
 
 # ---------------------------------------------------------------------------
-# Single shared sqlite3 connection for the entire test session.
+# Test database: named temp file on disk.
 #
-# WHY: sqlite:///:memory: creates a NEW empty database per connection.
-# SQLAlchemy's default pool opens a fresh connection for each Session,
-# so Base.metadata.create_all() runs on connection A while every test
-# Session opens connection B — which has no tables.
+# WHY NOT sqlite:///:memory:?
+# Each connection to :memory: opens a fresh empty database.  SQLAlchemy's
+# pool creates a new connection for every Session(), so create_all() runs
+# on connection A while test requests use connection B — which has no tables.
+# A single shared raw connection avoids this but gets closed by the pool
+# between requests, raising "Cannot operate on a closed database."
 #
-# FIX: use a single raw sqlite3 connection as the creator for the engine.
-# Every Session then reuses the same underlying connection and sees the
-# same in-memory database with all tables present.
+# FIX: use a real file path.  All connections go to the same file and see
+# the same schema and data.  The file is deleted after the test session.
 # ---------------------------------------------------------------------------
-_raw_sqlite_conn = sqlite3.connect(":memory:", check_same_thread=False)
+_db_fd, _db_path = tempfile.mkstemp(suffix=".db", prefix="cg_test_")
+os.close(_db_fd)  # release the OS fd; SQLAlchemy opens its own connections
 
+_TEST_DB_URL = f"sqlite:///{_db_path}"
 _test_engine = create_engine(
-    "sqlite://",
-    creator=lambda: _raw_sqlite_conn,
+    _TEST_DB_URL,
+    connect_args={"check_same_thread": False},
 )
-
 _TestSessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
     bind=_test_engine,
 )
 
-# Create all six tables on the shared connection once at module import.
+# Create all six tables once at module import time.
 Base.metadata.create_all(bind=_test_engine)
 
 
 def override_get_db():
-    """Yield a DB session bound to the single shared in-memory database."""
+    """Yield a DB session bound to the isolated temp-file test database."""
     db = _TestSessionLocal()
     try:
         yield db
@@ -74,9 +78,9 @@ def override_get_db():
 
 
 # ---------------------------------------------------------------------------
-# Patch check_db_health to query the test engine instead of the production
-# engine.  main.py calls _db_module.check_db_health() through the module
-# reference, so replacing the attribute on the module object is sufficient.
+# Patch check_db_health so the health endpoint queries the test engine.
+# main.py calls _db_module.check_db_health() via module reference, so
+# replacing the attribute on the module is sufficient.
 # ---------------------------------------------------------------------------
 _original_check_db_health = _db_module.check_db_health
 
@@ -99,6 +103,23 @@ app.dependency_overrides[get_db] = override_get_db
 # The lifespan wraps start_browser in try/except so missing Chromium is safe.
 # ---------------------------------------------------------------------------
 client = TestClient(app)
+
+
+# ---------------------------------------------------------------------------
+# Cleanup: remove temp DB file after the process exits.
+# ---------------------------------------------------------------------------
+def _cleanup_test_db() -> None:
+    try:
+        _test_engine.dispose()
+    except Exception:
+        pass
+    try:
+        os.unlink(_db_path)
+    except Exception:
+        pass
+
+
+atexit.register(_cleanup_test_db)
 
 
 # ---------------------------------------------------------------------------
@@ -492,17 +513,16 @@ def test_15_taint_propagates_to_sensitive_action():
     """Step 1 taints the session; Step 2 in same session is tainted."""
     sid = new_sid()
 
-    step1 = make_action(
+    evaluate(make_action(
         action_type="navigate",
         url="https://untrusted.example/page",
         source_type="page_content",
         content="Instructions from the page.",
         current_domain="untrusted.example",
         session_id=sid,
-    )
-    evaluate(step1)
+    ))
 
-    step2 = make_action(
+    dec2 = evaluate(make_action(
         action_type="submit",
         url="https://example-trusted.com/form",
         selector="#form",
@@ -511,8 +531,7 @@ def test_15_taint_propagates_to_sensitive_action():
         source_type="user",
         current_domain="example-trusted.com",
         session_id=sid,
-    )
-    dec2 = evaluate(step2)
+    ))
     assert dec2["tainted"] is True
     assert dec2["risk_score"] > 20
 
@@ -522,7 +541,7 @@ def test_15_taint_propagates_to_sensitive_action():
 # ---------------------------------------------------------------------------
 
 def test_16_multistep_exfiltration_detected():
-    """extract → upload to external domain should be escalated."""
+    """extract then upload to external domain should be escalated."""
     sid = new_sid()
 
     evaluate(make_action(
@@ -632,7 +651,7 @@ def test_19_approval_allows_exact_action_only():
 # ---------------------------------------------------------------------------
 
 def test_20_rejection_prevents_execution():
-    """Rejecting an approval marks the request as rejected and non-executable."""
+    """Rejecting an approval marks it rejected and non-executable."""
     dec = evaluate(make_action(
         action_type="upload",
         url="https://github.com/upload",
@@ -729,7 +748,6 @@ def test_24_sensitive_values_masked_in_logs():
         source_type="user",
         session_id=sid,
     ))
-
     res = client.get(f"/api/audit?session_id={sid}")
     assert res.status_code == 200
     assert "SuperSecretPassword123!" not in res.text
