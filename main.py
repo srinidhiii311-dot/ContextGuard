@@ -35,6 +35,7 @@ from app.database.database import (
     get_db,
     get_pending_approvals,
     init_db,
+    check_db_health,
     list_sessions,
     store_action,
     store_decision,
@@ -141,9 +142,9 @@ async def dashboard(request: Request):
 @app.get("/api/health", summary="Health check")
 async def health(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Return application health and database connectivity status."""
+    db_status = check_db_health()
     try:
-        stats = get_dashboard_stats(db)
-        db_status = "ok"
+        stats = get_dashboard_stats(db) if db_status == "ok" else {}
     except Exception as exc:
         stats = {}
         db_status = f"error: {exc}"

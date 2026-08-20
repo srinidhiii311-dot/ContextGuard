@@ -152,9 +152,47 @@ class PolicyRecord(Base):
 # Database initialisation
 # ---------------------------------------------------------------------------
 
-def init_db() -> None:
-    """Create all tables if they do not exist."""
-    Base.metadata.create_all(bind=engine)
+def init_db(bind=None) -> None:
+    """
+    Create all tables if they do not exist.
+
+    Pass a custom ``bind`` (engine) to initialise a separate database,
+    for example an in-memory SQLite engine used by the test suite.
+    All ORM models are defined in this module and registered on ``Base``,
+    so every table is created in a single call.
+    """
+    target = bind if bind is not None else engine
+    # Explicitly reference every model class so their table metadata is
+    # registered on Base before create_all is called.  Importing them at
+    # the top of this module is sufficient, but listing them here makes the
+    # dependency explicit and guards against future refactors.
+    _ = (
+        SessionRecord,
+        ActionRecord,
+        DecisionRecord,
+        ApprovalRecord,
+        AuditLogRecord,
+        PolicyRecord,
+    )
+    Base.metadata.create_all(bind=target)
+
+
+def check_db_health(bind=None) -> str:
+    """
+    Verify that the required tables exist and are queryable.
+
+    Returns ``"ok"`` on success or an error string on failure.
+    Only call this *after* ``init_db()`` has been called.
+    """
+    target = bind if bind is not None else engine
+    try:
+        with target.connect() as conn:
+            # Query each critical table to confirm existence.
+            for table in ("sessions", "actions", "decisions", "approvals", "audit_logs"):
+                conn.execute(text(f"SELECT 1 FROM {table} LIMIT 1"))
+        return "ok"
+    except Exception as exc:
+        return f"error: {exc}"
 
 
 def get_db() -> Session:

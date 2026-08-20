@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import uuid
 from typing import Any, Dict
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -21,17 +22,35 @@ from sqlalchemy.orm import sessionmaker
 # App + DB setup with an in-memory SQLite database for isolation
 # ---------------------------------------------------------------------------
 
-from app.database.database import Base, get_db
+# Import Base and ALL ORM model classes before create_all so every table
+# is registered on the metadata.  This is the fix for:
+#   sqlite3.OperationalError: no such table: decisions
+from app.database.database import (
+    Base,
+    SessionRecord,
+    ActionRecord,
+    DecisionRecord,
+    ApprovalRecord,
+    AuditLogRecord,
+    PolicyRecord,
+    get_db,
+    init_db,
+)
 from app.core.taint_tracker import taint_tracker
-from main import app
 
+# Build the in-memory engine BEFORE importing the app so the dependency
+# override is in place when TestClient starts the lifespan.
 _TEST_DB_URL = "sqlite:///:memory:"
 _test_engine = create_engine(_TEST_DB_URL, connect_args={"check_same_thread": False})
 _TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_test_engine)
 
+# Create ALL tables on the test engine once, at module import time.
+# Every ORM class above is already imported so Base.metadata is complete.
+Base.metadata.create_all(bind=_test_engine)
+
 
 def override_get_db():
-    Base.metadata.create_all(bind=_test_engine)
+    """Yield a session bound to the in-memory test database."""
     db = _TestSessionLocal()
     try:
         yield db
@@ -39,8 +58,29 @@ def override_get_db():
         db.close()
 
 
+# Patch the app's get_db dependency before importing the app so all
+# endpoint sessions go to the test engine.
+from main import app  # noqa: E402  (import after engine setup is intentional)
+
 app.dependency_overrides[get_db] = override_get_db
 
+
+# Patch check_db_health so the health endpoint reports "ok" when querying
+# the test engine (it uses the production engine by default).
+import app.database.database as _db_module  # noqa: E402
+
+_original_check = _db_module.check_db_health
+
+
+def _test_check_db_health(bind=None):
+    return _original_check(bind=_test_engine)
+
+
+_db_module.check_db_health = _test_check_db_health
+
+# Build the TestClient.  The lifespan calls init_db() which targets the
+# production engine; that is harmless (it just creates the file-based DB
+# outside the test run).  All test requests use override_get_db instead.
 client = TestClient(app, raise_server_exceptions=False)
 
 
@@ -103,6 +143,56 @@ def evaluate(body: Dict[str, Any]) -> Dict[str, Any]:
     res = client.post("/api/actions/evaluate", json=body)
     assert res.status_code == 200, f"evaluate failed: {res.text}"
     return res.json()
+
+
+# ---------------------------------------------------------------------------
+# Test 0a — All required tables exist in the test database
+# ---------------------------------------------------------------------------
+
+def test_00a_all_tables_exist():
+    """All six required tables must exist in the test database."""
+    from sqlalchemy import inspect
+    inspector = inspect(_test_engine)
+    existing = set(inspector.get_table_names())
+    required = {"sessions", "actions", "decisions", "approvals", "audit_logs", "policies"}
+    missing = required - existing
+    assert not missing, f"Missing tables: {missing}"
+
+
+# ---------------------------------------------------------------------------
+# Test 0b — Health endpoint reports database ok
+# ---------------------------------------------------------------------------
+
+def test_00b_health_database_ok():
+    """GET /api/health must return database: 'ok'."""
+    res = client.get("/api/health")
+    assert res.status_code == 200
+    assert res.json()["database"] == "ok"
+
+
+# ---------------------------------------------------------------------------
+# Test 0c — Session creation returns HTTP 201
+# ---------------------------------------------------------------------------
+
+def test_00c_session_creation_201():
+    """POST /api/sessions must return HTTP 201."""
+    res = client.post("/api/sessions", json={"agent_id": "bootstrap_agent"})
+    assert res.status_code == 201
+
+
+# ---------------------------------------------------------------------------
+# Test 0d — Evaluate endpoint returns HTTP 200
+# ---------------------------------------------------------------------------
+
+def test_00d_evaluate_returns_200():
+    """POST /api/actions/evaluate must return HTTP 200 for a valid action."""
+    body = make_action(
+        action_type="navigate",
+        url="https://docs.python.org/",
+        source_type="user",
+    )
+    res = client.post("/api/actions/evaluate", json=body)
+    assert res.status_code == 200
 
 
 # ---------------------------------------------------------------------------
