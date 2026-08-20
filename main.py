@@ -35,7 +35,6 @@ from app.database.database import (
     get_db,
     get_pending_approvals,
     init_db,
-    check_db_health,
     list_sessions,
     store_action,
     store_decision,
@@ -51,6 +50,7 @@ from app.services.approval_service import approval_service
 from app.services.audit_logger import audit_logger
 from app.services.browser_service import browser_service
 from app.services.session_manager import session_manager
+import app.database.database as _db_module
 
 # ---------------------------------------------------------------------------
 # Application lifespan
@@ -58,11 +58,23 @@ from app.services.session_manager import session_manager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup and shutdown tasks."""
-    init_db()
-    await browser_service.start_browser()
+    """
+    Startup: initialise database tables then start the browser (best-effort).
+    Browser startup failures are non-fatal — the safety gateway still operates
+    in evaluation-only mode without a live browser.
+    Shutdown: stop the browser gracefully.
+    """
+    _db_module.init_db()
+    try:
+        await browser_service.start_browser()
+    except Exception:
+        # Chromium not installed or unavailable — continue without live browser.
+        pass
     yield
-    await browser_service.stop_browser()
+    try:
+        await browser_service.stop_browser()
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +154,8 @@ async def dashboard(request: Request):
 @app.get("/api/health", summary="Health check")
 async def health(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Return application health and database connectivity status."""
-    db_status = check_db_health()
+    # Call via module reference so tests can monkey-patch check_db_health.
+    db_status = _db_module.check_db_health()
     try:
         stats = get_dashboard_stats(db) if db_status == "ok" else {}
     except Exception as exc:

@@ -11,20 +11,18 @@ from __future__ import annotations
 
 import uuid
 from typing import Any, Dict
-from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker
 
 # ---------------------------------------------------------------------------
-# App + DB setup with an in-memory SQLite database for isolation
+# Import ALL ORM model classes before anything else.
+# This guarantees every table is registered on Base.metadata before
+# create_all is called.  Missing any import here would leave that table
+# absent from the in-memory database.
 # ---------------------------------------------------------------------------
-
-# Import Base and ALL ORM model classes before create_all so every table
-# is registered on the metadata.  This is the fix for:
-#   sqlite3.OperationalError: no such table: decisions
 from app.database.database import (
     Base,
     SessionRecord,
@@ -34,23 +32,24 @@ from app.database.database import (
     AuditLogRecord,
     PolicyRecord,
     get_db,
-    init_db,
 )
+import app.database.database as _db_module
 from app.core.taint_tracker import taint_tracker
 
-# Build the in-memory engine BEFORE importing the app so the dependency
-# override is in place when TestClient starts the lifespan.
+# ---------------------------------------------------------------------------
+# Build the isolated in-memory test engine and create all tables ONCE
+# at module import time — before TestClient or the app lifespan run.
+# ---------------------------------------------------------------------------
 _TEST_DB_URL = "sqlite:///:memory:"
 _test_engine = create_engine(_TEST_DB_URL, connect_args={"check_same_thread": False})
 _TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_test_engine)
 
-# Create ALL tables on the test engine once, at module import time.
-# Every ORM class above is already imported so Base.metadata is complete.
+# All six tables created here; test_00a verifies they exist.
 Base.metadata.create_all(bind=_test_engine)
 
 
 def override_get_db():
-    """Yield a session bound to the in-memory test database."""
+    """Yield a DB session bound to the isolated in-memory test database."""
     db = _TestSessionLocal()
     try:
         yield db
@@ -58,30 +57,34 @@ def override_get_db():
         db.close()
 
 
-# Patch the app's get_db dependency before importing the app so all
-# endpoint sessions go to the test engine.
-from main import app  # noqa: E402  (import after engine setup is intentional)
+# ---------------------------------------------------------------------------
+# Monkey-patch check_db_health to query the test engine.
+# main.py calls _db_module.check_db_health() via the module reference,
+# so replacing it on the module object is sufficient.
+# ---------------------------------------------------------------------------
+def _test_check_db_health(bind=None):
+    """Health check that always queries the in-memory test engine."""
+    return _db_module.check_db_health.__wrapped__(bind=_test_engine)
+
+
+# Stash the original, then replace on the module.
+_db_module.check_db_health.__wrapped__ = _db_module.check_db_health
+_db_module.check_db_health = _test_check_db_health
+
+# ---------------------------------------------------------------------------
+# Import and configure the FastAPI app AFTER the engine and patch are ready.
+# ---------------------------------------------------------------------------
+from main import app  # noqa: E402
 
 app.dependency_overrides[get_db] = override_get_db
 
-
-# Patch check_db_health so the health endpoint reports "ok" when querying
-# the test engine (it uses the production engine by default).
-import app.database.database as _db_module  # noqa: E402
-
-_original_check = _db_module.check_db_health
-
-
-def _test_check_db_health(bind=None):
-    return _original_check(bind=_test_engine)
-
-
-_db_module.check_db_health = _test_check_db_health
-
-# Build the TestClient.  The lifespan calls init_db() which targets the
-# production engine; that is harmless (it just creates the file-based DB
-# outside the test run).  All test requests use override_get_db instead.
-client = TestClient(app, raise_server_exceptions=False)
+# ---------------------------------------------------------------------------
+# Single TestClient instance for the whole module.
+# Using it as a context manager ensures the lifespan (startup/shutdown)
+# runs exactly once and does not crash when Chromium is absent —
+# the lifespan already wraps start_browser in try/except.
+# ---------------------------------------------------------------------------
+client = TestClient(app)
 
 
 # ---------------------------------------------------------------------------
@@ -151,7 +154,6 @@ def evaluate(body: Dict[str, Any]) -> Dict[str, Any]:
 
 def test_00a_all_tables_exist():
     """All six required tables must exist in the test database."""
-    from sqlalchemy import inspect
     inspector = inspect(_test_engine)
     existing = set(inspector.get_table_names())
     required = {"sessions", "actions", "decisions", "approvals", "audit_logs", "policies"}
