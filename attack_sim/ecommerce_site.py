@@ -457,7 +457,7 @@ def create_ecommerce_app() -> Flask:
 
 if __name__ == "__main__":
     app = create_ecommerce_app()
-    print("\n🛒  ShopSmart E-Commerce Mock  →  http://localhost:5002/")
+    print("\n  ShopSmart E-Commerce Mock  ->  http://localhost:5002/")
     print("   Safe cart:    http://localhost:5002/cart")
     print("   NC attack:    http://localhost:5002/results?attack=non_contextual")
     print("   Plan inject:  http://localhost:5002/checkout?attack=plan_injection")

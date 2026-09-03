@@ -479,7 +479,7 @@ def create_flight_app() -> Flask:
 
 if __name__ == "__main__":
     app = create_flight_app()
-    print("\n✈  SkyBook Flight Mock  →  http://localhost:5001/")
+    print("\n  SkyBook Flight Mock  ->  http://localhost:5001/")
     print("   Safe review:  http://localhost:5001/review")
     print("   NC attack:    http://localhost:5001/review?attack=non_contextual")
     print("   Plan inject:  http://localhost:5001/review?attack=plan_injection_2")
