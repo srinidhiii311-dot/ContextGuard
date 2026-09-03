@@ -278,9 +278,6 @@ class TestHarness:
                 f"Benchmark file not found: {self.benchmark_path}"
             )
         raw = self.benchmark_path.read_text(encoding="utf-8")
-        # Strip JS-style comments so json.loads works
-        import re
-        raw = re.sub(r"//[^\n]*", "", raw)
         data = json.loads(raw)
         return data["test_cases"]
 
@@ -417,8 +414,9 @@ class OfflineTestHarness:
                 expected    = bool(case["should_trigger_alarm"])
                 url         = case.get("target_url", "")
 
-                # Build synthetic snapshot from URL + attack type
-                snapshot = _build_synthetic_snapshot(url, attack_type)
+                # Build synthetic snapshot from URL + attack type + injected text
+                injected_text = case.get("injected_text", "")
+                snapshot = _build_synthetic_snapshot(url, attack_type, injected_text)
 
                 t0 = time.monotonic()
                 alarm = False
@@ -470,9 +468,7 @@ class OfflineTestHarness:
         return self.results
 
     def _load_cases(self) -> List[Dict[str, Any]]:
-        import re
         raw = self.benchmark_path.read_text(encoding="utf-8")
-        raw = re.sub(r"//[^\n]*", "", raw)
         return json.loads(raw)["test_cases"]
 
     def _write_csv(self) -> None:

@@ -365,7 +365,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    selected_names = list(EXPERIMENTS) if args.all else [
+    selected_names = EXPERIMENTS if args.all else [
         e for e in EXPERIMENTS if e["name"] in args.modes
     ]
     if not selected_names:
