@@ -100,6 +100,8 @@ class Service:
         self.last_status  = "stopped"
 
     def start(self) -> None:
+        env = {**os.environ, "PYTHONUNBUFFERED": "1",
+               "PYTHONPATH": str(ROOT)}
         self.proc = subprocess.Popen(
             self.cmd,
             cwd=str(ROOT),
@@ -107,7 +109,7 @@ class Service:
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
-            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+            env=env,
         )
         self.start_time  = time.time()
         self.last_status = "starting"
@@ -157,9 +159,20 @@ class LogCollector:
         proc = self.service.proc
         if not proc or not proc.stdout:
             return
+        # Lines to suppress from the live display (noise / known non-errors)
+        _SUPPRESS = (
+            "NotImplementedError",
+            "raise NotImplementedError",
+            "Task exception was never retrieved",
+            "playwright._impl",
+            "_transport.py",
+            "create_subprocess_exec",
+            "subprocess_exec",
+            "_make_subprocess_transport",
+        )
         for line in proc.stdout:
             line = line.rstrip()
-            if line:
+            if line and not any(s in line for s in _SUPPRESS):
                 self.lines.append(line)
                 if len(self.lines) > self.max_lines:
                     self.lines.pop(0)
@@ -284,12 +297,15 @@ def run_benchmark() -> None:
 # ---------------------------------------------------------------------------
 
 def build_services(no_sites: bool = False) -> List[Service]:
+    flight_script   = str(ROOT / "attack_sim" / "flight_site.py")
+    ecomm_script    = str(ROOT / "attack_sim" / "ecommerce_site.py")
+
     services = [
         Service(
             name="ContextGuard API",
             cmd=[PYTHON, "-m", "uvicorn", "main:app",
                  "--host", "127.0.0.1", "--port", "8000",
-                 "--reload", "--log-level", "warning"],
+                 "--log-level", "warning"],
             url="http://127.0.0.1:8000",
             health_path="/api/health",
             colour=C,
@@ -301,7 +317,7 @@ def build_services(no_sites: bool = False) -> List[Service]:
         services += [
             Service(
                 name="Flight Booking Site",
-                cmd=[PYTHON, "-m", "attack_sim.flight_site"],
+                cmd=[PYTHON, flight_script],
                 url="http://127.0.0.1:5001",
                 health_path="/status",
                 colour=G,
@@ -309,7 +325,7 @@ def build_services(no_sites: bool = False) -> List[Service]:
             ),
             Service(
                 name="E-Commerce Site",
-                cmd=[PYTHON, "-m", "attack_sim.ecommerce_site"],
+                cmd=[PYTHON, ecomm_script],
                 url="http://127.0.0.1:5002",
                 health_path="/status",
                 colour=Y,
