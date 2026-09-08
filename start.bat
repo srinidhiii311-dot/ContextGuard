@@ -1,27 +1,22 @@
 @echo off
 chcp 65001 >nul 2>&1
-title ContextGuard -- Runtime Safety Gateway
+title AI Agent Security Platform
 color 0B
-
-echo.
-echo  ============================================================
-echo   ContextGuard -- Runtime Safety Gateway for Web Agents
-echo  ============================================================
-echo.
-
-:: Move to the folder this .bat file lives in
 cd /d "%~dp0"
-
-:: Set UTF-8 encoding to prevent UnicodeEncodeError
 set PYTHONIOENCODING=utf-8
 set PYTHONPATH=%~dp0
 
-:: Check venv exists
+echo.
+echo  ============================================================
+echo   AI Web Agent Security Testing Platform
+echo   ContextGuard -- Runtime Safety Gateway
+echo  ============================================================
+echo.
+
 if not exist "venv\Scripts\python.exe" (
     echo  [ERROR] Virtual environment not found.
     echo.
     echo  Run these commands first:
-    echo.
     echo    python -m venv venv
     echo    venv\Scripts\activate
     echo    pip install -r requirements.txt
@@ -31,14 +26,15 @@ if not exist "venv\Scripts\python.exe" (
     exit /b 1
 )
 
-echo  Starting all services...
-echo  Open your browser to: http://127.0.0.1:8000
+echo  Starting platform...
+echo  Dashboard: http://127.0.0.1:8000/dashboard
+echo  Booking:   http://127.0.0.1:8000/
 echo.
-echo  Press Ctrl+C in this window to stop everything.
+echo  Press Ctrl+C to stop.
 echo.
 
 "venv\Scripts\python.exe" launcher.py
 
 echo.
-echo  ContextGuard has stopped.
+echo  Platform stopped.
 pause

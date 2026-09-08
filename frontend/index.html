@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Mock Flight Booking — AI Agent Sandbox</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;color:#222;min-height:100vh;padding:24px}
+.wrap{max-width:680px;margin:0 auto}
+h1{font-size:20px;color:#1a3c5e;margin-bottom:4px}
+.subtitle{font-size:12px;color:#888;margin-bottom:20px}
+.card{background:#fff;border-radius:10px;padding:24px;box-shadow:0 2px 10px rgba(0,0,0,.08);margin-bottom:16px}
+.steps{display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap}
+.step{padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;background:#e2e8f0;color:#4a5568}
+.step.done{background:#38a169;color:#fff}
+.step.active{background:#2b6cb0;color:#fff}
+label{display:block;font-size:12px;font-weight:600;color:#4a5568;margin:10px 0 3px}
+input,select{width:100%;padding:8px 10px;border:1px solid #cbd5e0;border-radius:6px;font-size:14px}
+input:focus,select:focus{outline:none;border-color:#4299e1}
+.btn{display:inline-block;padding:9px 20px;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;margin-top:12px}
+.btn-primary{background:#2b6cb0;color:#fff}.btn-primary:hover{background:#2c5282}
+.btn-green{background:#38a169;color:#fff}.btn-green:hover{background:#276749}
+.btn-outline{background:transparent;border:1px solid #cbd5e0;color:#4a5568}.btn-outline:hover{background:#f7fafc}
+.flight-card{border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin:8px 0;cursor:pointer;transition:border-color .15s}
+.flight-card:hover{border-color:#4299e1;background:#ebf8ff}
+.flight-card.selected{border-color:#2b6cb0;background:#ebf8ff}
+.airline{font-weight:700;font-size:15px}
+.route{color:#4a5568;font-size:13px;margin:3px 0}
+.price{font-size:18px;font-weight:700;color:#2b6cb0;float:right}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#e2e8f0;color:#4a5568;margin-left:6px}
+.row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:13px}
+.row:last-child{border:none}
+.row-label{color:#718096;font-weight:500}
+.success-box{background:#f0fff4;border:1px solid #68d391;border-radius:8px;padding:20px;text-align:center}
+.conf-num{font-size:24px;font-weight:700;color:#276749;letter-spacing:2px;margin:8px 0}
+.attack-banner{background:#fef3c7;border:2px solid #f59e0b;border-radius:8px;padding:12px;margin:10px 0;font-size:13px}
+.hidden-inject{position:absolute;left:-9999px;font-size:0;opacity:0}
+.error{color:#e53e3e;font-size:13px;margin-top:6px}
+#attack-injection{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>✈ Mock Flight Booking</h1>
+  <p class="subtitle">AI Agent Sandbox — Phase 1 | <a href="/dashboard">Security Dashboard</a></p>
+
+  <!-- Attack injection zone — populated by /api/attack/payload/:page -->
+  <div id="attack-injection"></div>
+
+  <div id="app"></div>
+</div>
+
+<script>
+const API = "";
+let S = { page:"search", flights:[], selected:null, booking:null, error:"" };
+
+// ── Attack injection ─────────────────────────────────────────────────────
+async function loadAttackPayload(pageName) {
+  try {
+    const r = await fetch(`${API}/api/attack/payload/${pageName}`);
+    const d = await r.json();
+    const el = document.getElementById("attack-injection");
+    if (d.injected) {
+      el.style.display = "block";
+      el.innerHTML = d.html;
+    } else {
+      el.style.display = "none";
+      el.innerHTML = "";
+    }
+  } catch(e) { /* silent */ }
+}
+
+// ── Render router ─────────────────────────────────────────────────────────
+function render() {
+  const el = document.getElementById("app");
+  if (S.page === "search")        el.innerHTML = renderSearch();
+  else if (S.page === "results")  el.innerHTML = renderResults();
+  else if (S.page === "passenger")el.innerHTML = renderPassenger();
+  else if (S.page === "review")   el.innerHTML = renderReview();
+  else if (S.page === "confirmed")el.innerHTML = renderConfirmed();
+  loadAttackPayload(S.page);
+}
+
+function steps(active) {
+  const list = ["search","results","passenger","review","confirmed"];
+  const labels = ["Search","Results","Passenger","Review","Confirmed"];
+  return `<div class="steps">${list.map((s,i)=>`
+    <div class="step ${s===active?'active':(list.indexOf(active)>i?'done':'')}">${labels[i]}</div>`).join("")}</div>`;
+}
+
+// ── Page: Search ──────────────────────────────────────────────────────────
+function renderSearch() {
+  return `<div class="card">
+    ${steps("search")}
+    <label>From</label><input id="origin" value="Chennai"/>
+    <label>To</label><input id="destination" value="Delhi"/>
+    <label>Cabin Class</label>
+    <select id="cabin">
+      <option value="Economy">Economy</option>
+      <option value="Business">Business</option>
+    </select>
+    <label>Date (optional)</label><input id="date" type="date"/>
+    <button class="btn btn-primary" onclick="doSearch()">SEARCH FLIGHTS</button>
+    ${S.error?`<div class="error">${S.error}</div>`:""}
+  </div>`;
+}
+
+async function doSearch() {
+  S.error = "";
+  const origin = document.getElementById("origin").value.trim();
+  const dest   = document.getElementById("destination").value.trim();
+  const cabin  = document.getElementById("cabin").value;
+  const date   = document.getElementById("date").value;
+  if (!origin || !dest) { S.error="Please enter origin and destination."; render(); return; }
+  try {
+    let url = `${API}/api/flights/search?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(dest)}&cabin_class=${encodeURIComponent(cabin)}`;
+    if (date) url += `&date=${date}`;
+    const d = await (await fetch(url)).json();
+    S.flights = d.flights || [];
+    S.page = "results";
+  } catch(e) { S.error = "Search failed: "+e.message; }
+  render();
+}
+
+// ── Page: Results ─────────────────────────────────────────────────────────
+function renderResults() {
+  if (!S.flights.length) return `<div class="card">
+    ${steps("results")}
+    <p style="color:#718096;text-align:center;padding:20px">No flights found.</p>
+    <button class="btn btn-outline" onclick="S.page='search';render()">Back to Search</button>
+  </div>`;
+  return `<div class="card">
+    ${steps("results")}
+    <p style="font-size:13px;color:#718096;margin-bottom:8px">${S.flights.length} flight(s) found</p>
+    ${S.flights.map(f=>`
+    <div class="flight-card" id="fc-${f.flight_id}" onclick="selectFlight('${f.flight_id}')">
+      <span class="price">₹${f.price}</span>
+      <div class="airline">${f.airline} <span class="badge">${f.cabin_class}</span></div>
+      <div class="route">${f.origin} → ${f.destination} &nbsp;|&nbsp; ${f.departure_time} – ${f.arrival_time}</div>
+      <div style="font-size:12px;color:#a0aec0;margin-top:3px">${f.date}</div>
+    </div>`).join("")}
+    <button class="btn btn-outline" style="margin-top:4px" onclick="S.page='search';render()">Back</button>
+  </div>`;
+}
+
+function selectFlight(id) {
+  S.selected = S.flights.find(f=>f.flight_id===id);
+  S.page = "passenger";
+  render();
+}
+
+// ── Page: Passenger ────────────────────────────────────────────────────────
+function renderPassenger() {
+  const f = S.selected;
+  return `<div class="card">
+    ${steps("passenger")}
+    <div style="background:#ebf8ff;border-radius:6px;padding:10px;margin-bottom:14px;font-size:13px">
+      <b>${f.airline}</b> &nbsp;|&nbsp; ${f.origin} → ${f.destination}
+      &nbsp;|&nbsp; ${f.departure_time}–${f.arrival_time}
+      &nbsp;|&nbsp; <b>₹${f.price}</b>
+    </div>
+    <label>Passenger Name</label><input id="pname" value="Test Passenger"/>
+    <label>Passenger Count</label><input id="pcount" type="number" value="1" min="1" max="9"/>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="createBooking()">CONTINUE TO REVIEW</button>
+      <button class="btn btn-outline" onclick="S.page='results';render()">Back</button>
+    </div>
+    ${S.error?`<div class="error">${S.error}</div>`:""}
+  </div>`;
+}
+
+async function createBooking() {
+  S.error = "";
+  const name  = document.getElementById("pname").value.trim();
+  const count = parseInt(document.getElementById("pcount").value,10)||1;
+  if (!name) { S.error="Please enter passenger name."; render(); return; }
+  try {
+    const r = await fetch(`${API}/api/bookings`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({flight_id:S.selected.flight_id,passenger_name:name,passenger_count:count})
+    });
+    if (!r.ok) throw new Error(await r.text());
+    S.booking = await r.json();
+    S.page = "review";
+  } catch(e) { S.error = "Booking failed: "+e.message; }
+  render();
+}
+
+// ── Page: Review ───────────────────────────────────────────────────────────
+function renderReview() {
+  const b = S.booking;
+  return `<div class="card">
+    ${steps("review")}
+    <p style="font-size:13px;color:#718096;margin-bottom:12px">
+      Review your booking carefully before confirming.
+    </p>
+    <div class="row"><span class="row-label">Flight</span><span>${S.selected.airline}</span></div>
+    <div class="row"><span class="row-label">Route</span><span>${b.origin} → ${b.destination}</span></div>
+    <div class="row"><span class="row-label">Date</span><span>${b.date}</span></div>
+    <div class="row"><span class="row-label">Cabin</span><span>${b.cabin_class}</span></div>
+    <div class="row"><span class="row-label">Passenger</span><span>${b.passenger_name}</span></div>
+    <div class="row"><span class="row-label">Count</span><span>${b.passenger_count}</span></div>
+    <div class="row"><span class="row-label">Total</span><span><b>₹${b.total_price}</b></span></div>
+    <div class="row"><span class="row-label">Booking ID</span><span style="font-size:11px;color:#a0aec0">${b.booking_id}</span></div>
+    <div style="background:#fffbeb;border:1px solid #f6e05e;border-radius:6px;padding:10px;font-size:12px;margin:12px 0">
+      ⚠ Payment is NOT taken. This is a mock booking for AI agent testing.
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-green" id="confirm-btn" onclick="confirmBooking()">CONFIRM BOOKING</button>
+      <button class="btn btn-outline" onclick="S.page='passenger';render()">Back</button>
+    </div>
+    ${S.error?`<div class="error">${S.error}</div>`:""}
+  </div>`;
+}
+
+async function confirmBooking() {
+  S.error = "";
+  document.getElementById("confirm-btn").textContent = "Confirming...";
+  try {
+    const r = await fetch(`${API}/api/bookings/${S.booking.booking_id}/confirm`,{method:"POST"});
+    if (!r.ok) throw new Error(await r.text());
+    S.booking = await r.json();
+    S.page = "confirmed";
+  } catch(e) { S.error = "Confirmation failed: "+e.message; }
+  render();
+}
+
+// ── Page: Confirmed ────────────────────────────────────────────────────────
+function renderConfirmed() {
+  const b = S.booking;
+  return `<div class="card">
+    ${steps("confirmed")}
+    <div class="success-box">
+      <div style="font-size:28px;margin-bottom:8px">✅</div>
+      <div style="font-weight:700;font-size:17px;color:#276749">Booking Confirmed!</div>
+      <div class="conf-num">${b.booking_id.slice(0,8).toUpperCase()}</div>
+      <div style="font-size:13px;color:#4a5568;margin-top:6px">
+        ${b.airline||S.selected.airline} &nbsp;·&nbsp; ${b.origin} → ${b.destination}
+        &nbsp;·&nbsp; ${b.cabin_class}
+      </div>
+      <div style="font-size:13px;color:#4a5568">${b.passenger_name} × ${b.passenger_count}</div>
+      <div style="font-size:16px;font-weight:700;margin-top:8px">₹${b.total_price}</div>
+    </div>
+    <button class="btn btn-outline" style="margin-top:12px" onclick="newBooking()">New Booking</button>
+    <a class="btn btn-outline" href="/dashboard" style="margin-left:8px;text-decoration:none">View Dashboard</a>
+  </div>`;
+}
+
+function newBooking() {
+  S = { page:"search", flights:[], selected:null, booking:null, error:"" };
+  render();
+}
+
+// Boot
+render();
+</script>
+</body>
+</html>
