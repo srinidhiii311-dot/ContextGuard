@@ -37,7 +37,7 @@ def get_conn() -> sqlite3.Connection:
 
 
 def now_iso() -> str:
-    return datetime.datetime.utcnow().isoformat()
+    return datetime.datetime.now(datetime.timezone.utc).isoformat()
 
 
 # ---------------------------------------------------------------------------

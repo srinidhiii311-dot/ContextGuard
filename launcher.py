@@ -310,6 +310,8 @@ def main() -> None:
                    help="Run pytest + evaluation report then exit")
     p.add_argument("--eval",  action="store_true",
                    help="Run evaluation report only then exit")
+    p.add_argument("--api-only", action="store_true",
+                   help="Start API server only")
     args = p.parse_args()
 
     if args.bench: run_benchmark(); return

@@ -40,7 +40,8 @@ ai-agent-security-platform/
 │   ├── dom_manipulation.py
 │   ├── navigation_attack.py
 │   └── payloads.py            Central dispatcher
-├── contextguard/              Phase 5 — Safety monitor
+├── contextguard/              Phase 5 — Synchronous Safety Gate & Monitors
+│   ├── gate.py                Synchronous pre-action gate (ALLOW/BLOCK/FLAG)
 │   ├── context_store.py       Snapshot capture + storage
 │   ├── url_monitor.py         Domain + page-order checks
 │   ├── dom_monitor.py         Injection keyword + DOM diff
@@ -48,9 +49,9 @@ ai-agent-security-platform/
 │   ├── consistency_checker.py Combines all monitors
 │   ├── risk_engine.py         0–100 score, SAFE/SUSPICIOUS/HIGH_RISK
 │   └── intervention.py        Async hook — pauses agent at threshold
-├── dashboard.html             Phase 6 — Live security dashboard
+├── dashboard.html             Phase 6 — Live security dashboard & pre-action overlay
 ├── tests/
-│   └── test_cases.py          Phase 7 — 45+ tests + evaluation matrix
+│   └── test_cases.py          Phase 7 — 68 tests + evaluation matrix
 ├── launcher.py                Single-command startup
 └── start.bat                  Windows double-click launcher
 ```
@@ -174,18 +175,20 @@ Attack types:
 - `dom_manipulation` — JS silently mutates form values
 - `navigation_attack` — rewrites links to attacker URL
 
-### Phase 5 — ContextGuard
+### Phase 5 — ContextGuard (Synchronous Pre-Action Gate)
 
-ContextGuard runs automatically when the agent runs with protection enabled.
+ContextGuard runs inline as a synchronous **pre-action gate** (`gate.py`):
+`observe` → `propose_action` → `[GATE]` → `act` → `repeat`.
 
-Monitors:
-- **URL monitor** — detects foreign domains, page-order violations
-- **DOM monitor** — detects injection keywords, hidden content, large DOM changes
-- **Action analyzer** — detects cabin/destination mismatch, premature submit
+Every proposed action is checked against the immutable `TrustedIntent` and DOM ground truth **BEFORE** execution:
+- **Protected field validation** — ensures cabin class, destination, origin, and passenger count cannot be subverted by web page content.
+- **Injection marker detection** — scans DOM text and agent reasoning for override indicators (`ignore previous`, `system update`, etc.).
+- **Domain trust boundary** — prevents navigation outside localhost / 127.0.0.1.
+- **Immediate WebSocket broadcast** — pushes `ALLOW`, `BLOCK`, or `FLAG` decision to dashboard overlay in the same tick.
 
 Risk score: 0–100 → SAFE (0–29) / SUSPICIOUS (30–59) / HIGH_RISK (60–100)
 
-Intervention: agent is paused when score ≥ 60. Dashboard shows **Resume** button.
+Intervention: when a violation or threshold breach occurs, the gate emits `Decision.BLOCK`, immediately pausing the agent before the dangerous browser action is executed.
 
 ### Phase 6 — Dashboard
 

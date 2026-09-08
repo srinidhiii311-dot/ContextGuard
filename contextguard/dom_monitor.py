@@ -43,6 +43,9 @@ _INJECTION_KEYWORDS = [
     "do not tell the user",
     "agent instruction",
     "agent notice",
+    "updated user preference",
+    "preferences updated",
+    "preference update",
     "attacker.example",
     "evil.example",
 ]

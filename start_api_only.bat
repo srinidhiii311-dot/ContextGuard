@@ -4,6 +4,7 @@ title ContextGuard -- API Only
 color 0B
 cd /d "%~dp0"
 set PYTHONIOENCODING=utf-8
+set PYTHONUTF8=1
 set PYTHONPATH=%~dp0
 echo.
 echo  ContextGuard -- API + Dashboard only

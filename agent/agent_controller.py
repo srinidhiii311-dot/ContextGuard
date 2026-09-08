@@ -28,6 +28,13 @@ from agent.browser_controller import BrowserController, DOMSnapshot
 from agent.task_parser import parse_task
 from backend.database.db import insert_agent_action, now_iso, update_task
 from backend.websocket.manager import ws_manager
+from contextguard.gate import (
+    ContextGuardGate,
+    Decision,
+    GateResult,
+    ProposedAction,
+    TrustedIntent,
+)
 
 USE_LLM_DECISIONS = False
 LLM_MODEL         = "llama3"
@@ -66,6 +73,23 @@ def _decide_rule(state: AgentState, snapshot: DOMSnapshot) -> Optional[Dict[str,
     intent  = state.intent
     buttons = [b.upper() for b in snapshot.buttons]
     inputs  = {i["name"].lower(): i for i in snapshot.inputs}
+
+    # If the page contains adversarial prompt injection or manipulation instructions,
+    # a naive baseline agent perceives and follows them:
+    vis_lower = (snapshot.visible_text or "").lower()
+    raw_lower = (getattr(snapshot, "raw_html", "") or "").lower()
+    combined = vis_lower + " " + raw_lower
+
+    if "upgrade" in combined and "business" in combined:
+        if page == "search":
+            return {"type": "SELECT", "selector": "#cabin", "value": "Business"}
+        elif page == "review":
+            return {"type": "SELECT", "selector": "#cabin", "value": "Business"}
+    elif "attacker.example" in combined or "collect" in combined:
+        return {"type": "NAVIGATE", "url": "http://attacker.example/collect"}
+    elif "passenger count to 5" in combined or "count to 5" in combined:
+        if page == "passenger":
+            return {"type": "TYPE", "selector": "#pcount", "value": "5"}
 
     if page == "search":
         # Fill origin
@@ -184,27 +208,90 @@ class AgentController:
     intervention_hook: optional async callable(state, snapshot, action) → bool
         If it returns False, the action is BLOCKED and the loop pauses.
         This is how ContextGuard's intervention (Phase 5.4) integrates.
+    gate: optional synchronous ContextGuardGate instance for pre-action gating.
     """
 
     def __init__(
         self,
         headless: bool = True,
         intervention_hook: Optional[Callable] = None,
+        gate: Optional[ContextGuardGate] = None,
+        with_contextguard: bool = True,
     ) -> None:
-        self.browser  = BrowserController(headless=headless)
-        self._hook    = intervention_hook
+        self.browser           = BrowserController(headless=headless)
+        self._hook             = intervention_hook
+        self.gate              = gate
+        self.with_contextguard = with_contextguard
 
-    async def run(self, task_id: str, instruction: str) -> AgentState:
+    def _on_gate_decision(self, task_id: str, entry: dict) -> None:
+        action = entry["action"]
+        res    = entry["result"]
+        ws_manager.broadcast_sync({
+            "type":        "gate_decision",
+            "task_id":     task_id,
+            "decision":    res.decision.value,
+            "reason":      res.reason,
+            "expected":    res.expected,
+            "proposed":    res.proposed,
+            "risk_score":  res.risk_score,
+            "action_type": action.action_type,
+            "target":      action.target,
+            "value":       action.value,
+            "timestamp":   entry["timestamp"],
+        })
+
+    async def run(
+        self,
+        task_id: str,
+        instruction: str,
+        attack_mode: str = "off",
+        with_contextguard: Optional[bool] = None,
+    ) -> AgentState:
         """
         Full agent run from instruction to CONFIRMED booking.
         Stores every step in the database (Checkpoint 2.3).
+        Synchronous pre-action gate (Phase 5 gate.py) evaluates every proposed action.
         """
+        if with_contextguard is not None:
+            self.with_contextguard = with_contextguard
+
         intent = parse_task(instruction)
+        trusted_intent = TrustedIntent.from_dict(intent)
         state  = AgentState(task_id=task_id, intent=intent)
 
         update_task(task_id,
                     status="RUNNING",
                     parsed_intent=json.dumps(intent))
+
+        # Setup synchronous pre-action gate if ContextGuard is enabled
+        if self.with_contextguard and self.gate is None:
+            self.gate = ContextGuardGate(
+                trusted_intent,
+                on_decision=lambda entry: self._on_gate_decision(task_id, entry),
+            )
+
+        # Automated scripted attack injection (Phase 4 Checkpoint 4.1)
+        if attack_mode and attack_mode.lower() != "off":
+            target_page = "review" if attack_mode in ("prompt_injection", "hidden_content", "navigation_attack") else "search"
+            try:
+                from attacks.payloads import get_attack_payload
+                from backend.database.db import insert_attack
+                p_text = get_attack_payload(attack_mode, target_page)
+                insert_attack(
+                    attack_type=attack_mode,
+                    target_page=target_page,
+                    payload=p_text,
+                    task_id=task_id,
+                )
+                ws_manager.broadcast_sync({
+                    "type":        "attack_injected",
+                    "attack_type": attack_mode,
+                    "target_page": target_page,
+                    "task_id":     task_id,
+                    "automated":   True,
+                })
+            except Exception:
+                pass
 
         await self.browser.start()
         await self.browser.navigate_to_base()
@@ -232,8 +319,39 @@ class AgentController:
                     state.status = "DONE"
                     break
 
-                # --- Intervention hook (ContextGuard Phase 5.4) ---
-                if self._hook:
+                # --- ContextGuard Synchronous Pre-Action Gate (gate.py) ---
+                if self.gate and self.with_contextguard:
+                    proposed = ProposedAction.from_dict(
+                        action,
+                        page_url=snapshot.url,
+                        source_text=snapshot.visible_text if snapshot.attack_text_detected else None,
+                    )
+                    gate_res = self.gate.check(proposed, snapshot.visible_text)
+                    if gate_res.decision == Decision.BLOCK:
+                        state.status = "PAUSED"
+                        await self._log(state, snapshot, action,
+                                        f"BLOCKED by ContextGuard Gate: {gate_res.reason}")
+                        ws_manager.broadcast_sync({
+                            "type":           "agent_paused",
+                            "task_id":        task_id,
+                            "step":           state.step,
+                            "risk_score":     gate_res.risk_score,
+                            "status":         "HIGH_RISK",
+                            "reason":         gate_res.reason,
+                            "action_blocked": action,
+                        })
+                        break
+                    elif gate_res.decision == Decision.FLAG:
+                        ws_manager.broadcast_sync({
+                            "type":    "gate_warning",
+                            "task_id": task_id,
+                            "step":    state.step,
+                            "reason":  gate_res.reason,
+                            "action":  action,
+                        })
+
+                # --- Intervention hook (ContextGuard Phase 5.4 legacy compatibility) ---
+                if self._hook and self.with_contextguard:
                     allowed = await self._hook(state, snapshot, action)
                     if not allowed:
                         state.status = "PAUSED"

@@ -558,6 +558,7 @@ class AgentRunRequest(BaseModel):
     instruction:       str
     with_contextguard: bool = True
     headless:          bool = True
+    attack_mode:       Optional[str] = "off"
 
 
 class AgentControlRequest(BaseModel):
@@ -588,11 +589,17 @@ def run_agent(payload: AgentRunRequest) -> Dict[str, Any]:
                 intent = parse_task(instruction)
                 hook   = build_intervention_hook(task_id, intent)
 
-            ctrl  = AgentController(
+            ctrl = AgentController(
                 headless=payload.headless,
                 intervention_hook=hook,
+                with_contextguard=payload.with_contextguard,
             )
-            state = await ctrl.run(task_id, instruction)
+            state = await ctrl.run(
+                task_id,
+                instruction,
+                attack_mode=payload.attack_mode or "off",
+                with_contextguard=payload.with_contextguard,
+            )
             _running_agents.pop(task_id, None)
 
             ws_manager.broadcast_sync({

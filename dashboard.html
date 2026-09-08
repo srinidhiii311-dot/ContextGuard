@@ -197,6 +197,41 @@ a{color:var(--teal);text-decoration:none}
     </div>
   </section>
 
+  <!-- Live Pre-Action Gate Decision Overlay (Phase 5 gate.py) -->
+  <section class="section full" id="gate-overlay-section" style="border-color:var(--teal-dim)">
+    <div class="sec-header">
+      <div class="sec-title" style="display:flex;align-items:center;gap:8px">
+        <span>🛡 ContextGuard Pre-Action Gate (Synchronous)</span>
+        <span class="badge badge-clean" id="gate-latest-badge">GATE READY</span>
+      </div>
+      <div id="gate-score-display" class="risk-num r-safe">Risk: 0 / 100</div>
+    </div>
+    <div class="cards" style="margin-bottom:12px">
+      <div class="card" style="flex:1 1 120px">
+        <div class="card-label">Gate Decision</div>
+        <div class="card-val" id="gate-decision" style="font-size:1.3rem;color:var(--safe)">ALLOW</div>
+      </div>
+      <div class="card" style="flex:2 1 200px">
+        <div class="card-label">Proposed Action</div>
+        <div class="card-val mono" id="gate-action" style="font-size:0.85rem;color:var(--head);margin-top:6px">—</div>
+      </div>
+      <div class="card" style="flex:3 1 280px">
+        <div class="card-label">Reason / Security Finding</div>
+        <div class="card-val" id="gate-reason" style="font-size:0.8rem;color:var(--muted);margin-top:4px;white-space:normal;line-height:1.3">Awaiting action proposal...</div>
+      </div>
+    </div>
+    <div class="ctx-grid">
+      <div class="ctx-box">
+        <h4>Expected from Trusted Intent</h4>
+        <div class="ctx-val mono" id="gate-expected" style="text-align:left;color:var(--teal);white-space:normal">—</div>
+      </div>
+      <div class="ctx-box">
+        <h4>Proposed by Agent / Attack</h4>
+        <div class="ctx-val mono" id="gate-proposed" style="text-align:left;color:var(--text);white-space:normal">—</div>
+      </div>
+    </div>
+  </section>
+
   <!-- Left column -->
 
   <!-- Live ContextGuard panel -->
@@ -263,9 +298,17 @@ a{color:var(--teal);text-decoration:none}
       <input id="task-instruction"
         value="Book an economy flight from Chennai to Delhi for 1 passenger"
         placeholder="Plain-English booking instruction..."/>
+      <select id="task-attack-mode">
+        <option value="off">Attack Mode: Off (Clean Baseline)</option>
+        <option value="prompt_injection">Attack Mode: Prompt Injection (Instruction Override)</option>
+        <option value="context_manipulation">Attack Mode: Context Manipulation (Fake Preference)</option>
+        <option value="hidden_content">Attack Mode: Hidden Content (CSS Hidden Instructions)</option>
+        <option value="dom_manipulation">Attack Mode: DOM Manipulation (Form Value Tampering)</option>
+        <option value="navigation_attack">Attack Mode: Navigation Attack (Untrusted Redirect)</option>
+      </select>
       <select id="task-with-cg">
-        <option value="1">With ContextGuard (protected)</option>
-        <option value="0">Without ContextGuard (baseline)</option>
+        <option value="1">With ContextGuard Pre-Action Gate (protected)</option>
+        <option value="0">Without ContextGuard (vulnerable baseline)</option>
       </select>
       <select id="task-headless">
         <option value="1">Headless browser</option>
@@ -481,6 +524,48 @@ function handleEvent(ev){
       `Injected: ${ev.attack_type} on ${ev.target_page}`;
   }
 
+  else if(type==='gate_decision'){
+    const dec = ev.decision;
+    const decEl = document.getElementById('gate-decision');
+    const badgeEl = document.getElementById('gate-latest-badge');
+    const scoreEl = document.getElementById('gate-score-display');
+    const score = ev.risk_score || 0;
+
+    decEl.textContent = dec;
+    scoreEl.textContent = `Risk: ${score} / 100`;
+    scoreEl.className = 'risk-num ' + (dec === 'BLOCK' ? 'r-high' : (dec === 'FLAG' ? 'r-warn' : 'r-safe'));
+
+    if(dec === 'BLOCK'){
+      decEl.style.color = 'var(--risk)';
+      badgeEl.className = 'badge badge-high';
+      badgeEl.textContent = 'ACTION BLOCKED';
+      _alertCount++;
+      document.getElementById('c-alerts').textContent = _alertCount;
+    } else if(dec === 'FLAG'){
+      decEl.style.color = 'var(--warn)';
+      badgeEl.className = 'badge badge-suspicious';
+      badgeEl.textContent = 'ACTION FLAGGED';
+    } else {
+      decEl.style.color = 'var(--safe)';
+      badgeEl.className = 'badge badge-safe';
+      badgeEl.textContent = 'ACTION ALLOWED';
+    }
+
+    const actionStr = `${ev.action_type || ''} ${ev.target || ''} ${ev.value ? '→ ' + ev.value : ''}`;
+    document.getElementById('gate-action').textContent = actionStr || '—';
+    document.getElementById('gate-reason').textContent = ev.reason || '—';
+    document.getElementById('gate-expected').textContent = ev.expected ? `${ev.expected}` : 'Intent parameters consistent';
+    document.getElementById('gate-proposed').textContent = ev.proposed ? `${ev.proposed}` : (ev.value || actionStr);
+
+    prependAlert({
+      type: 'gate',
+      status: dec === 'BLOCK' ? 'HIGH_RISK' : (dec === 'FLAG' ? 'SUSPICIOUS' : 'SAFE'),
+      text: `Gate [${dec}]: ${actionStr}`,
+      sub: ev.reason || '',
+      ts: new Date().toISOString()
+    });
+  }
+
   else if(type==='booking_confirmed'){
     document.getElementById('c-agent-status').textContent = 'DONE';
   }
@@ -509,8 +594,9 @@ function prependAlert({type,status,text,sub,ts: timestamp}){
 async function runTask(){
   const instruction = document.getElementById('task-instruction').value.trim();
   if(!instruction){ alert('Enter an instruction.'); return; }
-  const withCG   = document.getElementById('task-with-cg').value==='1';
-  const headless = document.getElementById('task-headless').value==='1';
+  const attackMode  = document.getElementById('task-attack-mode').value;
+  const withCG      = document.getElementById('task-with-cg').value==='1';
+  const headless    = document.getElementById('task-headless').value==='1';
 
   document.getElementById('run-btn').disabled = true;
   document.getElementById('run-btn').textContent = 'Starting...';
@@ -534,8 +620,9 @@ async function runTask(){
     await fetch(`${API}/api/agent/run`,{
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
-        task_id:    task.task_id,
+        task_id: task.task_id,
         instruction,
+        attack_mode: attackMode,
         with_contextguard: withCG,
         headless
       })
