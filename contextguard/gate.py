@@ -613,7 +613,8 @@ class ContextGuardGate:
             "BLOCK":                Decision.BLOCK,
             "PAUSE_TASK":           Decision.PAUSE_TASK,
         }
-        decision = policy_map.get(policy.decision.value, Decision.BLOCK)
+        dec_key = getattr(policy.decision, "value", str(policy.decision))
+        decision = policy_map.get(dec_key, Decision.BLOCK)
 
         # Build reason chain
         parts = [policy.reason]
