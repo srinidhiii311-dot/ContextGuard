@@ -34,10 +34,10 @@ input:focus,select:focus{outline:none;border-color:#4299e1}
 .row-label{color:#718096;font-weight:500}
 .success-box{background:#f0fff4;border:1px solid #68d391;border-radius:8px;padding:20px;text-align:center}
 .conf-num{font-size:24px;font-weight:700;color:#276749;letter-spacing:2px;margin:8px 0}
-.attack-banner{background:#fef3c7;border:2px solid #f59e0b;border-radius:8px;padding:12px;margin:10px 0;font-size:13px}
+.notice-banner{background:#fef3c7;border:2px solid #f59e0b;border-radius:8px;padding:12px;margin:10px 0;font-size:13px}
 .hidden-inject{position:absolute;left:-9999px;font-size:0;opacity:0}
 .error{color:#e53e3e;font-size:13px;margin-top:6px}
-#attack-injection{display:none}
+#portal-advisory-slot{display:none}
 </style>
 </head>
 <body>
@@ -45,8 +45,8 @@ input:focus,select:focus{outline:none;border-color:#4299e1}
   <h1>✈ Mock Flight Booking</h1>
   <p class="subtitle">AI Agent Sandbox — Phase 1 | <a href="/dashboard">Security Dashboard</a></p>
 
-  <!-- Attack injection zone — populated by /api/attack/payload/:page -->
-  <div id="attack-injection"></div>
+  <!-- Carrier advisory / notification slot -->
+  <div id="portal-advisory-slot"></div>
 
   <div id="app"></div>
 </div>
@@ -55,12 +55,12 @@ input:focus,select:focus{outline:none;border-color:#4299e1}
 const API = "";
 let S = { page:"search", flights:[], selected:null, booking:null, error:"" };
 
-// ── Attack injection ─────────────────────────────────────────────────────
+// ── Advisory slot loader ──────────────────────────────────────────────────
 async function loadAttackPayload(pageName) {
   try {
     const r = await fetch(`${API}/api/attack/payload/${pageName}`);
     const d = await r.json();
-    const el = document.getElementById("attack-injection");
+    const el = document.getElementById("portal-advisory-slot");
     if (d.injected) {
       el.style.display = "block";
       el.innerHTML = d.html;
@@ -73,6 +73,7 @@ async function loadAttackPayload(pageName) {
 
 // ── Render router ─────────────────────────────────────────────────────────
 function render() {
+  window.location.hash = '#' + S.page;
   const el = document.getElementById("app");
   if (S.page === "search")        el.innerHTML = renderSearch();
   else if (S.page === "results")  el.innerHTML = renderResults();
@@ -93,15 +94,15 @@ function steps(active) {
 function renderSearch() {
   return `<div class="card">
     ${steps("search")}
-    <label>From</label><input id="origin" value="Chennai"/>
-    <label>To</label><input id="destination" value="Delhi"/>
+    <label>From</label><input id="origin" placeholder="City or Airport (e.g. Chennai)"/>
+    <label>To</label><input id="destination" placeholder="City or Airport (e.g. Delhi)"/>
     <label>Cabin Class</label>
     <select id="cabin">
       <option value="Economy">Economy</option>
       <option value="Business">Business</option>
     </select>
     <label>Date (optional)</label><input id="date" type="date"/>
-    <button class="btn btn-primary" onclick="doSearch()">SEARCH FLIGHTS</button>
+    <button class="btn btn-primary" id="btn-search" onclick="doSearch()">SEARCH FLIGHTS</button>
     ${S.error?`<div class="error">${S.error}</div>`:""}
   </div>`;
 }
@@ -160,10 +161,10 @@ function renderPassenger() {
       &nbsp;|&nbsp; ${f.departure_time}–${f.arrival_time}
       &nbsp;|&nbsp; <b>₹${f.price}</b>
     </div>
-    <label>Passenger Name</label><input id="pname" value="Test Passenger"/>
+    <label>Passenger Name</label><input id="pname" placeholder="Full Passenger Name"/>
     <label>Passenger Count</label><input id="pcount" type="number" value="1" min="1" max="9"/>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-primary" onclick="createBooking()">CONTINUE TO REVIEW</button>
+      <button class="btn btn-primary" id="btn-passenger-continue" onclick="createBooking()">CONTINUE TO REVIEW</button>
       <button class="btn btn-outline" onclick="S.page='results';render()">Back</button>
     </div>
     ${S.error?`<div class="error">${S.error}</div>`:""}
@@ -205,7 +206,7 @@ function renderReview() {
     <div class="row"><span class="row-label">Total</span><span><b>₹${b.total_price}</b></span></div>
     <div class="row"><span class="row-label">Booking ID</span><span style="font-size:11px;color:#a0aec0">${b.booking_id}</span></div>
     <div style="background:#fffbeb;border:1px solid #f6e05e;border-radius:6px;padding:10px;font-size:12px;margin:12px 0">
-      ⚠ Payment is NOT taken. This is a mock booking for AI agent testing.
+      ⚠ Payment is NOT taken. This is a simulation sandbox for flight bookings.
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-green" id="confirm-btn" onclick="confirmBooking()">CONFIRM BOOKING</button>

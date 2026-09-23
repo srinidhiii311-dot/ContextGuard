@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>ContextGuard — Detection Accuracy & ML Training</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0b0f17;
+    --surface: #111827;
+    --card: #1a2234;
+    --border: #334155;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --teal: #38bdf8;
+    --green: #10b981;
+    --red: #ef4444;
+    --warn: #f59e0b;
+    --purple: #a855f7;
+  }
+  body {
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Header */
+  .header {
+    height: 56px;
+    background: rgba(17, 24, 39, 0.95);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 28px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .brand-icon {
+    font-size: 20px;
+    filter: drop-shadow(0 0 8px #38bdf8);
+  }
+  .brand h1 {
+    font-size: 16px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: 0.3px;
+  }
+  .nav-links {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    align-items: center;
+  }
+  .nav-link {
+    color: var(--muted);
+    text-decoration: none;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+  }
+  .nav-link:hover { color: #fff; background: rgba(255, 255, 255, 0.06); }
+  .nav-link.active {
+    color: var(--teal);
+    border-bottom: 2px solid var(--teal);
+    border-radius: 6px 6px 0 0;
+  }
+
+  /* Main Container */
+  .main-wrapper {
+    flex: 1;
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 28px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .page-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .page-desc {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* Metric Cards Grid */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 14px;
+  }
+  .metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .metric-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+  }
+  .metric-num {
+    font-size: 26px;
+    font-weight: 800;
+    color: #fff;
+    margin-top: 8px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Two Column Section */
+  .two-col-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 20px;
+  }
+
+  /* Confusion Matrix */
+  .matrix-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .card-label {
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: var(--teal);
+    letter-spacing: 0.6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .confusion-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .cm-box {
+    border-radius: 10px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .cm-box.tp { background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); }
+  .cm-box.tn { background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); }
+  .cm-box.fp { background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); }
+  .cm-box.fn { background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); }
+  .cm-name { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+  .cm-val { font-size: 24px; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+
+  /* ML Training Card */
+  .ml-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 14px;
+  }
+  .ml-desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+  .weights-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    background: var(--card);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .weight-item {
+    display: flex;
+    justify-content: space-between;
+    color: #cbd5e1;
+  }
+  .train-btn {
+    background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 6px 20px -4px rgba(124, 58, 237, 0.5);
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .train-btn:hover {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    transform: translateY(-1px);
+  }
+
+  /* Breakdown Table */
+  .table-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    text-align: left;
+  }
+  th {
+    background: #1e293b;
+    padding: 12px 16px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    color: #cbd5e1;
+  }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="brand">
+    <span class="brand-icon">🛡️</span>
+    <div>
+      <h1>ContextGuard Analytics</h1>
+    </div>
+  </div>
+  <nav class="nav-links">
+    <a href="/" class="nav-link"><span>⚙</span> Task Setup</a>
+    <a href="/live" class="nav-link"><span>⚡</span> Live Monitor</a>
+    <a href="/audit" class="nav-link"><span>📜</span> Audit Records</a>
+    <a href="/report" class="nav-link active"><span>📊</span> Report & Training</a>
+  </nav>
+</header>
+
+<main class="main-wrapper">
+  <div class="page-header">
+    <div>
+      <div class="page-title">
+        <span>📊</span> Detection Accuracy & ML Training
+      </div>
+      <div class="page-desc">
+        Offline evaluation join comparing <code>test_cases.attack_type</code> (ground truth) against <code>verdicts.threat_type</code> (runtime detections). ContextGuard evaluates blind at runtime; ground truth is joined strictly here in the reporting layer.
+      </div>
+    </div>
+  </div>
+
+  <!-- Sample Size & Benchmark Disclosure Banner -->
+  <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 10px; padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; font-size: 13px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span style="font-size: 16px;">ℹ️</span>
+      <div>
+        <span style="font-weight: 700; color: #38bdf8;">Empirical Scenario Catalog Benchmark:</span>
+        <span style="color: #cbd5e1;" id="report-caveat-text">n=24 indicative baseline across scenario catalog (3 runs per scenario, TC-01 to TC-08), not an asymptotic statistical benchmark.</span>
+      </div>
+    </div>
+    <span style="font-size: 11px; font-weight: 700; color: var(--muted); background: rgba(255,255,255,0.06); padding: 4px 10px; border-radius: 6px;" id="sample-size-badge">Sample: n=24</span>
+  </div>
+
+  <!-- Key Metrics Row -->
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <div class="metric-title">Accuracy</div>
+      <div class="metric-num" style="color: #38bdf8;" id="m-acc">--</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-title">Precision</div>
+      <div class="metric-num" style="color: #10b981;" id="m-prec">--</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-title">Recall</div>
+      <div class="metric-num" style="color: #10b981;" id="m-rec">--</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-title">F1 Score</div>
+      <div class="metric-num" style="color: #a855f7;" id="m-f1">--</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-title">Block Rate</div>
+      <div class="metric-num" style="color: #ef4444;" id="m-block">--</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-title">Mean Latency</div>
+      <div class="metric-num" style="color: #f59e0b;" id="m-lat">--</div>
+    </div>
+  </div>
+
+  <div class="two-col-grid">
+    <!-- Confusion Matrix -->
+    <div class="matrix-card">
+      <div class="card-label"><span>🔍</span> Empirical Confusion Matrix</div>
+      <div class="confusion-grid">
+        <div class="cm-box tp">
+          <div class="cm-name">True Positive (TP)</div>
+          <div class="cm-val" style="color: #10b981;" id="cm-tp">0</div>
+          <span style="font-size: 10px; color: var(--muted);">Adversarial correctly detected/blocked</span>
+        </div>
+        <div class="cm-box tn">
+          <div class="cm-name">True Negative (TN)</div>
+          <div class="cm-val" style="color: #38bdf8;" id="cm-tn">0</div>
+          <span style="font-size: 10px; color: var(--muted);">Benign allowed cleanly</span>
+        </div>
+        <div class="cm-box fp">
+          <div class="cm-name">False Positive (FP)</div>
+          <div class="cm-val" style="color: #f59e0b;" id="cm-fp">0</div>
+          <span style="font-size: 10px; color: var(--muted);">Benign falsely flagged</span>
+        </div>
+        <div class="cm-box fn">
+          <div class="cm-name">False Negative (FN)</div>
+          <div class="cm-val" style="color: #ef4444;" id="cm-fn">0</div>
+          <span style="font-size: 10px; color: var(--muted);">Adversarial attack missed</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ML Offline Trainer -->
+    <div class="ml-card">
+      <div>
+        <div class="card-label"><span>🧠</span> Train ContextGuard ML Classifier</div>
+        <div class="ml-desc" style="margin-top: 6px;">
+          Trains statistical model weights offline by comparing natural language instructions with agent actions, HTML DOM structures, and URL boundaries recorded in historical sessions.
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 6px;">Learned Feature Weights:</div>
+        <div class="weights-grid" id="weights-grid">
+          <div class="weight-item"><span>Intent Inconsistency:</span> <b id="w-intent">0.35</b></div>
+          <div class="weight-item"><span>Domain Divergence:</span> <b id="w-domain">0.40</b></div>
+          <div class="weight-item"><span>Injection Patterns:</span> <b id="w-inject">0.25</b></div>
+          <div class="weight-item"><span>Field Tampering:</span> <b id="w-field">0.30</b></div>
+        </div>
+      </div>
+
+      <button class="train-btn" id="train-btn" onclick="trainMLModel()">
+        <span>⚡ Retrain ML Classifier on Historical Logs</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Per Attack Breakdown Table -->
+  <div class="table-card">
+    <div style="padding: 16px 20px; background: #1e293b; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 13px; color: #fff;">
+      Per-Attack-Type Detection Performance
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Attack Type (Ground Truth)</th>
+          <th>Total Runs</th>
+          <th>Detected Count</th>
+          <th>Detection Rate</th>
+          <th>Blocked Count</th>
+          <th>Block Rate</th>
+        </tr>
+      </thead>
+      <tbody id="attack-table-body">
+        <tr>
+          <td colspan="6" style="text-align: center; color: var(--muted); padding: 24px;">Loading evaluation metrics...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<script>
+async function loadReportMetrics() {
+  try {
+    const res = await fetch('/api/report');
+    const d = await res.json();
+
+    document.getElementById('m-acc').textContent = `${d.accuracy}%`;
+    document.getElementById('m-prec').textContent = `${d.precision}%`;
+    document.getElementById('m-rec').textContent = `${d.recall}%`;
+    document.getElementById('m-f1').textContent = `${d.f1_score}%`;
+    document.getElementById('m-block').textContent = `${d.block_rate}%`;
+    document.getElementById('m-lat').textContent = `${d.avg_latency_ms} ms`;
+
+    const cm = d.confusion_matrix || {};
+    document.getElementById('cm-tp').textContent = cm.tp || 0;
+    document.getElementById('cm-tn').textContent = cm.tn || 0;
+    document.getElementById('cm-fp').textContent = cm.fp || 0;
+    document.getElementById('cm-fn').textContent = cm.fn || 0;
+
+    if (d.metadata && d.metadata.caveat) {
+      document.getElementById('report-caveat-text').textContent = d.metadata.caveat;
+    }
+    if (d.metadata && d.metadata.sample_size) {
+      document.getElementById('sample-size-badge').textContent = `Sample: n=${d.metadata.sample_size}`;
+    }
+
+    // Per attack type table
+    const tbody = document.getElementById('attack-table-body');
+    const list = d.per_attack_type || [];
+    if (list.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--muted); padding: 20px;">Run testbed scenarios to generate accuracy data.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = list.map(item => `
+      <tr>
+        <td style="font-weight: 700; color: #fff;">${item.attack_type.replace(/_/g, ' ')}</td>
+        <td>${item.total_runs}</td>
+        <td style="color: #10b981; font-weight: 700;">${item.detected}</td>
+        <td>${item.detection_rate}%</td>
+        <td style="color: #ef4444; font-weight: 700;">${item.blocked}</td>
+        <td>${item.block_rate}%</td>
+      </tr>
+    `).join("");
+
+  } catch(err) {
+    console.error("Report load error:", err);
+  }
+}
+
+async function trainMLModel() {
+  const btn = document.getElementById('train-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span>⏳ Optimizing Weights via SGD...</span>';
+
+  try {
+    const res = await fetch('/api/report/train', { method: 'POST' });
+    const data = await res.json();
+    const metrics = data.metrics || {};
+    const weights = metrics.weights || {};
+
+    if (weights.intent_inconsistency) {
+      document.getElementById('w-intent').textContent = weights.intent_inconsistency;
+    }
+    if (weights.domain_risk) {
+      document.getElementById('w-domain').textContent = weights.domain_risk;
+    }
+    if (weights.injection_risk) {
+      document.getElementById('w-inject').textContent = weights.injection_risk;
+    }
+    if (weights.field_tampering_risk) {
+      document.getElementById('w-field').textContent = weights.field_tampering_risk;
+    }
+
+    btn.innerHTML = `<span>✓ Retrained on ${metrics.samples} Samples (${metrics.accuracy}% Accuracy)</span>`;
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.innerHTML = '<span>⚡ Retrain ML Classifier on Historical Logs</span>';
+    }, 4000);
+
+    loadReportMetrics();
+  } catch(err) {
+    btn.disabled = false;
+    btn.innerHTML = '<span>⚡ Retrain ML Classifier</span>';
+    alert("Training error: " + err);
+  }
+}
+
+loadReportMetrics();
+</script>
+
+</body>
+</html>

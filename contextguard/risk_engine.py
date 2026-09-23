@@ -113,12 +113,6 @@ class RiskEngine:
         report:    ConsistencyReport,
         base_score: int = 0,
     ) -> RiskResult:
-        """
-        Compute final risk score from the consistency report.
-
-        base_score: carry-over from previous steps in the same task
-        (allows the score to accumulate across a multi-step run).
-        """
         score         = base_score
         threat_types  = []
         top_finding   = None
@@ -167,3 +161,108 @@ class RiskEngine:
 
 
 risk_engine = RiskEngine()
+
+
+# ---------------------------------------------------------------------------
+# ContextGuard Component 5: Continuous Multi-Factor Risk Assessment Engine
+# Specification Reference: Section 3 (Step 7), FR14, FR15, FR16
+# ---------------------------------------------------------------------------
+
+from pathlib import Path
+import yaml
+from contextguard.models import (
+    ConsistencyReport as NewConsistencyReport,
+    RiskAssessmentResult,
+    RiskFactorBreakdown,
+    RiskTier,
+    ThreatDetectionResult,
+)
+
+CONFIG_DIR = Path(__file__).parent / "config"
+
+
+class ContextGuardRiskAssessmentEngine:
+    """
+    Computes continuous 0-100 risk score combining:
+    - Classification confidence (or normalized deviation signal for unknown path)
+    - Inconsistency severity (from Step 2 Verification Rail)
+    - Action sensitivity (from protected_fields.yaml)
+    - Marker presence (from Step 2 Verification Rail)
+    Weights are externally configured via risk_weights.yaml (FR15).
+    """
+
+    def __init__(self, config_path: Optional[Path] = None) -> None:
+        cfg_file = config_path or (CONFIG_DIR / "risk_weights.yaml")
+        if not cfg_file.exists():
+            raise FileNotFoundError(f"Missing risk weights config: {cfg_file}")
+
+        data = yaml.safe_load(cfg_file.read_text(encoding="utf-8"))
+        w = data.get("weights", {})
+        self.w_conf: float = float(w.get("weight_classification_confidence", 0.25))
+        self.w_inconsist: float = float(w.get("weight_inconsistency_severity", 0.30))
+        self.w_action: float = float(w.get("weight_action_sensitivity", 0.25))
+        self.w_marker: float = float(w.get("weight_marker_presence", 0.20))
+
+        self.tiers_config = data.get("risk_tiers", {})
+
+    def assess(
+        self,
+        threat_result: ThreatDetectionResult,
+        consistency_report: NewConsistencyReport,
+        action_sensitivity: float,
+        booking_critical: bool,
+    ) -> RiskAssessmentResult:
+        """
+        Combines threat signal, consistency severity, action sensitivity, and marker presence.
+        Returns continuous RiskAssessmentResult with mapped RiskTier.
+        """
+        # Threat signal: confidence for known path, normalized deviation for unknown path
+        if threat_result.is_known_path:
+            threat_signal = threat_result.confidence if threat_result.is_threat else 0.0
+        else:
+            threat_signal = threat_result.normalized_deviation if threat_result.is_threat else 0.0
+
+        inconsistency_severity = consistency_report.inconsistency_severity if not consistency_report.is_consistent else 0.0
+        marker_indicator = 1.0 if consistency_report.marker_presence else 0.0
+        sensitivity = max(0.0, min(1.0, action_sensitivity))
+
+        # Multi-factor weighted contributions
+        c_threat = self.w_conf * threat_signal
+        c_inconsist = self.w_inconsist * inconsistency_severity
+        c_action = self.w_action * sensitivity
+        c_marker = self.w_marker * marker_indicator
+
+        raw_score = 100.0 * (c_threat + c_inconsist + c_action + c_marker)
+        risk_score = int(round(max(0.0, min(100.0, raw_score))))
+
+        # Map to RiskTier
+        risk_tier = self._map_to_tier(risk_score)
+
+        return RiskAssessmentResult(
+            risk_score=risk_score,
+            risk_tier=risk_tier,
+            factors=RiskFactorBreakdown(
+                threat_signal_contribution=round(c_threat * 100, 2),
+                inconsistency_contribution=round(c_inconsist * 100, 2),
+                action_sensitivity_contribution=round(c_action * 100, 2),
+                marker_contribution=round(c_marker * 100, 2),
+            ),
+            action_sensitivity=sensitivity,
+            booking_critical=booking_critical,
+        )
+
+    def _map_to_tier(self, score: int) -> RiskTier:
+        for tier_name in ["LOW", "MEDIUM", "HIGH", "CRITICAL"]:
+            tier_info = self.tiers_config.get(tier_name, {})
+            min_s = tier_info.get("min_score", 0)
+            max_s = tier_info.get("max_score", 100)
+            if min_s <= score <= max_s:
+                return RiskTier(tier_name)
+        if score >= 85:
+            return RiskTier.CRITICAL
+        elif score >= 60:
+            return RiskTier.HIGH
+        elif score >= 30:
+            return RiskTier.MEDIUM
+        return RiskTier.LOW
+

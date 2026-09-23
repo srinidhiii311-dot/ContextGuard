@@ -1,0 +1,31 @@
+# =============================================================================
+# ContextGuard Configuration Artifact: characterization_buckets.yaml
+# Specification Reference: Section 8, FR12, Component 4
+# =============================================================================
+# Fixed list of unknown-threat bucket labels that the Threat Characterization
+# LLM prompt is strictly constrained to. The model must select exactly one
+# label from this list when classification confidence falls below threshold.
+# =============================================================================
+
+buckets:
+  - id: "unknown_instruction_manipulation"
+    severity_weight: 0.75
+    description: "Novel, obfuscated, or unclassified instruction attempting to redirect agent goals"
+
+  - id: "abnormal_navigation_behaviour"
+    severity_weight: 0.70
+    description: "Unexpected sequence of page transitions, anomalous URLs, or uncharacteristic routing"
+
+  - id: "unauthorized_state_mutation"
+    severity_weight: 0.80
+    description: "Anomalous modification to form fields, parameters, or DOM state without overt injection markers"
+
+  - id: "unclassified_semantic_drift"
+    severity_weight: 0.60
+    description: "Subtle divergence between agent intermediate actions and initial locked user intent"
+
+  - id: "ambiguous_context_override"
+    severity_weight: 0.65
+    description: "Contradictory directives present in environmental text creating high agent uncertainty"
+
+fallback_bucket: "unknown_instruction_manipulation"

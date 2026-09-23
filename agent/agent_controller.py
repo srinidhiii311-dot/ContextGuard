@@ -44,8 +44,48 @@ BASE_URL          = "http://127.0.0.1:8000"
 
 
 # ---------------------------------------------------------------------------
-# Agent state
+# Active confirmation registry for human-in-the-loop (FR20)
 # ---------------------------------------------------------------------------
+
+_active_confirmations: Dict[str, asyncio.Event] = {}
+_confirmation_results: Dict[str, bool] = {}
+
+
+def resolve_confirmation(task_id: str, approved: bool) -> bool:
+    """
+    Called by backend REST endpoint (/api/contextguard/confirm) when an operator
+    approves or rejects a suspended REQUIRE_CONFIRMATION action.
+    """
+    if task_id in _active_confirmations:
+        _confirmation_results[task_id] = approved
+        _active_confirmations[task_id].set()
+        return True
+    return False
+
+
+def get_pending_confirmation(task_id: str) -> bool:
+    return task_id in _active_confirmations
+
+
+def abort_confirmation(task_id: str) -> bool:
+    """Explicitly aborts and unblocks any pending confirmation with rejection."""
+    if task_id in _active_confirmations:
+        _confirmation_results[task_id] = False
+        _active_confirmations[task_id].set()
+        return True
+    return False
+
+
+def clear_all_confirmations() -> int:
+    """Clears all pending confirmations on server shutdown, reset, or restart."""
+    count = len(_active_confirmations)
+    for task_id, ev in list(_active_confirmations.items()):
+        _confirmation_results[task_id] = False
+        ev.set()
+    _active_confirmations.clear()
+    _confirmation_results.clear()
+    return count
+
 
 @dataclass
 class AgentState:
@@ -92,50 +132,45 @@ def _decide_rule(state: AgentState, snapshot: DOMSnapshot) -> Optional[Dict[str,
             return {"type": "TYPE", "selector": "#pcount", "value": "5"}
 
     if page == "search":
-        # Fill origin
-        if any("origin" in k or "from" in k for k in inputs):
-            return {"type": "TYPE", "selector": "#origin",
-                    "value": intent.get("origin", "")}
-        # Fill destination
-        if any("dest" in k for k in inputs):
-            return {"type": "TYPE", "selector": "#destination",
-                    "value": intent.get("destination", "")}
-        # Set cabin class
-        cabin = intent.get("cabin_class", "Economy")
-        return {"type": "SELECT", "selector": "#cabin", "value": cabin}
+        orig_val = inputs.get("origin", {}).get("value", "")
+        dest_val = inputs.get("destination", {}).get("value", "")
+        cabin_val = inputs.get("cabin", {}).get("value", "")
+
+        target_orig = intent.get("origin", "")
+        target_dest = intent.get("destination", "")
+        target_cabin = intent.get("cabin_class", "Economy")
+
+        # Fill origin if not set
+        if target_orig and orig_val.strip().lower() != target_orig.strip().lower():
+            return {"type": "TYPE", "selector": "#origin", "value": target_orig}
+        # Fill destination if not set
+        if target_dest and dest_val.strip().lower() != target_dest.strip().lower():
+            return {"type": "TYPE", "selector": "#destination", "value": target_dest}
+        # Set cabin class if not set
+        if target_cabin and cabin_val.strip().lower() != target_cabin.strip().lower():
+            return {"type": "SELECT", "selector": "#cabin", "value": target_cabin}
+        # Ready to search
+        return {"type": "CLICK", "selector": "button.btn-primary"}
 
     elif page == "results":
-        # Look for a flight card matching the intent
-        if intent.get("cabin_class", "Economy") in snapshot.visible_text:
-            return {"type": "CLICK",
-                    "selector": f".flight-card:first-of-type"}
+        # Select flight card matching intent
         return {"type": "CLICK", "selector": ".flight-card"}
 
     elif page == "passenger":
-        if any("pname" in k or "passenger" in k for k in inputs):
-            return {"type": "TYPE", "selector": "#pname",
-                    "value": intent.get("passenger_name", "Test Passenger")}
-        count = intent.get("passengers", 1)
-        if any("pcount" in k or "count" in k for k in inputs):
-            return {"type": "TYPE", "selector": "#pcount",
-                    "value": str(count)}
-        # Click continue
-        for b in snapshot.buttons:
-            if "continue" in b.lower() or "review" in b.lower():
-                return {"type": "CLICK",
-                        "selector": "button.btn-primary, button:has-text('CONTINUE')"}
-        return {"type": "CLICK", "selector": "button"}
+        pname_val = inputs.get("pname", {}).get("value", "")
+        pcount_val = inputs.get("pcount", {}).get("value", "")
+
+        target_name = intent.get("passenger_name", "Test Passenger")
+        target_count = str(intent.get("passengers", 1))
+
+        if pname_val.strip() != target_name.strip():
+            return {"type": "TYPE", "selector": "#pname", "value": target_name}
+        if pcount_val.strip() != target_count.strip():
+            return {"type": "TYPE", "selector": "#pcount", "value": target_count}
+        return {"type": "CLICK", "selector": "button.btn-primary"}
 
     elif page == "review":
-        # Verify details match intent BEFORE confirming
-        text_lower = snapshot.visible_text.lower()
-        origin_ok  = intent.get("origin", "").lower() in text_lower
-        dest_ok    = intent.get("destination", "").lower() in text_lower
-
-        if origin_ok and dest_ok:
-            return {"type": "CLICK", "selector": "#confirm-btn, button.btn-green"}
-        # Details don't match — agent should flag this
-        return None   # triggers DONE with mismatch note
+        return {"type": "CLICK", "selector": "#confirm-btn"}
 
     elif page == "confirmed":
         return None   # Booking complete — stop loop
@@ -217,11 +252,15 @@ class AgentController:
         intervention_hook: Optional[Callable] = None,
         gate: Optional[ContextGuardGate] = None,
         with_contextguard: bool = True,
+        decision_engine: Optional[Callable[[AgentState, DOMSnapshot], Optional[Dict[str, Any]]]] = None,
+        confirmation_timeout: float = 30.0,
     ) -> None:
-        self.browser           = BrowserController(headless=headless)
-        self._hook             = intervention_hook
-        self.gate              = gate
-        self.with_contextguard = with_contextguard
+        self.browser              = BrowserController(headless=headless)
+        self._hook                = intervention_hook
+        self.gate                 = gate
+        self.with_contextguard    = with_contextguard
+        self.decision_engine      = decision_engine
+        self.confirmation_timeout = confirmation_timeout
 
     def _on_gate_decision(self, task_id: str, entry: dict) -> None:
         action = entry["action"]
@@ -304,7 +343,9 @@ class AgentController:
 
                 # --- Decide ---
                 try:
-                    if USE_LLM_DECISIONS:
+                    if self.decision_engine:
+                        action = self.decision_engine(state, snapshot)
+                    elif USE_LLM_DECISIONS:
                         action = _decide_llm(state, snapshot)
                     else:
                         action = _decide_rule(state, snapshot)
@@ -327,10 +368,12 @@ class AgentController:
                         source_text=snapshot.visible_text if snapshot.attack_text_detected else None,
                     )
                     gate_res = self.gate.check(proposed, snapshot.visible_text)
-                    if gate_res.decision == Decision.BLOCK:
+
+                    # Tier: BLOCK or PAUSE_TASK (FR19)
+                    if gate_res.decision in (Decision.BLOCK, Decision.PAUSE_TASK):
                         state.status = "PAUSED"
                         await self._log(state, snapshot, action,
-                                        f"BLOCKED by ContextGuard Gate: {gate_res.reason}")
+                                        f"{gate_res.decision.value} by ContextGuard Gate: {gate_res.reason}")
                         ws_manager.broadcast_sync({
                             "type":           "agent_paused",
                             "task_id":        task_id,
@@ -339,9 +382,59 @@ class AgentController:
                             "status":         "HIGH_RISK",
                             "reason":         gate_res.reason,
                             "action_blocked": action,
+                            "decision":       gate_res.decision.value,
                         })
                         break
-                    elif gate_res.decision == Decision.FLAG:
+
+                    # Tier: REQUIRE_CONFIRMATION (FR20: Suspend loop for explicit human confirmation)
+                    elif gate_res.decision == Decision.REQUIRE_CONFIRMATION:
+                        state.status = "AWAITING_CONFIRMATION"
+                        confirm_event = asyncio.Event()
+                        _active_confirmations[task_id] = confirm_event
+
+                        await self._log(state, snapshot, action,
+                                        f"SUSPENDED: Awaiting operator confirmation — {gate_res.reason}")
+                        ws_manager.broadcast_sync({
+                            "type":        "require_confirmation",
+                            "task_id":     task_id,
+                            "step":        state.step,
+                            "action":      action,
+                            "risk_score":  gate_res.risk_score,
+                            "reason":      gate_res.reason,
+                            "timeout_sec": self.confirmation_timeout,
+                        })
+
+                        try:
+                            await asyncio.wait_for(confirm_event.wait(), timeout=self.confirmation_timeout)
+                            user_approved = _confirmation_results.get(task_id, False)
+                        except asyncio.TimeoutError:
+                            user_approved = False
+                        finally:
+                            _active_confirmations.pop(task_id, None)
+                            _confirmation_results.pop(task_id, None)
+
+                        if not user_approved:
+                            state.status = "PAUSED"
+                            await self._log(state, snapshot, action,
+                                            f"CONFIRMATION REJECTED/TIMEOUT by operator: {gate_res.reason}")
+                            ws_manager.broadcast_sync({
+                                "type":       "agent_paused",
+                                "task_id":    task_id,
+                                "step":       state.step,
+                                "reason":     "Operator rejected confirmation or timeout elapsed.",
+                            })
+                            break
+                        else:
+                            state.status = "RUNNING"
+                            ws_manager.broadcast_sync({
+                                "type":    "agent_resumed",
+                                "task_id": task_id,
+                                "step":    state.step,
+                                "reason":  "Operator approved action execution.",
+                            })
+
+                    # Tier: ALLOW_WITH_FLAG / FLAG (Push telemetry warning, continue execution)
+                    elif gate_res.decision in (Decision.FLAG, Decision.ALLOW_WITH_FLAG):
                         ws_manager.broadcast_sync({
                             "type":    "gate_warning",
                             "task_id": task_id,

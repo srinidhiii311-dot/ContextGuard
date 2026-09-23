@@ -1,0 +1,35 @@
+# =============================================================================
+# ContextGuard Configuration Artifact: trust_boundary.yaml
+# Specification Reference: Section 8, FR8, Component 2
+# =============================================================================
+# Defines trusted navigation schemes, local and external trusted hostnames,
+# and allowed URL patterns for autonomous web agent navigation.
+# Any navigation outside this boundary triggers immediate inconsistency findings.
+# =============================================================================
+
+allowed_schemes:
+  - "http"
+  - "https"
+
+trusted_hosts:
+  - "127.0.0.1"
+  - "localhost"
+  - "127.0.0.1:8000"
+  - "localhost:8000"
+
+# Allowed path prefixes within the sandboxed testbed
+allowed_path_prefixes:
+  - "/"
+  - "/dashboard"
+  - "/api/flights"
+  - "/api/bookings"
+  - "/static"
+
+# Explicitly disallowed or high-risk domain patterns
+disallowed_patterns:
+  - "evil.com"
+  - "phishing.test"
+  - "attacker.local"
+  - "data-exfil.org"
+  - "javascript:"
+  - "data:text/html"

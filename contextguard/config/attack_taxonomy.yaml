@@ -1,0 +1,83 @@
+# =============================================================================
+# ContextGuard Configuration Artifact: attack_taxonomy.yaml
+# Specification Reference: Section 8, FR11, FR12, FR13, NFR10
+# =============================================================================
+# Formal taxonomy of known attack types, fast-path detection pattern hints,
+# and the classification confidence threshold below which events branch to
+# the Threat Characterization (unknown path) module.
+# =============================================================================
+
+# Threshold for known vs unknown branch. Recorded with every task run per FR13.
+# Tuning bounds: 0.50 (aggressive known matching) to 0.90 (conservative, passes to unknown).
+classification_confidence_threshold: 0.70
+
+known_attacks:
+  PROMPT_INJECTION:
+    severity_weight: 0.90
+    description: "Direct or indirect adversarial instructions attempting to override model behavior"
+    pattern_hints:
+      - "ignore previous"
+      - "ignore all prior"
+      - "ignore the user"
+      - "disregard instructions"
+      - "system override"
+      - "system update"
+      - "important instruction for ai"
+      - "for ai agent"
+      - "ai assistant:"
+      - "new instructions:"
+      - "do not tell the user"
+      - "agent instruction"
+
+  CONTEXT_MANIPULATION:
+    severity_weight: 0.75
+    description: "Adversarial modifications of perceived context, pricing, flight data, or preferences"
+    pattern_hints:
+      - "updated user preference"
+      - "user changed their mind"
+      - "flight canceled"
+      - "price changed to"
+      - "special upgrade applied"
+      - "alternate route selected"
+
+  HIDDEN_INSTRUCTION:
+    severity_weight: 0.85
+    description: "Malicious payload obscured via styling, zero-font, off-screen positioning, or comments"
+    pattern_hints:
+      - "display:none"
+      - "visibility:hidden"
+      - "opacity:0"
+      - "font-size:0"
+      - "position:absolute;left:-9999px"
+      - "<!-- agent:"
+
+  FAKE_SYSTEM_MESSAGE:
+    severity_weight: 0.85
+    description: "Deceptive browser or platform alerts mimicking trusted operating system dialogues"
+    pattern_hints:
+      - "security alert: action required"
+      - "system notification:"
+      - "browser update required"
+      - "session expired, re-verify"
+      - "admin notice"
+
+  DOM_MANIPULATION:
+    severity_weight: 0.70
+    description: "Structural tampering of DOM elements, modified value attributes, or forged forms"
+    pattern_hints:
+      - "tampered_attribute"
+      - "data-injected"
+      - "value-swapped"
+      - "button-hijacked"
+
+  NAVIGATION_MANIPULATION:
+    severity_weight: 0.80
+    description: "Attempted redirection to untrusted domains, external payment portals, or URL regressions"
+    pattern_hints:
+      - "redirect="
+      - "external_checkout"
+      - "payment-gateway-phish"
+      - "window.location="
+      - "continue without approval"
+      - "skip this step"
+      - "proceed directly to payment"

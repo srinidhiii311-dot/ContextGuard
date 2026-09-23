@@ -3,774 +3,743 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>ContextGuard — Security Dashboard</title>
+<title>ContextGuard — Live Monitoring & Audit Dashboard</title>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#0d1117;--surface:#161b22;--card:#1c2230;--border:#30363d;
-  --text:#c9d1d9;--muted:#8b949e;--head:#e6edf3;
-  --safe:#3fb950;--safe-dim:#1a3d22;
-  --warn:#d29922;--warn-dim:#3d2f0a;
-  --risk:#f85149;--risk-dim:#3d1616;
-  --teal:#00c9b1;--teal-dim:#003d36;
-  --blue:#4299e1;--purple:#8b5cf6;
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0b0f17;
+  --surface: #111827;
+  --card: #1a2234;
+  --border: #334155;
+  --text: #f1f5f9;
+  --muted: #94a3b8;
+  --head: #ffffff;
+  --safe: #10b981;
+  --safe-dim: rgba(16, 185, 129, 0.15);
+  --warn: #f59e0b;
+  --warn-dim: rgba(245, 158, 11, 0.15);
+  --risk: #ef4444;
+  --risk-dim: rgba(239, 68, 68, 0.15);
+  --teal: #38bdf8;
+  --teal-dim: rgba(56, 189, 248, 0.15);
+  --purple: #a855f7;
 }
-body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.6}
-a{color:var(--teal);text-decoration:none}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+a { color: var(--teal); text-decoration: none; }
 
 /* Header */
-.header{display:flex;align-items:center;justify-content:space-between;
-  padding:12px 24px;background:var(--surface);border-bottom:1px solid var(--border);
-  position:sticky;top:0;z-index:100}
-.brand{font-size:1.2rem;font-weight:700;color:var(--teal)}
-.subtitle{font-size:11px;color:var(--muted);margin-top:1px}
-.header-right{display:flex;align-items:center;gap:16px;font-size:12px}
-.dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px}
-.dot-ok{background:var(--safe);box-shadow:0 0 6px var(--safe)}
-.dot-err{background:var(--risk);box-shadow:0 0 6px var(--risk)}
-.dot-warn{background:var(--warn);box-shadow:0 0 6px var(--warn)}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.brand-wrap { display: flex; align-items: center; gap: 10px; }
+.brand-icon { font-size: 22px; }
+.brand { font-size: 16px; font-weight: 800; color: #fff; }
+.subtitle { font-size: 11px; color: var(--muted); }
+.header-right { display: flex; align-items: center; gap: 16px; font-size: 12px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.dot-ok { background: var(--safe); box-shadow: 0 0 6px var(--safe); }
+.dot-err { background: var(--risk); box-shadow: 0 0 6px var(--risk); }
+
+/* Tab Switcher */
+.tab-bar {
+  display: flex;
+  gap: 8px;
+  padding: 12px 24px 0 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 18px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tab-btn:hover { color: #fff; }
+.tab-btn.active {
+  color: var(--teal);
+  border-bottom-color: var(--teal);
+}
 
 /* Layout */
-.main{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px 24px;max-width:1400px;margin:0 auto}
-.full{grid-column:1/-1}
-.section{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px}
-.sec-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--teal);margin-bottom:14px}
-.sec-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
-.sec-header .sec-title{margin:0}
+.main {
+  padding: 20px 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+  flex: 1;
+}
+.view-panel { display: none; }
+.view-panel.active { display: block; }
 
-/* Cards row */
-.cards{display:flex;gap:10px;flex-wrap:wrap}
-.card{flex:1 1 100px;background:var(--card);border:1px solid var(--border);
-  border-radius:8px;padding:14px;text-align:center;min-width:90px}
-.card-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
-.card-val{font-size:1.8rem;font-weight:700;color:var(--head)}
-.card-safe{border-color:var(--safe-dim)}.card-safe .card-val{color:var(--safe)}
-.card-warn{border-color:var(--warn-dim)}.card-warn .card-val{color:var(--warn)}
-.card-risk{border-color:var(--risk-dim)}.card-risk .card-val{color:var(--risk)}
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.full { grid-column: 1 / -1; }
 
-/* Status badge */
-.badge{display:inline-block;padding:2px 9px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:.04em}
-.badge-safe{background:var(--safe-dim);color:var(--safe)}
-.badge-suspicious{background:var(--warn-dim);color:var(--warn)}
-.badge-high{background:var(--risk-dim);color:var(--risk)}
-.badge-attack{background:#2d1b6b;color:var(--purple)}
-.badge-clean{background:var(--teal-dim);color:var(--teal)}
-.badge-action{background:var(--teal-dim);color:var(--teal)}
+.section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px;
+  margin-bottom: 16px;
+}
+.sec-title {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--teal);
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 
-/* Risk score */
-.risk-num{font-weight:700;font-family:monospace;padding:2px 7px;border-radius:4px}
-.r-safe{color:var(--safe);background:var(--safe-dim)}
-.r-warn{color:var(--warn);background:var(--warn-dim)}
-.r-high{color:var(--risk);background:var(--risk-dim)}
+/* Stat Cards */
+.cards-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.card {
+  flex: 1;
+  min-width: 120px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.card-label {
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.card-val {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--head);
+  font-family: monospace;
+}
 
-/* Live status panel */
-.live-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.live-row{display:flex;justify-content:space-between;align-items:center;
-  padding:6px 0;border-bottom:1px solid var(--border);font-size:13px}
-.live-row:last-child{border:none}
-.live-label{color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase}
-.live-val{color:var(--head);font-family:monospace;font-size:12px}
+/* Decision Badges */
+.badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+.badge-ALLOW { background: var(--safe-dim); color: var(--safe); border: 1px solid var(--safe); }
+.badge-WARN { background: var(--warn-dim); color: var(--warn); border: 1px solid var(--warn); }
+.badge-PAUSE { background: rgba(249, 115, 22, 0.2); color: #f97316; border: 1px solid #f97316; }
+.badge-BLOCK { background: var(--risk-dim); color: var(--risk); border: 1px solid var(--risk); }
 
-/* Pause banner */
-#pause-banner{display:none;background:var(--risk-dim);border:2px solid var(--risk);
-  border-radius:8px;padding:16px 20px;margin-bottom:16px}
-#pause-banner h3{color:var(--risk);margin-bottom:6px}
-#pause-banner p{font-size:13px;color:var(--text);margin-bottom:10px}
+/* Live Gauge */
+.gauge-box {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+.score-circle {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 4px solid var(--safe);
+  box-shadow: 0 0 15px var(--safe-dim);
+  transition: all 0.3s ease;
+}
+.score-num {
+  font-size: 28px;
+  font-weight: 900;
+  font-family: monospace;
+}
+.score-sub { font-size: 9px; color: var(--muted); text-transform: uppercase; font-weight: 700; }
 
-/* Attack panel */
-.attack-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.attack-btn{background:var(--card);border:1px solid var(--border);border-radius:6px;
-  padding:10px;cursor:pointer;font-size:12px;color:var(--text);text-align:left;
-  transition:border-color .15s}
-.attack-btn:hover{border-color:var(--purple)}
-.attack-btn .atk-name{font-weight:700;color:var(--purple);font-size:13px;display:block;margin-bottom:3px}
-.page-sel{background:var(--card);border:1px solid var(--border);border-radius:6px;
-  padding:6px 10px;color:var(--text);font-size:13px;width:100%}
+/* Tables */
+.tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.tbl th {
+  background: var(--card);
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: 9px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.tbl td { padding: 9px 12px; border-bottom: 1px solid var(--border); color: var(--text); }
+.tbl tr:hover td { background: rgba(255,255,255,0.02); }
+.mono { font-family: monospace; font-size: 11px; }
 
-/* Agent task form */
-.task-form{display:flex;flex-direction:column;gap:8px}
-.task-form input,.task-form select{background:var(--card);border:1px solid var(--border);
-  border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;width:100%}
-.task-form input:focus,.task-form select:focus{outline:none;border-color:var(--teal)}
+/* Risk Timeline SVG Graph */
+.graph-container {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  height: 220px;
+  position: relative;
+}
+svg.timeline-svg { width: 100%; height: 100%; overflow: visible; }
 
 /* Buttons */
-.btn{padding:7px 16px;border:none;border-radius:6px;font-size:12px;font-weight:600;
-  cursor:pointer;transition:opacity .15s}
-.btn:hover{opacity:.85}
-.btn:disabled{opacity:.4;cursor:not-allowed}
-.btn-teal{background:var(--teal);color:#000}
-.btn-risk{background:var(--risk-dim);color:var(--risk);border:1px solid var(--risk)}
-.btn-safe{background:var(--safe-dim);color:var(--safe);border:1px solid var(--safe)}
-.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.btn-teal { background: var(--teal); color: #000; }
+.btn-safe { background: var(--safe); color: #000; }
+.btn-risk { background: var(--risk); color: #fff; }
+.btn:hover { opacity: 0.85; }
 
-/* Alert feed */
-.alert-feed{display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto}
-.alert-item{background:var(--card);border-radius:6px;padding:10px 12px;
-  border-left:3px solid var(--border);font-size:12px}
-.alert-item.HIGH_RISK{border-left-color:var(--risk)}
-.alert-item.SUSPICIOUS{border-left-color:var(--warn)}
-.alert-item.SAFE{border-left-color:var(--safe)}
-.alert-item.attack{border-left-color:var(--purple)}
-.alert-ts{color:var(--muted);font-size:11px}
-.alert-type{font-weight:700;font-size:12px}
-
-/* Action log table */
-.tbl{width:100%;border-collapse:collapse;font-size:12px}
-.tbl th{background:var(--card);color:var(--muted);font-size:11px;text-transform:uppercase;
-  letter-spacing:.05em;padding:7px 10px;text-align:left;border-bottom:1px solid var(--border)}
-.tbl td{padding:6px 10px;border-bottom:1px solid var(--border);color:var(--text)}
-.tbl tr:hover td{background:var(--card)}
-.tbl-wrap{max-height:280px;overflow-y:auto}
-.mono{font-family:monospace;font-size:11px;color:var(--muted)}
-
-/* Context side-by-side */
-.ctx-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.ctx-box{background:var(--card);border-radius:6px;padding:12px;font-size:12px}
-.ctx-box h4{color:var(--teal);font-size:11px;margin-bottom:8px;text-transform:uppercase}
-.ctx-row{display:flex;justify-content:space-between;padding:3px 0;
-  border-bottom:1px solid var(--border);font-size:12px}
-.ctx-row:last-child{border:none}
-.ctx-key{color:var(--muted)}
-.ctx-val{color:var(--head);font-family:monospace;font-size:11px;text-align:right;max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mismatch{color:var(--risk)!important}
-
-/* Scrollbar */
-::-webkit-scrollbar{width:4px;height:4px}
-::-webkit-scrollbar-track{background:var(--bg)}
-::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-
-/* Footer */
-.footer{text-align:center;padding:12px;font-size:11px;color:var(--muted);
-  border-top:1px solid var(--border);margin-top:8px}
-
-@media(max-width:900px){
-  .main,.live-grid,.attack-grid,.ctx-grid{grid-template-columns:1fr}
-  .full{grid-column:1}
+/* Ground Truth Evaluation Card */
+.eval-card {
+  background: rgba(88, 28, 135, 0.15);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  border-radius: 10px;
+  padding: 16px;
+  margin-top: 14px;
+}
+.eval-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-top: 10px;
+}
+.eval-metric {
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 10px;
+  border-radius: 6px;
+  text-align: center;
+}
+.eval-metric-val {
+  font-size: 18px;
+  font-weight: 800;
+  font-family: monospace;
+  color: #fff;
 }
 </style>
 </head>
 <body>
 
-<!-- Header -->
 <header class="header">
-  <div>
-    <div class="brand">ContextGuard</div>
-    <div class="subtitle">AI Web Agent Security Testing Platform</div>
+  <div class="brand-wrap">
+    <span class="brand-icon">🛡️</span>
+    <div>
+      <div class="brand">ContextGuard</div>
+      <div class="subtitle">AI Agent Runtime Security & Post-Run Audit Control</div>
+    </div>
   </div>
   <div class="header-right">
-    <div><span class="dot" id="ws-dot"></span><span id="ws-status">Connecting...</span></div>
-    <div id="clock" style="color:var(--muted)"></div>
-    <a href="/" class="btn btn-ghost" style="text-decoration:none">Booking App</a>
+    <div><span class="dot dot-ok" id="ws-dot"></span> <span id="ws-status">Live Connected</span></div>
+    <a href="/" target="_blank">✈ Launchpad (Page 1)</a>
+    <a href="/app" target="_blank">✈ Sandbox App</a>
   </div>
 </header>
 
-<div class="main">
+<div class="tab-bar">
+  <button class="tab-btn active" id="tab-live-btn" onclick="switchTab('live')">
+    <span>⚡</span> Live Monitoring View
+  </button>
+  <button class="tab-btn" id="tab-audit-btn" onclick="switchTab('audit')">
+    <span>📈</span> Post-Run Audit & Ground-Truth Evaluation
+  </button>
+</div>
 
-  <!-- Pause banner -->
-  <div id="pause-banner" class="full">
-    <h3>⚠ Agent Paused — ContextGuard Intervention</h3>
-    <p id="pause-reason">Risk threshold exceeded. Review the finding below before resuming.</p>
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-safe" onclick="resumeAgent()">Resume Agent</button>
-      <button class="btn btn-risk" onclick="stopAgent()">Stop Agent</button>
+<main class="main">
+
+  <!-- ===================================================================== -->
+  <!-- TAB 1: LIVE MONITORING VIEW -->
+  <!-- ===================================================================== -->
+  <div class="view-panel active" id="view-live">
+    
+    <!-- Live Status Gauge -->
+    <div class="gauge-box">
+      <div class="score-circle" id="gauge-circle">
+        <div class="score-num" id="live-risk-score">0</div>
+        <div class="score-sub">Risk Score</div>
+      </div>
+      <div style="flex: 1;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+          <span class="badge badge-ALLOW" id="live-decision-badge">ALLOW</span>
+          <span style="font-size:12px;color:var(--muted);" id="live-model-conf">Model Confidence: 95%</span>
+          <span class="mono" style="color:var(--teal);margin-left:auto;" id="live-session-id">Session: —</span>
+        </div>
+        <div style="font-size:13px;font-weight:600;" id="live-reason">Monitoring browser activity...</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;" id="live-latency-breakdown">Inference Latency: —</div>
+      </div>
+      <div>
+        <button class="btn btn-risk" id="pause-btn" onclick="triggerPause()" style="display:none;">Pause Agent</button>
+      </div>
+    </div>
+
+    <!-- Dual Pre-Action & Post-Action Live State -->
+    <div class="grid-2">
+      <!-- Pre-Action Gate Card -->
+      <div class="section">
+        <div class="sec-title">
+          <span>1. Pre-Action Safety Gate (Pre-Execution)</span>
+          <span class="badge badge-ALLOW" id="pre-badge">IDLE</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:12px;">
+          <div><b style="color:var(--muted);">Intended Action:</b> <span class="mono" id="pre-action-text">—</span></div>
+          <div><b style="color:var(--muted);">Action Sensitivity:</b> <span class="mono" id="pre-sens-text">—</span></div>
+          <div><b style="color:var(--muted);">Task Entity Alignment:</b> <span id="pre-entity-text" style="color:var(--safe);">Aligned</span></div>
+          <div><b style="color:var(--muted);">Gate Enforcement:</b> <span id="pre-reason-text">Awaiting proposed tool call...</span></div>
+        </div>
+      </div>
+
+      <!-- Post-Action State Difference Card -->
+      <div class="section">
+        <div class="sec-title">
+          <span>2. Post-Action State Difference Engine</span>
+          <span class="mono" style="color:var(--teal);" id="post-step-ind">Step 0</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:12px;">
+          <div><b style="color:var(--muted);">Current URL:</b> <span class="mono" id="post-url-text">—</span></div>
+          <div><b style="color:var(--muted);">Domain Changed:</b> <span id="post-domain-text">No</span></div>
+          <div><b style="color:var(--muted);">Lexical / Semantic Shift:</b> <span class="mono" id="post-shift-text">—</span></div>
+          <div><b style="color:var(--muted);">Sensitive Fields Detected:</b> <span id="post-sensitive-text">None</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Event Feed -->
+    <div class="section">
+      <div class="sec-title">
+        <span>Live Continuous Verification Stream</span>
+        <span class="mono" style="color:var(--muted);" id="live-event-count">0 events</span>
+      </div>
+      <div style="max-height: 280px; overflow-y: auto;">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>Step</th>
+              <th>Phase</th>
+              <th>Action / Event</th>
+              <th>Risk</th>
+              <th>Decision</th>
+              <th>Latency</th>
+              <th>Timestamp</th>
+            </tr>
+          </thead>
+          <tbody id="live-events-tbody">
+            <tr><td colspan="7" style="color:var(--muted);text-align:center;padding:16px;">Awaiting agent execution...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
-  <!-- Summary cards -->
-  <section class="section full">
-    <div class="sec-title">Live Summary</div>
-    <div class="cards">
-      <div class="card"><div class="card-label">Agent Status</div>
-        <div class="card-val" id="c-agent-status" style="font-size:1rem;margin-top:4px">IDLE</div></div>
-      <div class="card"><div class="card-label">Risk Score</div>
-        <div class="card-val" id="c-risk">0</div></div>
-      <div class="card card-risk"><div class="card-label">Alerts</div>
-        <div class="card-val" id="c-alerts">0</div></div>
-      <div class="card card-safe"><div class="card-label">Actions Taken</div>
-        <div class="card-val" id="c-actions">0</div></div>
-      <div class="card card-warn"><div class="card-label">Attacks Active</div>
-        <div class="card-val" id="c-attacks">0</div></div>
-      <div class="card"><div class="card-label">Current Page</div>
-        <div class="card-val" id="c-page" style="font-size:.9rem;margin-top:4px">—</div></div>
-      <div class="card"><div class="card-label">Current Task</div>
-        <div class="card-val" id="c-task" style="font-size:.75rem;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px">—</div></div>
-    </div>
-  </section>
+  <!-- ===================================================================== -->
+  <!-- TAB 2: POST-RUN AUDIT & GROUND-TRUTH EVALUATION VIEW -->
+  <!-- ===================================================================== -->
+  <div class="view-panel" id="view-audit">
 
-  <!-- Live Pre-Action Gate Decision Overlay (Phase 5 gate.py) -->
-  <section class="section full" id="gate-overlay-section" style="border-color:var(--teal-dim)">
-    <div class="sec-header">
-      <div class="sec-title" style="display:flex;align-items:center;gap:8px">
-        <span>🛡 ContextGuard Pre-Action Gate (Synchronous)</span>
-        <span class="badge badge-clean" id="gate-latest-badge">GATE READY</span>
-      </div>
-      <div id="gate-score-display" class="risk-num r-safe">Risk: 0 / 100</div>
-    </div>
-    <div class="cards" style="margin-bottom:12px">
-      <div class="card" style="flex:1 1 120px">
-        <div class="card-label">Gate Decision</div>
-        <div class="card-val" id="gate-decision" style="font-size:1.3rem;color:var(--safe)">ALLOW</div>
-      </div>
-      <div class="card" style="flex:2 1 200px">
-        <div class="card-label">Proposed Action</div>
-        <div class="card-val mono" id="gate-action" style="font-size:0.85rem;color:var(--head);margin-top:6px">—</div>
-      </div>
-      <div class="card" style="flex:3 1 280px">
-        <div class="card-label">Reason / Security Finding</div>
-        <div class="card-val" id="gate-reason" style="font-size:0.8rem;color:var(--muted);margin-top:4px;white-space:normal;line-height:1.3">Awaiting action proposal...</div>
-      </div>
-    </div>
-    <div class="ctx-grid">
-      <div class="ctx-box">
-        <h4>Expected from Trusted Intent</h4>
-        <div class="ctx-val mono" id="gate-expected" style="text-align:left;color:var(--teal);white-space:normal">—</div>
-      </div>
-      <div class="ctx-box">
-        <h4>Proposed by Agent / Attack</h4>
-        <div class="ctx-val mono" id="gate-proposed" style="text-align:left;color:var(--text);white-space:normal">—</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Left column -->
-
-  <!-- Live ContextGuard panel -->
-  <section class="section">
-    <div class="sec-title">ContextGuard Live Panel</div>
-    <div class="live-grid">
-      <div>
-        <div class="live-row"><span class="live-label">Status</span>
-          <span id="cg-status"><span class="badge badge-clean">CLEAN</span></span></div>
-        <div class="live-row"><span class="live-label">Risk Score</span>
-          <span id="cg-score" class="risk-num r-safe">0 / 100</span></div>
-        <div class="live-row"><span class="live-label">Last Scan</span>
-          <span id="cg-scan" class="live-val">—</span></div>
-        <div class="live-row"><span class="live-label">Step</span>
-          <span id="cg-step" class="live-val">—</span></div>
-        <div class="live-row"><span class="live-label">Page</span>
-          <span id="cg-page" class="live-val">—</span></div>
-      </div>
-      <div>
-        <div class="live-row"><span class="live-label">Threat Types</span>
-          <span id="cg-threats" class="live-val" style="font-size:11px;max-width:120px;text-align:right">—</span></div>
-        <div class="live-row"><span class="live-label">Top Finding</span>
-          <span id="cg-finding" class="live-val" style="font-size:11px;max-width:120px;text-align:right;white-space:normal">—</span></div>
-        <div class="live-row"><span class="live-label">Agent Action</span>
-          <span id="cg-action" class="live-val">—</span></div>
-        <div class="live-row"><span class="live-label">Injection Detected</span>
-          <span id="cg-inject" class="live-val">—</span></div>
-        <div class="live-row"><span class="live-label">WS Clients</span>
-          <span id="cg-ws" class="live-val">1</span></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Context side-by-side -->
-  <section class="section">
-    <div class="sec-title">User Intent vs Agent Context</div>
-    <div class="ctx-grid">
-      <div class="ctx-box">
-        <h4>User Intent (Trusted)</h4>
-        <div class="ctx-row"><span class="ctx-key">Origin</span><span class="ctx-val" id="ui-origin">—</span></div>
-        <div class="ctx-row"><span class="ctx-key">Destination</span><span class="ctx-val" id="ui-dest">—</span></div>
-        <div class="ctx-row"><span class="ctx-key">Cabin</span><span class="ctx-val" id="ui-cabin">—</span></div>
-        <div class="ctx-row"><span class="ctx-key">Passengers</span><span class="ctx-val" id="ui-pax">—</span></div>
-        <div class="ctx-row"><span class="ctx-key">Date</span><span class="ctx-val" id="ui-date">—</span></div>
-      </div>
-      <div class="ctx-box">
-        <h4>Agent Context (Observed)</h4>
-        <div class="ctx-row"><span class="ctx-key">Current URL</span><span class="ctx-val" id="ag-url">—</span></div>
-        <div class="ctx-row"><span class="ctx-key">Page</span><span class="ctx-val" id="ag-page">—</span></div>
-        <div class="ctx-row"><span class="ctx-key">Last Action</span><span class="ctx-val" id="ag-action">—</span></div>
-        <div class="ctx-row"><span class="ctx-key">Result</span><span class="ctx-val" id="ag-result">—</span></div>
-        <div class="ctx-row"><span class="ctx-key">DOM Hash</span><span class="ctx-val mono" id="ag-hash">—</span></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Agent task runner -->
-  <section class="section">
-    <div class="sec-header">
-      <div class="sec-title">Run Agent Task</div>
-      <button class="btn btn-ghost" onclick="loadTasks()">↻ Refresh</button>
-    </div>
-    <div class="task-form">
-      <input id="task-instruction"
-        value="Book an economy flight from Chennai to Delhi for 1 passenger"
-        placeholder="Plain-English booking instruction..."/>
-      <select id="task-attack-mode">
-        <option value="off">Attack Mode: Off (Clean Baseline)</option>
-        <option value="prompt_injection">Attack Mode: Prompt Injection (Instruction Override)</option>
-        <option value="context_manipulation">Attack Mode: Context Manipulation (Fake Preference)</option>
-        <option value="hidden_content">Attack Mode: Hidden Content (CSS Hidden Instructions)</option>
-        <option value="dom_manipulation">Attack Mode: DOM Manipulation (Form Value Tampering)</option>
-        <option value="navigation_attack">Attack Mode: Navigation Attack (Untrusted Redirect)</option>
+    <!-- Session Selector -->
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;">
+      <label style="font-weight:700;font-size:12px;color:var(--muted);">SELECT SESSION:</label>
+      <select id="audit-session-select" onchange="loadSessionAudit(this.value)" style="background:var(--card);color:#fff;border:1px solid var(--border);padding:6px 12px;border-radius:6px;font-size:12px;min-width:300px;">
+        <option value="">Loading recorded sessions...</option>
       </select>
-      <select id="task-with-cg">
-        <option value="1">With ContextGuard Pre-Action Gate (protected)</option>
-        <option value="0">Without ContextGuard (vulnerable baseline)</option>
-      </select>
-      <select id="task-headless">
-        <option value="1">Headless browser</option>
-        <option value="0">Headed browser (visible)</option>
-      </select>
-      <button class="btn btn-teal" id="run-btn" onclick="runTask()">Run Agent</button>
+      <button class="btn btn-teal" onclick="refreshAuditSessions()">↻ Refresh</button>
     </div>
-    <div style="margin-top:12px">
-      <div class="sec-title" style="margin-bottom:8px">Recent Tasks</div>
-      <div id="task-list" style="font-size:12px;color:var(--muted)">Loading...</div>
-    </div>
-  </section>
 
-  <!-- Attack injection panel -->
-  <section class="section">
-    <div class="sec-header">
-      <div class="sec-title">Attack Injection (Phase 4)</div>
-      <button class="btn btn-ghost btn-sm" onclick="clearAllAttacks()">Clear All</button>
+    <!-- Session Summary Cards -->
+    <div class="cards-row">
+      <div class="card">
+        <div class="card-label">Total Steps</div>
+        <div class="card-val" id="audit-steps">—</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Max Risk Score</div>
+        <div class="card-val" id="audit-max-risk" style="color:var(--safe);">—</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Avg Risk Score</div>
+        <div class="card-val" id="audit-avg-risk">—</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Actions Allowed</div>
+        <div class="card-val" id="audit-allowed" style="color:var(--safe);">—</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Actions Paused/Blocked</div>
+        <div class="card-val" id="audit-blocked" style="color:var(--risk);">—</div>
+      </div>
     </div>
-    <div style="margin-bottom:10px">
-      <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Target Page</label>
-      <select id="attack-page" class="page-sel">
-        <option value="review">review</option>
-        <option value="search">search</option>
-        <option value="results">results</option>
-        <option value="passenger">passenger</option>
-        <option value="confirmed">confirmed</option>
-      </select>
-    </div>
-    <div class="attack-grid">
-      <button class="attack-btn" onclick="injectAttack('prompt_injection')">
-        <span class="atk-name">Prompt Injection</span>
-        Visible AI agent instruction override
-      </button>
-      <button class="attack-btn" onclick="injectAttack('context_manipulation')">
-        <span class="atk-name">Context Manipulation</span>
-        Fake user preference update
-      </button>
-      <button class="attack-btn" onclick="injectAttack('hidden_content')">
-        <span class="atk-name">Hidden Content</span>
-        display:none instruction block
-      </button>
-      <button class="attack-btn" onclick="injectAttack('dom_manipulation')">
-        <span class="atk-name">DOM Manipulation</span>
-        JS silently changes form values
-      </button>
-      <button class="attack-btn" onclick="injectAttack('navigation_attack')" style="grid-column:1/-1">
-        <span class="atk-name">Navigation Attack</span>
-        Injected link redirects agent to attacker URL
-      </button>
-    </div>
-    <div id="attack-status" style="margin-top:10px;font-size:12px;color:var(--muted)"></div>
-  </section>
 
-  <!-- Alert feed -->
-  <section class="section full">
-    <div class="sec-header">
-      <div class="sec-title">Alert Feed</div>
-      <button class="btn btn-ghost" onclick="loadAlerts()">↻ Refresh</button>
+    <!-- Visual Risk Timeline Graph -->
+    <div class="section">
+      <div class="sec-title">
+        <span>Chronological Risk-Over-Time Timeline</span>
+        <span style="font-size:11px;color:var(--muted);">Continuous Risk Score (0–100) vs Step Sequence</span>
+      </div>
+      <div class="graph-container">
+        <svg class="timeline-svg" id="timeline-svg" viewBox="0 0 800 180">
+          <line x1="40" y1="20" x2="780" y2="20" stroke="#334155" stroke-dasharray="4"/>
+          <line x1="40" y1="90" x2="780" y2="90" stroke="#334155" stroke-dasharray="4"/>
+          <line x1="40" y1="160" x2="780" y2="160" stroke="#334155"/>
+          <text x="5" y="25" fill="#ef4444" font-size="10" font-family="monospace">100</text>
+          <text x="12" y="95" fill="#f59e0b" font-size="10" font-family="monospace">50</text>
+          <text x="18" y="165" fill="#10b981" font-size="10" font-family="monospace">0</text>
+          <path id="timeline-path" d="" fill="none" stroke="var(--teal)" stroke-width="3"/>
+          <g id="timeline-points"></g>
+        </svg>
+      </div>
     </div>
-    <div id="alert-feed" class="alert-feed">
-      <div style="color:var(--muted);font-size:12px;font-style:italic">No alerts yet. Run an agent task to see live events.</div>
-    </div>
-  </section>
 
-  <!-- Action log -->
-  <section class="section full">
-    <div class="sec-header">
-      <div class="sec-title">Agent Action Log</div>
-      <button class="btn btn-ghost" onclick="loadActionLog()">↻ Refresh</button>
-    </div>
-    <div class="tbl-wrap">
-      <table class="tbl">
-        <thead><tr>
-          <th>Step</th><th>Page</th><th>Action</th><th>Details</th>
-          <th>Risk</th><th>Result</th><th>Time</th>
-        </tr></thead>
-        <tbody id="action-tbody">
-          <tr><td colspan="7" style="color:var(--muted);font-style:italic;padding:14px">
-            No actions yet.</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
+    <!-- Empirical Ground-Truth Evaluation Panel -->
+    <div class="eval-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <b style="color:#c084fc;font-size:14px;">🧪 Empirical Ground-Truth Evaluation (Post-Run Benchmark)</b>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">
+            The Testbed scenario label is stored in <code>testbed_runs</code> and evaluated strictly offline. ContextGuard had zero access during runtime.
+          </div>
+        </div>
+        <span class="badge" id="eval-outcome-badge" style="background:#581c87;color:#e9d5ff;font-size:12px;">TESTBED COMPARISON</span>
+      </div>
 
-</div>
-<footer class="footer">ContextGuard v2.0 — AI Web Agent Security Testing Platform | Phase 6 Dashboard</footer>
+      <div class="eval-grid">
+        <div class="eval-metric">
+          <div class="card-label">Testbed Scenario</div>
+          <div class="eval-metric-val" id="eval-scenario-name" style="font-size:14px;">—</div>
+        </div>
+        <div class="eval-metric">
+          <div class="card-label">Ground Truth Type</div>
+          <div class="eval-metric-val" id="eval-ground-truth">—</div>
+        </div>
+        <div class="eval-metric">
+          <div class="card-label">Classification</div>
+          <div class="eval-metric-val" id="eval-classification" style="color:var(--safe);">—</div>
+        </div>
+        <div class="eval-metric">
+          <div class="card-label">Mean Gate Latency</div>
+          <div class="eval-metric-val" id="eval-latency">— ms</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Complete Chronological Audit Table -->
+    <div class="section" style="margin-top: 16px;">
+      <div class="sec-title">
+        <span>Traceable Audit History Trail</span>
+      </div>
+      <div style="max-height: 400px; overflow-y: auto;">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>Step</th>
+              <th>Phase</th>
+              <th>Action Details</th>
+              <th>Risk</th>
+              <th>Decision</th>
+              <th>Reason / Contributing Features</th>
+              <th>Timestamp</th>
+            </tr>
+          </thead>
+          <tbody id="audit-tbody">
+            <tr><td colspan="7" style="color:var(--muted);text-align:center;padding:16px;">Select a session above to view audit history.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+</main>
 
 <script>
 const API = "";
-let WS = null;
-let _currentTaskId = null;
-let _alertCount = 0;
-let _actionCount = 0;
-let _paused = false;
+let _activeTab = "live";
+let _liveEvents = [];
 
-// ── Utilities ─────────────────────────────────────────────────────────────
-function ts(iso){ if(!iso)return'—'; const d=new Date(iso); return d.toLocaleTimeString(); }
-function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function riskClass(n){ return n>=60?'r-high':n>=30?'r-warn':'r-safe'; }
-function statusBadge(s){
-  const m={'SAFE':'badge-clean','SUSPICIOUS':'badge-suspicious','HIGH_RISK':'badge-high',
-           'RUNNING':'badge-action','DONE':'badge-clean','ERROR':'badge-high',
-           'PAUSED':'badge-suspicious','PENDING':'badge-clean'};
-  return `<span class="badge ${m[s]||'badge-clean'}">${esc(s)}</span>`;
+function switchTab(tab) {
+  _activeTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
+
+  if (tab === 'live') {
+    document.getElementById('tab-live-btn').classList.add('active');
+    document.getElementById('view-live').classList.add('active');
+  } else {
+    document.getElementById('tab-audit-btn').classList.add('active');
+    document.getElementById('view-audit').classList.add('active');
+    refreshAuditSessions();
+  }
 }
 
-// ── Clock ─────────────────────────────────────────────────────────────────
-function updateClock(){ document.getElementById('clock').textContent = new Date().toUTCString().replace(' GMT',' UTC'); }
-updateClock(); setInterval(updateClock,1000);
+// ── WebSocket Connection ───────────────────────────────────────────────────
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${proto}//${location.host}/ws/agent`;
+  const ws = new WebSocket(wsUrl);
 
-// ── WebSocket ──────────────────────────────────────────────────────────────
-function connectWS(){
-  const proto = location.protocol==='https:'?'wss':'ws';
-  WS = new WebSocket(`${proto}://${location.host}/ws/agent`);
-
-  WS.onopen = ()=>{
+  ws.onopen = () => {
     document.getElementById('ws-dot').className = 'dot dot-ok';
-    document.getElementById('ws-status').textContent = 'Live';
-    // keepalive
-    setInterval(()=>{ if(WS.readyState===1) WS.send('ping'); }, 20000);
+    document.getElementById('ws-status').textContent = 'Live Connected';
   };
-  WS.onclose = ()=>{
+
+  ws.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'contextguard_live_event') {
+        handleLiveEvent(msg.data, msg.session_id);
+      }
+    } catch (_) {}
+  };
+
+  ws.onclose = () => {
     document.getElementById('ws-dot').className = 'dot dot-err';
-    document.getElementById('ws-status').textContent = 'Reconnecting...';
+    document.getElementById('ws-status').textContent = 'Disconnected (Reconnecting...)';
     setTimeout(connectWS, 3000);
   };
-  WS.onerror = ()=>{ WS.close(); };
-
-  WS.onmessage = (e)=>{
-    try{ handleEvent(JSON.parse(e.data)); } catch(_){}
-  };
 }
 
-function handleEvent(ev){
-  const type = ev.type;
+function handleLiveEvent(data, sessionId) {
+  _liveEvents.unshift(data);
+  document.getElementById('live-session-id').textContent = `Session: ${sessionId.slice(0, 8)}...`;
+  document.getElementById('live-risk-score').textContent = data.risk_score || 0;
+  
+  const circle = document.getElementById('gauge-circle');
+  const badge = document.getElementById('live-decision-badge');
+  const score = data.risk_score || 0;
+  const dec = data.decision || 'ALLOW';
 
-  if(type==='agent_action'){
-    _actionCount++;
-    document.getElementById('c-actions').textContent = _actionCount;
-    document.getElementById('c-page').textContent    = ev.page_name||'—';
-    document.getElementById('c-agent-status').textContent = 'RUNNING';
-    document.getElementById('ag-url').textContent    = (ev.page_url||'').slice(-40)||'—';
-    document.getElementById('ag-page').textContent   = ev.page_name||'—';
-    document.getElementById('ag-action').textContent = ev.action_type||'—';
-    document.getElementById('ag-result').textContent = (ev.result||'').slice(0,30)||'—';
-    document.getElementById('cg-action').textContent = ev.action_type||'—';
-    document.getElementById('cg-page').textContent   = ev.page_name||'—';
-    if(ev.attack_detected){
-      document.getElementById('cg-inject').innerHTML =
-        '<span style="color:var(--risk);font-weight:700">DETECTED</span>';
-    }
-    prependAlert({
-      type:'action', status:'SAFE',
-      text:`Step ${ev.step}: ${ev.action_type} on ${ev.page_name}`,
-      sub: ev.result||'', ts: ev.timestamp
-    });
-    loadActionLog();
+  badge.className = `badge badge-${dec}`;
+  badge.textContent = dec;
+
+  if (score >= 75 || dec === 'BLOCK') {
+    circle.style.borderColor = 'var(--risk)';
+    circle.style.boxShadow = '0 0 20px var(--risk-dim)';
+  } else if (score >= 40 || dec === 'WARN') {
+    circle.style.borderColor = 'var(--warn)';
+    circle.style.boxShadow = '0 0 20px var(--warn-dim)';
+  } else {
+    circle.style.borderColor = 'var(--safe)';
+    circle.style.boxShadow = '0 0 20px var(--safe-dim)';
   }
 
-  else if(type==='contextguard_scan'){
-    const score = ev.risk_score||0;
-    document.getElementById('c-risk').textContent    = score;
-    document.getElementById('c-risk').className      = 'card-val '+riskClass(score).replace('r-','');
-    document.getElementById('cg-score').textContent  = `${score} / 100`;
-    document.getElementById('cg-score').className    = 'risk-num '+riskClass(score);
-    document.getElementById('cg-scan').textContent   = ts(new Date().toISOString());
-    document.getElementById('cg-step').textContent   = ev.step||'—';
-    document.getElementById('cg-page').textContent   = ev.page||'—';
-    document.getElementById('cg-threats').textContent= (ev.threat_types||[]).join(', ')||'none';
-    document.getElementById('cg-finding').textContent= (ev.top_finding||'—').slice(0,60);
-    document.getElementById('cg-status').innerHTML   = statusBadge(ev.status||'SAFE');
-    if(!ev.clean){
-      _alertCount++;
-      document.getElementById('c-alerts').textContent = _alertCount;
-      prependAlert({
-        type:'cg', status: ev.status,
-        text:`ContextGuard: ${ev.status} — Score ${score}`,
-        sub: ev.top_finding||'', ts: new Date().toISOString()
-      });
-    }
+  if (data.model_confidence) {
+    document.getElementById('live-model-conf').textContent = `Model Confidence: ${(data.model_confidence * 100).toFixed(1)}%`;
+  }
+  if (data.reason) {
+    document.getElementById('live-reason').textContent = data.reason;
+  }
+  if (data.latency_ms) {
+    document.getElementById('live-latency-breakdown').textContent = `Total Cycle Latency: ${data.latency_ms.toFixed(1)} ms`;
   }
 
-  else if(type==='agent_paused'){
-    _paused = true;
-    document.getElementById('c-agent-status').textContent = 'PAUSED';
-    const banner = document.getElementById('pause-banner');
-    banner.style.display = 'block';
-    document.getElementById('pause-reason').textContent =
-      `Risk score: ${ev.risk_score} | ${ev.reason||'Threshold exceeded'}`;
-    prependAlert({
-      type:'pause', status:'HIGH_RISK',
-      text:`AGENT PAUSED — Risk ${ev.risk_score}`,
-      sub: ev.reason||'', ts: new Date().toISOString()
-    });
+  // Pre-Action fields
+  if (data.phase === 'PRE_ACTION') {
+    document.getElementById('pre-badge').className = `badge badge-${dec}`;
+    document.getElementById('pre-badge').textContent = dec;
+    document.getElementById('pre-action-text').textContent = `${data.action?.type || ''} ${data.action?.selector || ''} -> ${data.action?.value || ''}`;
+    document.getElementById('pre-reason-text').textContent = data.reason || 'Action vetted against task context.';
   }
 
-  else if(type==='task_created'){
-    _currentTaskId = ev.task_id;
-    document.getElementById('c-task').textContent = ev.task_id.slice(0,8)+'…';
-    loadTasks();
+  // Post-Action fields
+  if (data.phase === 'POST_ACTION') {
+    document.getElementById('post-step-ind').textContent = `Step ${data.step || 0}`;
+    if (data.current_url) document.getElementById('post-url-text').textContent = data.current_url;
   }
 
-  else if(type==='attack_injected'){
-    _attackCount = (_attackCount||0)+1;
-    document.getElementById('c-attacks').textContent = _attackCount;
-    prependAlert({
-      type:'attack', status:'attack',
-      text:`Attack injected: ${ev.attack_type} → ${ev.target_page}`,
-      sub:'', ts: new Date().toISOString()
-    });
-    document.getElementById('attack-status').textContent =
-      `Injected: ${ev.attack_type} on ${ev.target_page}`;
-  }
-
-  else if(type==='gate_decision'){
-    const dec = ev.decision;
-    const decEl = document.getElementById('gate-decision');
-    const badgeEl = document.getElementById('gate-latest-badge');
-    const scoreEl = document.getElementById('gate-score-display');
-    const score = ev.risk_score || 0;
-
-    decEl.textContent = dec;
-    scoreEl.textContent = `Risk: ${score} / 100`;
-    scoreEl.className = 'risk-num ' + (dec === 'BLOCK' ? 'r-high' : (dec === 'FLAG' ? 'r-warn' : 'r-safe'));
-
-    if(dec === 'BLOCK'){
-      decEl.style.color = 'var(--risk)';
-      badgeEl.className = 'badge badge-high';
-      badgeEl.textContent = 'ACTION BLOCKED';
-      _alertCount++;
-      document.getElementById('c-alerts').textContent = _alertCount;
-    } else if(dec === 'FLAG'){
-      decEl.style.color = 'var(--warn)';
-      badgeEl.className = 'badge badge-suspicious';
-      badgeEl.textContent = 'ACTION FLAGGED';
-    } else {
-      decEl.style.color = 'var(--safe)';
-      badgeEl.className = 'badge badge-safe';
-      badgeEl.textContent = 'ACTION ALLOWED';
-    }
-
-    const actionStr = `${ev.action_type || ''} ${ev.target || ''} ${ev.value ? '→ ' + ev.value : ''}`;
-    document.getElementById('gate-action').textContent = actionStr || '—';
-    document.getElementById('gate-reason').textContent = ev.reason || '—';
-    document.getElementById('gate-expected').textContent = ev.expected ? `${ev.expected}` : 'Intent parameters consistent';
-    document.getElementById('gate-proposed').textContent = ev.proposed ? `${ev.proposed}` : (ev.value || actionStr);
-
-    prependAlert({
-      type: 'gate',
-      status: dec === 'BLOCK' ? 'HIGH_RISK' : (dec === 'FLAG' ? 'SUSPICIOUS' : 'SAFE'),
-      text: `Gate [${dec}]: ${actionStr}`,
-      sub: ev.reason || '',
-      ts: new Date().toISOString()
-    });
-  }
-
-  else if(type==='booking_confirmed'){
-    document.getElementById('c-agent-status').textContent = 'DONE';
-  }
-}
-let _attackCount = 0;
-
-function prependAlert({type,status,text,sub,ts: timestamp}){
-  const feed = document.getElementById('alert-feed');
-  const div  = document.createElement('div');
-  div.className = `alert-item ${status}`;
-  div.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <span class="alert-type">${esc(text)}</span>
-      <span class="alert-ts">${ts(timestamp)}</span>
-    </div>
-    ${sub?`<div style="color:var(--muted);margin-top:3px;font-size:11px">${esc(sub.slice(0,100))}</div>`:''}`;
-  // Remove placeholder
-  const placeholder = feed.querySelector('div[style*="italic"]');
-  if(placeholder) placeholder.remove();
-  feed.prepend(div);
-  // Keep max 100 alerts
-  while(feed.children.length>100) feed.removeChild(feed.lastChild);
+  renderLiveEventsTable();
 }
 
-// ── Agent task ─────────────────────────────────────────────────────────────
-async function runTask(){
-  const instruction = document.getElementById('task-instruction').value.trim();
-  if(!instruction){ alert('Enter an instruction.'); return; }
-  const attackMode  = document.getElementById('task-attack-mode').value;
-  const withCG      = document.getElementById('task-with-cg').value==='1';
-  const headless    = document.getElementById('task-headless').value==='1';
+function renderLiveEventsTable() {
+  const tbody = document.getElementById('live-events-tbody');
+  document.getElementById('live-event-count').textContent = `${_liveEvents.length} events`;
+  if (!_liveEvents.length) return;
 
-  document.getElementById('run-btn').disabled = true;
-  document.getElementById('run-btn').textContent = 'Starting...';
-  document.getElementById('c-agent-status').textContent = 'STARTING';
-  document.getElementById('pause-banner').style.display = 'none';
-  _paused = false;
-  _actionCount = 0;
-  document.getElementById('c-actions').textContent = '0';
-
-  try{
-    // Create task record
-    const taskRes = await fetch(`${API}/api/tasks`,{
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({instruction})
-    });
-    const task = await taskRes.json();
-    _currentTaskId = task.task_id;
-    document.getElementById('c-task').textContent = task.task_id.slice(0,8)+'…';
-
-    // Run agent via backend endpoint (non-blocking — agent runs in background)
-    await fetch(`${API}/api/agent/run`,{
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        task_id: task.task_id,
-        instruction,
-        attack_mode: attackMode,
-        with_contextguard: withCG,
-        headless
-      })
-    });
-    // Live updates come via WebSocket
-  } catch(e){
-    alert('Failed to start agent: '+e.message);
-  } finally{
-    document.getElementById('run-btn').disabled = false;
-    document.getElementById('run-btn').textContent = 'Run Agent';
-  }
+  tbody.innerHTML = _liveEvents.slice(0, 30).map(ev => `
+    <tr>
+      <td class="mono">Step ${ev.step || 0}</td>
+      <td><span style="font-weight:700;color:var(--teal);">${ev.phase || 'CYCLE'}</span></td>
+      <td class="mono">${ev.action ? `${ev.action.type} ${ev.action.selector || ''}` : (ev.current_url || 'State Observation')}</td>
+      <td><b style="color:${(ev.risk_score||0)>=50?'var(--risk)':'var(--safe)'};">${ev.risk_score || 0}</b></td>
+      <td><span class="badge badge-${ev.decision || 'ALLOW'}">${ev.decision || 'ALLOW'}</span></td>
+      <td class="mono">${ev.latency_ms ? `${ev.latency_ms.toFixed(1)}ms` : '—'}</td>
+      <td style="color:var(--muted);">${new Date().toLocaleTimeString()}</td>
+    </tr>
+  `).join('');
 }
 
-async function resumeAgent(){
-  document.getElementById('pause-banner').style.display = 'none';
-  _paused = false;
-  try{
-    await fetch(`${API}/api/agent/resume`,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({task_id:_currentTaskId})
-    });
-  } catch(e){ alert('Resume failed: '+e.message); }
-}
-
-async function stopAgent(){
-  document.getElementById('pause-banner').style.display = 'none';
-  document.getElementById('c-agent-status').textContent = 'STOPPED';
-  try{
-    await fetch(`${API}/api/agent/stop`,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({task_id:_currentTaskId})
-    });
-  } catch(e){ /* silent */ }
-}
-
-// ── Attacks ────────────────────────────────────────────────────────────────
-async function injectAttack(attackType){
-  const page = document.getElementById('attack-page').value;
-  try{
-    const r = await fetch(`${API}/api/attack/inject`,{
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({attack_type:attackType, target_page:page,
-                            task_id:_currentTaskId||''})
-    });
-    const d = await r.json();
-    document.getElementById('attack-status').innerHTML =
-      `<span style="color:var(--purple)">[INJECTED]</span> ${esc(attackType)} on ${esc(page)}`;
-  } catch(e){
-    document.getElementById('attack-status').textContent = 'Inject failed: '+e.message;
-  }
-}
-
-async function clearAllAttacks(){
-  await fetch(`${API}/api/attack/clear`,{method:'DELETE'});
-  document.getElementById('attack-status').textContent = 'All attacks cleared.';
-  document.getElementById('c-attacks').textContent = '0';
-  _attackCount = 0;
-}
-
-// ── Load data ──────────────────────────────────────────────────────────────
-async function loadTasks(){
-  try{
-    const tasks = await (await fetch(`${API}/api/tasks`)).json();
-    const el = document.getElementById('task-list');
-    if(!tasks.length){ el.textContent='No tasks yet.'; return; }
-    el.innerHTML = tasks.slice(0,5).map(t=>`
-      <div style="padding:5px 0;border-bottom:1px solid var(--border);cursor:pointer"
-           onclick="selectTask('${esc(t.task_id)}')">
-        <span style="color:var(--head)">${esc(t.user_instruction.slice(0,55))}...</span>
-        <span style="float:right">${statusBadge(t.status)}</span>
-        <div class="mono">${esc(t.task_id.slice(0,8))} &nbsp; ${ts(t.created_at)}</div>
-      </div>`).join('');
-  } catch(_){}
-}
-
-function selectTask(taskId){
-  _currentTaskId = taskId;
-  document.getElementById('c-task').textContent = taskId.slice(0,8)+'…';
-  loadActionLog();
-  loadAlerts();
-  loadUserIntent(taskId);
-}
-
-async function loadUserIntent(taskId){
-  try{
-    const task = await (await fetch(`${API}/api/tasks/${taskId}`)).json();
-    if(task.parsed_intent){
-      const intent = JSON.parse(task.parsed_intent);
-      document.getElementById('ui-origin').textContent = intent.origin||'—';
-      document.getElementById('ui-dest').textContent   = intent.destination||'—';
-      document.getElementById('ui-cabin').textContent  = intent.cabin_class||'—';
-      document.getElementById('ui-pax').textContent    = intent.passengers||'—';
-      document.getElementById('ui-date').textContent   = intent.date||'any';
-    }
-  } catch(_){}
-}
-
-async function loadActionLog(){
-  try{
-    const qs = _currentTaskId ? `?task_id=${_currentTaskId}` : '';
-    const logs = await (await fetch(`${API}/api/logs${qs}`)).json();
-    const actions = logs.agent_actions||[];
-    const tbody = document.getElementById('action-tbody');
-    if(!actions.length){
-      tbody.innerHTML='<tr><td colspan="7" style="color:var(--muted);font-style:italic;padding:14px">No actions yet.</td></tr>';
+// ── Audit Tab Logic ────────────────────────────────────────────────────────
+async function refreshAuditSessions() {
+  const sel = document.getElementById('audit-session-select');
+  try {
+    const res = await fetch('/api/tasks');
+    const tasks = await res.json();
+    if (!tasks || !tasks.length) {
+      sel.innerHTML = '<option value="">No recorded tasks yet</option>';
       return;
     }
-    tbody.innerHTML = actions.slice(0,50).map(a=>{
-      const snap = (()=>{ try{ return JSON.parse(a.dom_snapshot||'{}'); }catch(_){return {};} })();
-      const risk = snap.risk_score||0;
-      return `<tr>
-        <td>${a.step_number}</td>
-        <td>${esc(snap.page_name||'—')}</td>
-        <td><span class="badge badge-action">${esc(a.action_type)}</span></td>
-        <td class="mono">${esc((a.action_details||'').slice(0,40))}</td>
-        <td><span class="risk-num ${riskClass(risk)}">${risk}</span></td>
-        <td style="color:var(--muted);font-size:11px">${esc((a.result||'').slice(0,30))}</td>
-        <td class="mono">${ts(a.timestamp)}</td>
-      </tr>`;
-    }).join('');
-    document.getElementById('c-actions').textContent = actions.length;
-  } catch(_){}
+    sel.innerHTML = tasks.slice(0, 20).map(t => `
+      <option value="${t.task_id}">Task: ${t.user_instruction.slice(0, 45)}... (${t.task_id.slice(0,8)})</option>
+    `).join('');
+    if (tasks.length) loadSessionAudit(tasks[0].task_id);
+  } catch (e) {
+    sel.innerHTML = '<option value="">Failed to load sessions</option>';
+  }
 }
 
-async function loadAlerts(){
-  try{
-    const qs = _currentTaskId ? `?task_id=${_currentTaskId}` : '';
-    const events = await (await fetch(`${API}/api/contextguard/events${qs}`)).json();
-    if(!events.length) return;
-    const feed = document.getElementById('alert-feed');
-    const placeholder = feed.querySelector('div[style*="italic"]');
-    if(placeholder) placeholder.remove();
-    events.slice(0,30).forEach(ev=>{
-      prependAlert({
-        type:'cg', status:ev.status==='OPEN'?'SUSPICIOUS':ev.status,
-        text:`${esc(ev.threat_type)} — Risk ${ev.risk_score}`,
-        sub: ev.details?JSON.parse(ev.details)[0]?.description||'':'' ,
-        ts: ev.timestamp
-      });
-    });
-    document.getElementById('c-alerts').textContent = events.length;
-  } catch(_){}
+async function loadSessionAudit(sessionId) {
+  if (!sessionId) return;
+  try {
+    const auditRes = await fetch(`/api/audit/session/${sessionId}`);
+    const auditData = await auditRes.json();
+    const evalRes = await fetch(`/api/evaluation/session/${sessionId}`);
+    const evalData = await evalRes.json();
+
+    renderAuditSummary(auditData, evalData);
+  } catch (_) {}
 }
 
-// ── Init ───────────────────────────────────────────────────────────────────
+function renderAuditSummary(auditData, evalData) {
+  const preds = auditData.predictions || [];
+  const decs = auditData.decisions || [];
+
+  document.getElementById('audit-steps').textContent = preds.length;
+  const maxRisk = evalData.max_risk_score !== undefined ? evalData.max_risk_score : Math.max(...preds.map(p => p.risk_score), 0);
+  const avgRisk = evalData.avg_risk_score !== undefined ? evalData.avg_risk_score : 0;
+
+  const maxEl = document.getElementById('audit-max-risk');
+  maxEl.textContent = maxRisk;
+  maxEl.style.color = maxRisk >= 50 ? 'var(--risk)' : 'var(--safe)';
+  document.getElementById('audit-avg-risk').textContent = avgRisk;
+
+  document.getElementById('audit-allowed').textContent = decs.filter(d => d.decision === 'ALLOW').length;
+  document.getElementById('audit-blocked').textContent = decs.filter(d => d.decision === 'BLOCK' || d.decision === 'PAUSE').length;
+
+  // Evaluation metrics
+  if (evalData && !evalData.error) {
+    document.getElementById('eval-scenario-name').textContent = evalData.testbed_scenario || 'baseline';
+    document.getElementById('eval-ground-truth').textContent = evalData.ground_truth_meaning || 'Benign';
+    document.getElementById('eval-classification').textContent = evalData.classification || 'CORRECT';
+    document.getElementById('eval-classification').style.color = (evalData.classification || '').includes('FALSE') ? 'var(--risk)' : 'var(--safe)';
+    document.getElementById('eval-latency').textContent = evalData.latency ? `${evalData.latency.mean_ms} ms` : '—';
+  }
+
+  // Draw Timeline Graph
+  drawTimelineGraph(preds);
+
+  // Render Table
+  const tbody = document.getElementById('audit-tbody');
+  if (!decs.length && !preds.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="color:var(--muted);text-align:center;padding:16px;">No recorded transitions for this session.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = decs.map((d, i) => {
+    const p = preds[i] || {};
+    return `
+      <tr>
+        <td class="mono">Step ${d.step_number}</td>
+        <td><span style="font-weight:700;color:var(--teal);">${d.phase || 'POST'}</span></td>
+        <td class="mono">${d.enforced_action || 'State Transition Observation'}</td>
+        <td><b style="color:${(d.risk_score||0)>=50?'var(--risk)':'var(--safe)'};">${d.risk_score || 0}</b></td>
+        <td><span class="badge badge-${d.decision}">${d.decision}</span></td>
+        <td>${d.reason || 'Normal state progression'}</td>
+        <td style="color:var(--muted);font-size:11px;">${(d.timestamp || '').slice(11, 19)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function drawTimelineGraph(preds) {
+  const svg = document.getElementById('timeline-svg');
+  const path = document.getElementById('timeline-path');
+  const gPoints = document.getElementById('timeline-points');
+
+  if (!preds || preds.length === 0) {
+    path.setAttribute('d', '');
+    gPoints.innerHTML = '';
+    return;
+  }
+
+  const startX = 60;
+  const endX = 760;
+  const bottomY = 160;
+  const topY = 20;
+  const stepWidth = (endX - startX) / Math.max(1, preds.length - 1);
+
+  let d = '';
+  let pointsHtml = '';
+
+  preds.forEach((p, idx) => {
+    const x = startX + idx * stepWidth;
+    const score = Math.max(0, Math.min(100, p.risk_score || 0));
+    const y = bottomY - (score / 100) * (bottomY - topY);
+
+    if (idx === 0) d += `M ${x} ${y}`;
+    else d += ` L ${x} ${y}`;
+
+    const color = score >= 75 ? '#ef4444' : (score >= 40 ? '#f59e0b' : '#10b981');
+    pointsHtml += `<circle cx="${x}" cy="${y}" r="4" fill="${color}" stroke="#fff" stroke-width="1.5"/>`;
+    pointsHtml += `<text x="${x - 10}" y="${y - 8}" fill="${color}" font-size="10" font-family="monospace" font-weight="700">${score}</text>`;
+  });
+
+  path.setAttribute('d', d);
+  gPoints.innerHTML = pointsHtml;
+}
+
+// ── Startup ────────────────────────────────────────────────────────────────
 connectWS();
-loadTasks();
-setInterval(()=>{ loadActionLog(); loadAlerts(); }, 5000);
 </script>
+
 </body>
 </html>

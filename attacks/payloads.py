@@ -20,6 +20,7 @@ from attacks import (
     dom_manipulation,
     hidden_content,
     navigation_attack,
+    plan_integrity,
     prompt_injection,
 )
 
@@ -29,6 +30,7 @@ _DISPATCH = {
     "hidden_content":       hidden_content.get_payload,
     "dom_manipulation":     dom_manipulation.get_payload,
     "navigation_attack":    navigation_attack.get_payload,
+    "plan_integrity":       plan_integrity.get_payload,
 }
 
 VALID_ATTACK_TYPES = list(_DISPATCH.keys())

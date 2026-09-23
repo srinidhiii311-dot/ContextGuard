@@ -1,0 +1,134 @@
+# =============================================================================
+# ContextGuard Configuration Artifact: protected_fields.yaml
+# Specification Reference: Section 8, FR7, FR14, NFR10, NFR11
+# =============================================================================
+# Maps DOM targets / form selectors to intent schema attributes, assigns
+# baseline action sensitivity scores (0.0 to 1.0), and flags booking-critical actions.
+# Adapting to a new domain only requires updating this mapping.
+# =============================================================================
+
+target_field_mappings:
+  # Flight Origin
+  origin_field:
+    intent_field: "origin"
+    action_sensitivity: 0.80
+    booking_critical: true
+    description: "Departure origin input field"
+    target_selectors:
+      - "#from"
+      - "#origin"
+      - "origin"
+      - "origin_field"
+      - "input[name='from']"
+
+  # Flight Destination
+  destination_field:
+    intent_field: "destination"
+    action_sensitivity: 0.85
+    booking_critical: true
+    description: "Arrival destination input field"
+    target_selectors:
+      - "#to"
+      - "#destination"
+      - "destination"
+      - "destination_field"
+      - "input[name='to']"
+
+  # Cabin Class Preference
+  cabin_class_dropdown:
+    intent_field: "cabin_class"
+    action_sensitivity: 0.75
+    booking_critical: true
+    description: "Cabin class selector dropdown"
+    target_selectors:
+      - "#cabin"
+      - "#cabin_class"
+      - "cabin_class"
+      - "cabin_class_dropdown"
+      - "select[name='cabin']"
+
+  # Passenger Count
+  passenger_count_field:
+    intent_field: "passenger_count"
+    action_sensitivity: 0.70
+    booking_critical: true
+    description: "Passenger count input / stepper"
+    target_selectors:
+      - "#pcount"
+      - "#passenger_count"
+      - "passenger_count"
+      - "passenger_count_field"
+      - "input[name='passengers']"
+
+  # Final Confirmation / Payment Submission
+  confirm_booking_button:
+    intent_field: null
+    action_sensitivity: 0.95
+    booking_critical: true
+    description: "Final flight booking confirmation button"
+    target_selectors:
+      - "#confirm-booking"
+      - "#book-now"
+      - "#btn-confirm"
+      - "confirm_button"
+      - "button[type='submit']"
+
+  # Flight Selection
+  flight_select_card:
+    intent_field: null
+    action_sensitivity: 0.60
+    booking_critical: true
+    description: "Select individual flight itinerary from search results"
+    target_selectors:
+      - ".btn-select-flight"
+      - "button.select-flight"
+      - "select_flight"
+
+  # Search Flights Trigger
+  search_flights_button:
+    intent_field: null
+    action_sensitivity: 0.40
+    booking_critical: false
+    description: "Submit search query to fetch flight results"
+    target_selectors:
+      - "#search-btn"
+      - "#btn-search"
+      - "search_button"
+
+  # Non-Critical UI Interaction (Sorting / Filtering)
+  sort_filter_control:
+    intent_field: null
+    action_sensitivity: 0.15
+    booking_critical: false
+    description: "UI filter or sort order click (price, duration)"
+    target_selectors:
+      - "#sort-by"
+      - ".filter-option"
+      - "sort_button"
+
+  # General Page Reading / Scrolling
+  content_navigation_read:
+    intent_field: null
+    action_sensitivity: 0.10
+    booking_critical: false
+    description: "Reading text, scrolling or passive page interaction"
+    target_selectors:
+      - "body"
+      - "window"
+      - "scroll"
+
+  # URL Navigation / Cross-Origin Transitions
+  url_navigation_action:
+    intent_field: null
+    action_sensitivity: 0.50
+    booking_critical: false
+    description: "Navigation action or cross-origin transition; calibrated baseline sensitivity (0.50) represents intermediate domain transition risk (unloading session / external scripts), sitting above passive clicks (0.30) but below protected field tampering (0.70-0.85) and final confirmation (0.95)"
+    target_selectors:
+      - "navigate:"
+      - "http://"
+      - "https://"
+
+# Fallback default for unidentified targets
+default_unmapped_action:
+  action_sensitivity: 0.30
+  booking_critical: false

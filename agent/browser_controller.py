@@ -50,47 +50,47 @@ ACT_TIMEOUT  = 8_000    # ms
 
 @dataclass
 class DOMSnapshot:
-    """Simplified, structured representation of what the agent sees."""
-    url:         str
-    title:       str
-    page_name:   str                   # search | results | passenger | review | confirmed
-    headings:    List[str]             = field(default_factory=list)
-    buttons:     List[str]             = field(default_factory=list)
-    inputs:      List[Dict[str, str]]  = field(default_factory=list)   # {name, type, value}
-    visible_text: str                  = ""
-    dom_hash:    str                   = ""
-    attack_text_detected: bool         = False
-    attack_indicators:   List[str]     = field(default_factory=list)
+    """Simplified, structured, objective representation of what the agent and browser see."""
+    url:          str
+    title:        str
+    page_name:    str                   # search | results | passenger | review | confirmed
+    headings:     List[str]             = field(default_factory=list)
+    buttons:      List[str]             = field(default_factory=list)
+    inputs:       List[Dict[str, str]]  = field(default_factory=list)   # {name, type, value}
+    forms:        List[Dict[str, str]]  = field(default_factory=list)
+    links:        List[str]             = field(default_factory=list)
+    visible_text: str                   = ""
+    dom_hash:     str                   = ""
+    screenshot_path: str                = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "url":                  self.url,
-            "title":                self.title,
-            "page_name":            self.page_name,
-            "headings":             self.headings,
-            "buttons":              self.buttons,
-            "inputs":               self.inputs,
-            "visible_text":         self.visible_text[:800],
-            "dom_hash":             self.dom_hash,
-            "attack_text_detected": self.attack_text_detected,
-            "attack_indicators":    self.attack_indicators,
+            "url":             self.url,
+            "title":           self.title,
+            "page_name":       self.page_name,
+            "headings":        self.headings,
+            "buttons":         self.buttons,
+            "inputs":          self.inputs,
+            "forms":           self.forms,
+            "links":           self.links,
+            "visible_text":    self.visible_text[:1200],
+            "dom_hash":        self.dom_hash,
+            "screenshot_path": self.screenshot_path,
         }
 
     def to_prompt_summary(self) -> str:
-        """Compact text representation sent to the LLM decision step."""
+        """Compact text representation sent to agent decision step."""
         return (
             f"URL: {self.url}\n"
             f"Page: {self.page_name}\n"
             f"Title: {self.title}\n"
             f"Buttons: {', '.join(self.buttons[:8])}\n"
-            f"Inputs: {[i['name'] for i in self.inputs[:6]]}\n"
+            f"Inputs: {[i.get('name', '') for i in self.inputs[:6]]}\n"
             f"Text snippet: {self.visible_text[:300]}\n"
-            + (f"[ATTACK DETECTED: {self.attack_indicators}]\n"
-               if self.attack_text_detected else "")
         )
 
 
-# JS run inside the page — read-only, defined here, not from page content
+# JS run inside the page — objective DOM extraction
 _JS_OBSERVE = """
 () => {
     const headings = Array.from(document.querySelectorAll('h1,h2,h3'))
@@ -109,37 +109,25 @@ _JS_OBSERVE = """
             value: (e.type==='password'?'[hidden]':(e.value||'').slice(0,40))
         }));
 
+    const forms = Array.from(document.querySelectorAll('form'))
+        .map(f=>({
+            action: f.getAttribute('action') || '',
+            id: f.id || '',
+            inputs_count: f.querySelectorAll('input,select').length
+        }));
+
+    const links = Array.from(document.querySelectorAll('a[href]'))
+        .map(a => a.getAttribute('href') || '')
+        .filter(h => h && !h.startsWith('#') && !h.startsWith('javascript:'))
+        .slice(0, 20);
+
     const text = document.body
-        ? document.body.innerText.replace(/\s+/g,' ').trim().slice(0,2000)
+        ? document.body.innerText.replace(/\\s+/g,' ').trim().slice(0,4000)
         : '';
 
-    return { headings, buttons, inputs, text };
+    return { headings, buttons, inputs, forms, links, text };
 }
 """
-
-# Attack-detection phrases to scan in observed page text
-_ATTACK_PHRASES = [
-    "ignore previous instructions",
-    "ignore all prior",
-    "system update:",
-    "booking system update",
-    "ai agent:",
-    "you are an ai",
-    "bypass",
-    "disregard",
-    "new instructions:",
-    "your task has changed",
-    "proceed directly to payment",
-    "booking already confirmed",
-    "skip this step",
-    "do not review",
-]
-
-
-def _detect_attack(text: str) -> tuple[bool, List[str]]:
-    lower  = text.lower()
-    hits   = [p for p in _ATTACK_PHRASES if p in lower]
-    return bool(hits), hits
 
 
 def _page_name_from_url(url: str) -> str:
@@ -220,7 +208,6 @@ class BrowserController:
 
         text      = data.get("text", "")
         dom_hash  = hashlib.md5(text.encode()).hexdigest()
-        attacked, indicators = _detect_attack(text)
 
         return DOMSnapshot(
             url=url,
@@ -229,10 +216,10 @@ class BrowserController:
             headings=data.get("headings", []),
             buttons=data.get("buttons", []),
             inputs=data.get("inputs", []),
+            forms=data.get("forms", []),
+            links=data.get("links", []),
             visible_text=text,
             dom_hash=dom_hash,
-            attack_text_detected=attacked,
-            attack_indicators=indicators,
         )
 
     # ------------------------------------------------------------------

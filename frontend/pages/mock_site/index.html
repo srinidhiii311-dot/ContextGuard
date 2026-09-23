@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>AeroFlight — Mock Airline Booking Portal (Agent Sandbox)</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif; background: #f0f4f8; color: #1e293b; min-height: 100vh; padding: 24px; }
+.wrap { max-width: 680px; margin: 0 auto; }
+.header-box { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+h1 { font-size: 20px; color: #0369a1; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+.auth-badge { background: #dcfce7; color: #15803d; border: 1px solid #86efac; border-radius: 999px; font-size: 11px; font-weight: 700; padding: 3px 10px; }
+.card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); margin-bottom: 16px; border: 1px solid #e2e8f0; }
+.steps { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
+.step { padding: 4px 14px; border-radius: 20px; font-size: 11px; font-weight: 700; background: #e2e8f0; color: #64748b; }
+.step.done { background: #10b981; color: #fff; }
+.step.active { background: #0284c7; color: #fff; box-shadow: 0 0 10px rgba(2, 132, 199, 0.4); }
+label { display: block; font-size: 12px; font-weight: 700; color: #475569; margin: 12px 0 4px; text-transform: uppercase; letter-spacing: 0.4px; }
+input, select { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; outline: none; background: #f8fafc; }
+input:focus, select:focus { border-color: #0284c7; background: #fff; box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.2); }
+.btn { display: inline-block; padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 16px; transition: all 0.15s ease; }
+.btn-primary { background: #0284c7; color: #fff; } .btn-primary:hover { background: #0369a1; }
+.btn-green { background: #10b981; color: #fff; } .btn-green:hover { background: #059669; }
+.flight-card { border: 1px solid #cbd5e1; border-radius: 10px; padding: 16px; margin: 10px 0; cursor: pointer; transition: all 0.15s ease; background: #fff; }
+.flight-card:hover, .flight-card.selected { border-color: #0284c7; background: #f0f9ff; transform: translateY(-1px); }
+.flight-card.selected { box-shadow: 0 0 0 2px #0284c7; }
+.airline { font-weight: 800; font-size: 16px; color: #0f172a; }
+.route { color: #64748b; font-size: 13px; margin: 4px 0; }
+.price { font-size: 18px; font-weight: 800; color: #0284c7; float: right; }
+.row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+.row-label { color: #64748b; font-weight: 600; }
+.row-val { font-weight: 700; color: #0f172a; }
+.success-box { background: #f0fdf4; border: 2px solid #86efac; border-radius: 12px; padding: 24px; text-align: center; }
+.conf-num { font-size: 26px; font-weight: 800; color: #15803d; letter-spacing: 2px; margin: 10px 0; font-family: monospace; }
+#portal-advisory-slot { margin-bottom: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header-box">
+    <h1>✈ AeroFlight Portal</h1>
+    <div class="auth-badge">● Session-Token Authorized Agent</div>
+  </div>
+
+  <!-- Announcement and carrier advisory slot -->
+  <div id="portal-advisory-slot"></div>
+
+  <div id="app"></div>
+</div>
+
+<script>
+let S = { page: "search", origin: "Chennai", destination: "Bangalore", cabin: "Economy", count: 1, name: "Dr. Alex Morgan", selectedFlight: null };
+
+// Read token from URL query string
+const urlParams = new URLSearchParams(window.location.search);
+const sessionToken = urlParams.get('token') || '';
+
+async function loadInjectedPayload(pageName) {
+  try {
+    const res = await fetch(`/api/attack/payload/${pageName}?token=${sessionToken}`);
+    const data = await res.json();
+    const el = document.getElementById("portal-advisory-slot");
+    if (data.injected) {
+      el.style.display = "block";
+      el.innerHTML = data.html;
+    } else {
+      el.style.display = "none";
+      el.innerHTML = "";
+    }
+  } catch(e) {}
+}
+
+function steps(active) {
+  const list = ["search", "results", "passenger", "review", "confirmed"];
+  const labels = ["1. Search", "2. Select Flight", "3. Passenger", "4. Review", "5. Confirmed"];
+  return `<div class="steps">${list.map((s,i) => `
+    <div class="step ${s === active ? 'active' : (list.indexOf(active) > i ? 'done' : '')}">${labels[i]}</div>`).join("")}</div>`;
+}
+
+function render() {
+  window.location.hash = '#' + S.page;
+  const el = document.getElementById("app");
+  if (S.page === "search") el.innerHTML = renderSearch();
+  else if (S.page === "results") el.innerHTML = renderResults();
+  else if (S.page === "passenger") el.innerHTML = renderPassenger();
+  else if (S.page === "review") el.innerHTML = renderReview();
+  else if (S.page === "confirmed") el.innerHTML = renderConfirmed();
+  loadInjectedPayload(S.page);
+}
+
+function renderSearch() {
+  return `
+    <div class="card">
+      ${steps("search")}
+      <label>From (Origin)</label>
+      <input id="origin" value="${S.origin}" placeholder="Origin city..."/>
+      <label>To (Destination)</label>
+      <input id="destination" value="${S.destination}" placeholder="Destination city..."/>
+      <label>Cabin Class</label>
+      <select id="cabin">
+        <option value="Economy" ${S.cabin === 'Economy' ? 'selected' : ''}>Economy</option>
+        <option value="Business" ${S.cabin === 'Business' ? 'selected' : ''}>Business</option>
+      </select>
+      <button class="btn btn-primary" id="btn-search" onclick="goToResults()">Search Flights ➔</button>
+    </div>
+  `;
+}
+
+function goToResults() {
+  S.origin = document.getElementById("origin").value.trim();
+  S.destination = document.getElementById("destination").value.trim();
+  S.cabin = document.getElementById("cabin").value;
+  S.page = "results";
+  render();
+}
+
+function renderResults() {
+  const price = S.cabin === "Business" ? "₹14,500" : "₹4,200";
+  return `
+    <div class="card">
+      ${steps("results")}
+      <p style="font-size: 13px; color: #64748b; margin-bottom: 12px;">Showing available flights for <b>${S.origin} ➔ ${S.destination}</b> (${S.cabin}):</p>
+      <div class="flight-card selected" id="flight-card-1">
+        <span class="price">${price}</span>
+        <div class="airline">IndiGo 6E-241</div>
+        <div class="route">${S.origin} ➔ ${S.destination} • Non-stop (1h 15m)</div>
+      </div>
+      <div class="flight-card" id="flight-card-2">
+        <span class="price">${S.cabin === "Business" ? "₹16,000" : "₹4,800"}</span>
+        <div class="airline">Air India AI-508</div>
+        <div class="route">${S.origin} ➔ ${S.destination} • Non-stop (1h 20m)</div>
+      </div>
+      <button class="btn btn-primary" id="btn-select-flight" onclick="goToPassenger()">Select Flight & Continue ➔</button>
+    </div>
+  `;
+}
+
+function goToPassenger() {
+  S.page = "passenger";
+  render();
+}
+
+function renderPassenger() {
+  return `
+    <div class="card">
+      ${steps("passenger")}
+      <label>Primary Passenger Name</label>
+      <input id="passenger-name" value="${S.name}"/>
+      <label>Number of Passengers</label>
+      <input type="number" id="passenger-count" value="${S.count}" min="1" max="9"/>
+      <button class="btn btn-primary" id="btn-to-review" onclick="goToReview()">Review Reservation ➔</button>
+    </div>
+  `;
+}
+
+function goToReview() {
+  S.name = document.getElementById("passenger-name").value;
+  S.count = parseInt(document.getElementById("passenger-count").value) || 1;
+  S.page = "review";
+  render();
+}
+
+function renderReview() {
+  const pricePer = S.cabin === "Business" ? 14500 : 4200;
+  const total = pricePer * S.count;
+  return `
+    <div class="card">
+      ${steps("review")}
+      <h3 style="font-size: 16px; margin-bottom: 12px; color: #0f172a;">Verify Flight Summary</h3>
+      <div class="row"><span class="row-label">Route</span><span class="row-val">${S.origin} ➔ ${S.destination}</span></div>
+      <div class="row"><span class="row-label">Cabin Class</span><span class="row-val">${S.cabin}</span></div>
+      <div class="row"><span class="row-label">Primary Passenger</span><span class="row-val">${S.name}</span></div>
+      <div class="row"><span class="row-label">Total Passengers</span><span class="row-val">${S.count} Passenger(s)</span></div>
+      <div class="row"><span class="row-label">Total Amount</span><span class="row-val" style="color: #0284c7; font-size: 16px;">₹${total.toLocaleString()}</span></div>
+      <button class="btn btn-green" id="btn-confirm-booking" onclick="goToConfirmed()">Confirm & Book Reservation ✓</button>
+    </div>
+  `;
+}
+
+function goToConfirmed() {
+  S.page = "confirmed";
+  render();
+}
+
+function renderConfirmed() {
+  return `
+    <div class="card">
+      ${steps("confirmed")}
+      <div class="success-box">
+        <h2 style="font-size: 20px; color: #15803d;">Reservation Confirmed!</h2>
+        <p style="font-size: 13px; color: #475569; margin-top: 4px;">Your e-tickets have been issued successfully.</p>
+        <div class="conf-num">PNR: AGY-${Math.floor(100000 + Math.random() * 900000)}</div>
+        <p style="font-size: 12px; color: #64748b;">${S.origin} ➔ ${S.destination} | ${S.count} Passenger(s) | ${S.cabin} Class</p>
+      </div>
+    </div>
+  `;
+}
+
+// Check hash on load
+if (window.location.hash) {
+  const hash = window.location.hash.replace('#', '');
+  if (["search", "results", "passenger", "review", "confirmed"].includes(hash)) {
+    S.page = hash;
+  }
+}
+render();
+</script>
+</body>
+</html>

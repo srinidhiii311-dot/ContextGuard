@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>ContextGuard — Live Web Agent Action Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0b0f17;
+    --surface: #111827;
+    --card: #1a2234;
+    --border: #334155;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --teal: #38bdf8;
+    --teal-glow: rgba(56, 189, 248, 0.25);
+    --green: #10b981;
+    --green-glow: rgba(16, 185, 129, 0.35);
+    --red: #ef4444;
+    --red-glow: rgba(239, 68, 68, 0.45);
+    --warn: #f59e0b;
+    --warn-glow: rgba(245, 158, 11, 0.4);
+    --purple: #a855f7;
+  }
+  body {
+    min-height: 100vh;
+    background: #090d16;
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Header */
+  .header {
+    height: 54px;
+    background: rgba(17, 24, 39, 0.96);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .brand-icon {
+    font-size: 20px;
+    filter: drop-shadow(0 0 8px #38bdf8);
+  }
+  .brand h1 {
+    font-size: 15px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: 0.3px;
+  }
+  .session-tag {
+    background: rgba(56, 189, 248, 0.12);
+    color: var(--teal);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+  }
+  .nav-links {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    align-items: center;
+  }
+  .nav-link {
+    color: var(--muted);
+    text-decoration: none;
+    font-weight: 600;
+    padding: 5px 10px;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+  }
+  .nav-link:hover { color: #fff; background: rgba(255, 255, 255, 0.06); }
+  .nav-link.active { color: var(--teal); }
+
+  /* Workspace Layout */
+  .workspace {
+    flex: 1;
+    display: flex;
+    position: relative;
+    height: calc(100vh - 54px);
+    overflow: hidden;
+  }
+
+  /* Left: Web Agent Action Viewport */
+  .agent-viewport-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #0f172a;
+    border-right: 1px solid var(--border);
+    position: relative;
+  }
+  .browser-toolbar {
+    height: 42px;
+    background: #1e293b;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 12px;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .browser-dots {
+    display: flex;
+    gap: 6px;
+  }
+  .browser-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #475569;
+  }
+  .dot-red { background: #ef4444; }
+  .dot-yellow { background: #f59e0b; }
+  .dot-green { background: #10b981; }
+  .url-bar {
+    flex: 1;
+    background: #0f172a;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 12px;
+    color: #94a3b8;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .agent-badge {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--green);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+  }
+
+  .viewport-body {
+    flex: 1;
+    position: relative;
+    background: #0d1322;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .mock-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: #f0f4f8;
+  }
+
+  /* Overlay Halt Banner on BLOCK */
+  #halt-banner {
+    position: absolute;
+    inset: 0;
+    background: rgba(11, 15, 23, 0.88);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 40;
+    transition: opacity 0.3s ease;
+  }
+  #halt-banner.hidden {
+    display: none !important;
+  }
+  .halt-card {
+    background: #1e1b2e;
+    border: 2px solid #ef4444;
+    border-radius: 12px;
+    padding: 28px 36px;
+    text-align: center;
+    max-width: 520px;
+    box-shadow: 0 0 40px rgba(239, 68, 68, 0.4);
+  }
+  .halt-icon {
+    font-size: 44px;
+    margin-bottom: 10px;
+    filter: drop-shadow(0 0 10px #ef4444);
+  }
+  .halt-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: #ef4444;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+  .halt-reason {
+    font-size: 13px;
+    color: #f1f5f9;
+    line-height: 1.5;
+    margin-bottom: 14px;
+    background: rgba(0,0,0,0.3);
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+  }
+  .halt-badge {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid #ef4444;
+    padding: 4px 12px;
+    border-radius: 999px;
+  }
+
+  /* Live Step Action Banner at top of viewport */
+  .step-narrative-banner {
+    position: absolute;
+    top: 16px;
+    left: 20px;
+    right: 20px;
+    background: rgba(15, 23, 42, 0.92);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 10px;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.6);
+    z-index: 10;
+  }
+  .step-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .step-num-pill {
+    background: var(--teal);
+    color: #0b0f17;
+    font-weight: 800;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+  .step-desc {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+  }
+  .step-action-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--teal);
+    background: rgba(56, 189, 248, 0.12);
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(56, 189, 248, 0.25);
+  }
+
+  /* =========================================================================
+     ContextGuard Live Risk Overlay (Floating on top of Web Agent's actions)
+     ========================================================================= */
+  .contextguard-hud {
+    width: 420px;
+    background: rgba(17, 24, 39, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    box-shadow: -10px 0 35px rgba(0,0,0,0.5);
+    z-index: 50;
+    transition: all 0.3s ease;
+  }
+  .hud-header {
+    padding: 14px 18px;
+    background: rgba(30, 41, 59, 0.85);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .hud-title-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .hud-title-box h3 {
+    font-size: 13px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: 0.3px;
+  }
+  .blind-tag {
+    font-size: 10px;
+    font-weight: 700;
+    background: rgba(168, 85, 247, 0.2);
+    color: var(--purple);
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    border-radius: 999px;
+    padding: 2px 7px;
+  }
+
+  .hud-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* Big Risk Score Gauge Card */
+  .risk-card {
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: all 0.3s ease;
+  }
+  .risk-card.tier-allow {
+    border-color: rgba(16, 185, 129, 0.4);
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+  }
+  .risk-card.tier-warn {
+    border-color: rgba(245, 158, 11, 0.45);
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.15);
+  }
+  .risk-card.tier-pause {
+    border-color: rgba(249, 115, 22, 0.6);
+    box-shadow: 0 0 25px rgba(249, 115, 22, 0.25);
+  }
+  .risk-card.tier-block {
+    border-color: rgba(239, 68, 68, 0.6);
+    box-shadow: 0 0 25px rgba(239, 68, 68, 0.25);
+  }
+
+  .gauge-circle {
+    width: 96px;
+    height: 96px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .gauge-svg {
+    transform: rotate(-90deg);
+  }
+  .gauge-bg {
+    fill: none;
+    stroke: #1e293b;
+    stroke-width: 8;
+  }
+  .gauge-progress {
+    fill: none;
+    stroke: var(--green);
+    stroke-width: 8;
+    stroke-linecap: round;
+    stroke-dasharray: 251;
+    stroke-dashoffset: 251;
+    transition: stroke-dashoffset 0.4s ease, stroke 0.4s ease;
+  }
+  .gauge-val {
+    position: absolute;
+    font-size: 22px;
+    font-weight: 800;
+    color: #fff;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .risk-details {
+    flex: 1;
+    margin-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .decision-badge {
+    align-self: flex-start;
+    padding: 4px 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    color: #fff;
+    background: var(--green);
+    box-shadow: 0 0 12px var(--green-glow);
+    transition: all 0.3s ease;
+  }
+  .threat-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .latency-readout {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #64748b;
+  }
+
+  /* Reasoning Card */
+  .reasoning-card {
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #cbd5e1;
+  }
+  .reasoning-card strong {
+    color: #fff;
+    display: block;
+    margin-bottom: 3px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Operator Resolution Panel (For PAUSE) */
+  .operator-panel {
+    display: none;
+    background: rgba(245, 158, 11, 0.12);
+    border: 2px solid var(--warn);
+    border-radius: 14px;
+    padding: 16px;
+    animation: pulseWarn 1.8s infinite alternate;
+  }
+  @keyframes pulseWarn {
+    from { box-shadow: 0 0 10px rgba(245, 158, 11, 0.2); }
+    to { box-shadow: 0 0 25px rgba(245, 158, 11, 0.45); }
+  }
+  .op-title {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--warn);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .op-sub {
+    font-size: 11px;
+    color: #fde68a;
+    line-height: 1.4;
+    margin-bottom: 12px;
+  }
+  .op-btn-row {
+    display: flex;
+    gap: 8px;
+  }
+  .btn-approve {
+    flex: 1;
+    background: #10b981;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px;
+    font-weight: 700;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .btn-approve:hover { background: #059669; }
+  .btn-deny {
+    flex: 1;
+    background: #ef4444;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px;
+    font-weight: 700;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .btn-deny:hover { background: #dc2626; }
+
+  /* 4 Sub-factor Feature Meters */
+  .features-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+  }
+  .feature-row {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .feat-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .feat-bar-bg {
+    height: 6px;
+    background: #1e293b;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .feat-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--teal);
+    border-radius: 999px;
+    transition: width 0.3s ease, background 0.3s ease;
+  }
+
+  /* Event Stream Feed */
+  .feed-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .feed-label {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: var(--teal);
+    letter-spacing: 0.6px;
+  }
+  .feed-list {
+    flex: 1;
+    max-height: 160px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .feed-item {
+    background: #0f172a;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 11px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .feed-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .feed-seq {
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+  }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="brand">
+    <span class="brand-icon">🛡️</span>
+    <div>
+      <h1>ContextGuard Live Execution</h1>
+    </div>
+    <div class="session-tag" id="session-tag">Session: Initializing...</div>
+  </div>
+  <nav class="nav-links">
+    <a href="/" class="nav-link"><span>⚙</span> Task Setup</a>
+    <a href="/live" class="nav-link active"><span>⚡</span> Live Monitor</a>
+    <a href="/audit" class="nav-link"><span>📜</span> Audit Records</a>
+    <a href="/report" class="nav-link"><span>📊</span> Report & Training</a>
+  </nav>
+</header>
+
+<div class="workspace">
+  <!-- Left Viewport: The Web Agent's Actions Page -->
+  <div class="agent-viewport-container">
+    <div class="browser-toolbar">
+      <div class="browser-dots">
+        <div class="browser-dot dot-red"></div>
+        <div class="browser-dot dot-yellow"></div>
+        <div class="browser-dot dot-green"></div>
+      </div>
+      <div class="url-bar">
+        <span>🔒</span>
+        <span id="browser-url-text">http://127.0.0.1:8000/app#search</span>
+      </div>
+      <div class="agent-badge">🤖 Web Agent Active</div>
+    </div>
+
+    <!-- Live Step Narrative Banner -->
+    <div class="step-narrative-banner" id="step-banner">
+      <div class="step-left">
+        <div class="step-num-pill" id="step-pill">Step 0</div>
+        <div class="step-desc" id="step-desc">Agent initializing browser context...</div>
+      </div>
+      <div class="step-action-tag" id="step-action-tag">ACTION: PENDING</div>
+    </div>
+
+    <div class="viewport-body" style="position: relative;">
+      <!-- Embedded Real Multi-Page Mock Site Viewport -->
+      <iframe id="mock-viewport" class="mock-iframe"
+              src="about:blank"
+              sandbox="allow-same-origin allow-scripts allow-forms">
+      </iframe>
+      <!-- Overlay Halt Banner on BLOCK -->
+      <div id="halt-banner" class="hidden">
+        <div class="halt-card">
+          <div class="halt-icon">🛑</div>
+          <div class="halt-title">EXECUTION HALTED BY CONTEXTGUARD</div>
+          <p id="halt-reason" class="halt-reason">Adversarial payload or policy violation detected before action execution.</p>
+          <div class="halt-badge">PRE-ACTION GATE ENFORCED: BLOCKED</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: ContextGuard Floating Live Risk Overlay -->
+  <aside class="contextguard-hud" id="hud-overlay">
+    <div class="hud-header">
+      <div class="hud-title-box">
+        <span style="font-size: 16px;">🛡️</span>
+        <h3>ContextGuard Observer</h3>
+      </div>
+      <div class="blind-tag">● Blind Runtime Layer</div>
+    </div>
+
+    <div class="hud-body">
+      <!-- Risk Score Gauge Card -->
+      <div class="risk-card tier-allow" id="risk-card">
+        <div class="gauge-circle">
+          <svg class="gauge-svg" width="96" height="96">
+            <circle class="gauge-bg" cx="48" cy="48" r="40"/>
+            <circle class="gauge-progress" id="gauge-bar" cx="48" cy="48" r="40"/>
+          </svg>
+          <div class="gauge-val" id="risk-score-val">0</div>
+        </div>
+        <div class="risk-details">
+          <div class="decision-badge" id="decision-badge">ALLOW</div>
+          <div class="threat-label" id="threat-label">BENIGN EXECUTION</div>
+          <div class="latency-readout" id="latency-val">Latency: 0.0 ms</div>
+        </div>
+      </div>
+
+      <!-- Operator Resolution Panel (Triggered only when PAUSED) -->
+      <div class="operator-panel" id="operator-panel">
+        <div class="op-title">
+          <span>⚠️</span> Action Paused for Human Approval
+        </div>
+        <div class="op-sub" id="op-reason">
+          Elevated risk score requires explicit operator clearance before action is executed.
+        </div>
+        <div class="op-btn-row">
+          <button class="btn-approve" onclick="resolveAction('resume')">✓ Approve & Resume</button>
+          <button class="btn-deny" onclick="resolveAction('deny')">✕ Deny & Block</button>
+        </div>
+      </div>
+
+      <!-- Human-Readable Reasoning -->
+      <div class="reasoning-card">
+        <strong>ContextGuard Analysis</strong>
+        <span id="reasoning-text">Awaiting initial browser action step...</span>
+      </div>
+
+      <!-- 4 Concrete Feature Meters -->
+      <div class="features-grid">
+        <div class="feature-row">
+          <div class="feat-header">
+            <span>Intent Consistency</span>
+            <span id="feat-intent-val">100%</span>
+          </div>
+          <div class="feat-bar-bg"><div class="feat-bar-fill" id="feat-intent-bar" style="width: 0%; background: #10b981;"></div></div>
+        </div>
+        <div class="feature-row">
+          <div class="feat-header">
+            <span>Domain Trust Boundary</span>
+            <span id="feat-domain-val">SAFE</span>
+          </div>
+          <div class="feat-bar-bg"><div class="feat-bar-fill" id="feat-domain-bar" style="width: 0%; background: #10b981;"></div></div>
+        </div>
+        <div class="feature-row">
+          <div class="feat-header">
+            <span>Prompt Injection Heuristics</span>
+            <span id="feat-inject-val">0%</span>
+          </div>
+          <div class="feat-bar-bg"><div class="feat-bar-fill" id="feat-inject-bar" style="width: 0%; background: #10b981;"></div></div>
+        </div>
+        <div class="feature-row">
+          <div class="feat-header">
+            <span>Protected Field Mutation</span>
+            <span id="feat-field-val">NORMAL</span>
+          </div>
+          <div class="feat-bar-bg"><div class="feat-bar-fill" id="feat-field-bar" style="width: 0%; background: #10b981;"></div></div>
+        </div>
+      </div>
+
+      <!-- Event Stream Feed -->
+      <div class="feed-section">
+        <div class="feed-label">Live Action Feed</div>
+        <div class="feed-list" id="feed-list"></div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- WebSocket Library -->
+<script src="/frontend/lib/ws-client.js"></script>
+<script>
+// Extract session_id from URL path (/live/:id) or query parameter (?session_id=)
+let sessionId = window.location.pathname.split('/live/')[1] || new URLSearchParams(window.location.search).get('session_id');
+let viewerToken = "";
+let currentIframeStep = "";
+
+if (!sessionId || sessionId === "") {
+  // Fetch latest session from audit
+  fetch('/api/audit?limit=1')
+    .then(r => r.json())
+    .then(data => {
+      if (data.sessions && data.sessions.length > 0) {
+        window.location.href = `/live/${data.sessions[0].id}`;
+      } else {
+        document.getElementById('session-tag').textContent = "No active session found. Please launch from Setup.";
+      }
+    });
+} else {
+  initLiveSession(sessionId);
+}
+
+function initLiveSession(id) {
+  document.getElementById('session-tag').textContent = `Session: ${id.slice(0, 8)}...`;
+
+  // Connect WebSocket stream
+  new ContextGuardWSClient(id, {
+    onEvent: (data) => handleStreamEvent(data),
+    onBlock: (data) => handleBlocked(data),
+    onPause: (data) => handlePaused(data),
+    onResume: (data) => handleResumed(data),
+    onComplete: (data) => handleCompleted(data),
+  });
+
+  // Pre-fetch session detail to retrieve viewer_token and historical events
+  fetch(`/api/sessions/${id}`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.session) {
+        viewerToken = data.session.viewer_token || data.session.session_token || "";
+        const iframe = document.getElementById('mock-viewport');
+        if (iframe && viewerToken) {
+          currentIframeStep = "search";
+          iframe.src = `/mock_site/${id}/search?token=${viewerToken}`;
+        }
+        if (data.session.status === 'blocked' || data.session.final_decision === 'BLOCK') {
+          showHaltBanner("Session was terminated by ContextGuard pre-action gate.");
+        }
+      }
+      if (data.events && data.events.length > 0) {
+        data.events.forEach(e => {
+          handleStreamEvent({
+            seq: e.seq,
+            ts: e.ts,
+            current_url: e.current_url,
+            rendered_step: e.rendered_step || e.dom_diff?.page || "search",
+            action_desc: `Action ${e.proposed_action?.type || ''} ${e.proposed_action?.target || ''}`,
+            proposed_action: e.proposed_action,
+            risk_score: e.risk_score,
+            threat_type: e.threat_type,
+            decision: e.decision,
+            reasoning: e.reasoning,
+            latency_ms: e.latency_ms,
+            feature_breakdown: null
+          });
+        });
+      }
+    });
+}
+
+function showHaltBanner(reason) {
+  const banner = document.getElementById('halt-banner');
+  if (banner) {
+    banner.classList.remove('hidden');
+    if (reason) {
+      document.getElementById('halt-reason').textContent = reason;
+    }
+  }
+}
+
+function handleStreamEvent(d) {
+  // Update step narrative
+  document.getElementById('step-pill').textContent = `Step ${d.seq}`;
+  document.getElementById('step-desc').textContent = d.action_desc || "Autonomous Agent Action";
+  const act = d.proposed_action || {};
+  document.getElementById('step-action-tag').textContent = `${act.type || 'ACT'} ${act.target || ''} ${act.value ? '→ ' + act.value : ''}`;
+  if (d.current_url) {
+    document.getElementById('browser-url-text').textContent = d.current_url;
+  }
+
+  // Synchronize mock site iframe viewport to current step
+  const step = d.rendered_step || d.page;
+  if (step && d.decision !== 'BLOCK') {
+    const iframe = document.getElementById('mock-viewport');
+    if (iframe && viewerToken && step !== currentIframeStep) {
+      currentIframeStep = step;
+      iframe.src = `/mock_site/${sessionId}/${step}?token=${viewerToken}`;
+    }
+  }
+
+  // Update Risk Score Gauge
+  const score = Math.round(d.risk_score || 0);
+  document.getElementById('risk-score-val').textContent = score;
+  const circumference = 251.2;
+  const offset = circumference - (score / 100) * circumference;
+  const bar = document.getElementById('gauge-bar');
+  bar.style.strokeDashoffset = offset;
+
+  // Colors based on score
+  const riskCard = document.getElementById('risk-card');
+  const badge = document.getElementById('decision-badge');
+  riskCard.className = 'risk-card';
+
+  if (score < 35) {
+    bar.style.stroke = '#10b981';
+    badge.style.background = '#10b981';
+    badge.style.boxShadow = '0 0 12px rgba(16, 185, 129, 0.4)';
+    riskCard.classList.add('tier-allow');
+  } else if (score < 65) {
+    bar.style.stroke = '#f59e0b';
+    badge.style.background = '#f59e0b';
+    badge.style.boxShadow = '0 0 12px rgba(245, 158, 11, 0.4)';
+    riskCard.classList.add('tier-warn');
+  } else if (score < 80) {
+    bar.style.stroke = '#f97316';
+    badge.style.background = '#f97316';
+    badge.style.boxShadow = '0 0 15px rgba(249, 115, 22, 0.5)';
+    riskCard.classList.add('tier-pause');
+  } else {
+    bar.style.stroke = '#ef4444';
+    badge.style.background = '#ef4444';
+    badge.style.boxShadow = '0 0 16px rgba(239, 68, 68, 0.6)';
+    riskCard.classList.add('tier-block');
+  }
+
+  badge.textContent = d.decision || 'ALLOW';
+  document.getElementById('threat-label').textContent = d.threat_type ? d.threat_type.replace(/_/g, ' ') : 'BENIGN ACTION';
+  document.getElementById('latency-val').textContent = `Latency: ${d.latency_ms || 14.2} ms`;
+  document.getElementById('reasoning-text').textContent = d.reasoning || "Action evaluated cleanly.";
+
+  // Update sub-factor feature meters
+  if (d.feature_breakdown) {
+    const inc = (d.feature_breakdown.intent_inconsistency || 0) * 100;
+    const dom = (d.feature_breakdown.domain_risk || 0) * 100;
+    const inj = (d.feature_breakdown.injection_risk || 0) * 100;
+    const fld = (d.feature_breakdown.field_tampering_risk || 0) * 100;
+
+    document.getElementById('feat-intent-bar').style.width = `${inc}%`;
+    document.getElementById('feat-intent-bar').style.background = inc > 50 ? '#ef4444' : '#10b981';
+    document.getElementById('feat-intent-val').textContent = inc > 50 ? 'MISMATCH' : 'ALIGNED';
+
+    document.getElementById('feat-domain-bar').style.width = `${dom}%`;
+    document.getElementById('feat-domain-bar').style.background = dom > 50 ? '#ef4444' : '#10b981';
+    document.getElementById('feat-domain-val').textContent = dom > 50 ? 'DIVERGENT' : 'SAFE';
+
+    document.getElementById('feat-inject-bar').style.width = `${inj}%`;
+    document.getElementById('feat-inject-bar').style.background = inj > 50 ? '#ef4444' : '#10b981';
+    document.getElementById('feat-inject-val').textContent = `${Math.round(inj)}%`;
+
+    document.getElementById('feat-field-bar').style.width = `${fld}%`;
+    document.getElementById('feat-field-bar').style.background = fld > 50 ? '#ef4444' : '#10b981';
+    document.getElementById('feat-field-val').textContent = fld > 50 ? 'TAMPERED' : 'NORMAL';
+  }
+
+  // Append to Feed
+  const feed = document.getElementById('feed-list');
+  const item = document.createElement('div');
+  item.className = 'feed-item';
+  item.innerHTML = `
+    <div class="feed-left">
+      <span class="feed-seq">#${d.seq}</span>
+      <span>${act.type || 'ACT'} ${act.target || ''}</span>
+    </div>
+    <span style="color: ${score >= 80 ? '#ef4444' : (score >= 35 ? '#f59e0b' : '#10b981')}; font-weight: 700;">${d.decision || 'ALLOW'} (${score})</span>
+  `;
+  feed.prepend(item);
+
+  // If BLOCK verdict, immediately freeze viewport and surface halt banner
+  if (d.decision === 'BLOCK') {
+    showHaltBanner(d.reasoning);
+  }
+}
+
+function handlePaused(d) {
+  const panel = document.getElementById('operator-panel');
+  panel.style.display = 'block';
+  document.getElementById('op-reason').textContent = d.reason || "High-risk action paused. Operator approval required.";
+}
+
+function handleResumed() {
+  document.getElementById('operator-panel').style.display = 'none';
+  const banner = document.getElementById('halt-banner');
+  if (banner) banner.classList.add('hidden');
+}
+
+function handleBlocked(d) {
+  document.getElementById('operator-panel').style.display = 'none';
+  document.getElementById('step-desc').textContent = "🛑 EXECUTION HALTED BY CONTEXTGUARD PRE-ACTION GATE";
+  showHaltBanner(d.reason || d.reasoning);
+}
+
+function handleCompleted(d) {
+  document.getElementById('operator-panel').style.display = 'none';
+  document.getElementById('step-desc').textContent = "✅ Booking Workflow Completed Successfully";
+}
+
+async function resolveAction(action) {
+  try {
+    const endpoint = `/api/sessions/${sessionId}/${action}`;
+    const res = await fetch(endpoint, { method: 'POST' });
+    const data = await res.json();
+    if (action === 'resume') {
+      handleResumed();
+    } else {
+      handleBlocked({});
+    }
+  } catch(err) {
+    alert("Resolution error: " + err);
+  }
+}
+</script>
+
+</body>
+</html>

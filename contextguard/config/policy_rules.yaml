@@ -1,0 +1,63 @@
+# =============================================================================
+# ContextGuard Configuration Artifact: policy_rules.yaml
+# Specification Reference: Section 8, FR17, FR18, FR19, FR20, Component 6
+# =============================================================================
+# Declarative mapping from Risk Tier + Action Metadata to graduated responses:
+# ALLOW | ALLOW_WITH_FLAG | REQUIRE_CONFIRMATION | BLOCK | PAUSE_TASK
+# =============================================================================
+
+# Global threshold for task-level context drift escalation
+prior_flag_escalation_threshold: 3
+
+# Base policy rules mapping (Risk Tier, Booking Critical) -> Response
+# Evaluated when prior_flags < prior_flag_escalation_threshold
+base_policy_matrix:
+  LOW:
+    booking_critical_true: "ALLOW"
+    booking_critical_false: "ALLOW"
+
+  MEDIUM:
+    booking_critical_true: "REQUIRE_CONFIRMATION"
+    booking_critical_false: "ALLOW_WITH_FLAG"
+
+  HIGH:
+    booking_critical_true: "BLOCK"
+    booking_critical_false: "REQUIRE_CONFIRMATION"
+
+  CRITICAL:
+    booking_critical_true: "BLOCK"
+    booking_critical_false: "BLOCK"
+
+# -----------------------------------------------------------------------------
+# Multi-Step Drift Escalation Rules
+# Triggered when prior_flags >= prior_flag_escalation_threshold.
+#
+# SCOPING DECISION & RATIONALE:
+# - Repeated LOW-risk events on non-critical fields (e.g. passive scrolling or sorting)
+#   remain ALLOW and are logged to audit_log without escalating, avoiding premature
+#   halting of legitimate agent browsing flows.
+# - Escalation activates when the agent attempts a booking-critical action or when
+#   medium/high anomaly actions occur, progressing by one discrete enforcement tier.
+# -----------------------------------------------------------------------------
+escalation_policy_matrix:
+  LOW:
+    # Only escalates if the action is booking-critical
+    booking_critical_true: "ALLOW_WITH_FLAG"
+    booking_critical_false: "ALLOW"
+
+  MEDIUM:
+    # Escalates by 1 tier: ALLOW_WITH_FLAG -> REQUIRE_CONFIRMATION
+    booking_critical_false: "REQUIRE_CONFIRMATION"
+    # Escalates by 1 tier: REQUIRE_CONFIRMATION -> BLOCK
+    booking_critical_true: "BLOCK"
+
+  HIGH:
+    # Escalates by 1 tier: REQUIRE_CONFIRMATION -> BLOCK
+    booking_critical_false: "BLOCK"
+    # Escalates by 1 tier: BLOCK -> PAUSE_TASK (halts task run for review)
+    booking_critical_true: "PAUSE_TASK"
+
+  CRITICAL:
+    # Repeated critical events suspend the entire agent session
+    booking_critical_false: "PAUSE_TASK"
+    booking_critical_true: "PAUSE_TASK"

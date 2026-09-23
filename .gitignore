@@ -22,6 +22,10 @@ contextguard.db
 
 # Downloads directory (created at runtime)
 downloads/
+screenshots/*.png
+*.lnk
+*.zip
+*.log
 
 # Pytest / hypothesis
 .pytest_cache/

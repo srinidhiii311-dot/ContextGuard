@@ -1,0 +1,58 @@
+# =============================================================================
+# ContextGuard Configuration Artifact: risk_weights.yaml
+# Specification Reference: Section 8, FR14, FR15, FR16, Component 5
+# =============================================================================
+# Tunable weights for calculating the continuous 0–100 risk score and mapping
+# to discrete risk tiers. Weights must sum to 1.00.
+# =============================================================================
+
+# Continuous Risk Formula Weights:
+# RiskScore = 100 * ( w_conf * Signal + w_inconsist * InconsistencySeverity 
+#                   + w_action * ActionSensitivity + w_marker * MarkerPresence )
+weights:
+  weight_classification_confidence: 0.25   # Or normalized deviation signal for unknown path
+  weight_inconsistency_severity:    0.30   # Normalized magnitude of field / state mismatch (0.0–1.0)
+  weight_action_sensitivity:        0.25   # From protected_fields.yaml (0.0–1.0)
+  weight_marker_presence:           0.20   # Binary indicator (1.0 if injection phrase found, else 0.0)
+
+# -----------------------------------------------------------------------------
+# Deviation Signal Normalization for Unknown Threat Path
+# Cosine distance D_cos(u, v) = 1.0 - cos_sim(u, v), where u = intent, v = context
+# Normalized via: delta_norm = clamp((D_cos - delta_min) / (delta_max - delta_min), 0.0, 1.0)
+# -----------------------------------------------------------------------------
+deviation_normalization:
+  metric: "embedding_cosine_distance"
+  # Empirically calibrated via scripts/calibrate_deviation.py across 10 benign and 10 attacked runs:
+  # Benign Mean: 0.7275, Min: 0.4578; Attacked Mean: 0.8178, Max: 0.9556
+  delta_min: 0.59    # Baseline benign lower bound
+  delta_max: 0.96    # Saturation upper bound for severe divergence / adversarial hijacking
+
+# -----------------------------------------------------------------------------
+# Discrete Risk Tiers
+# Standardized CVSS/NIST-style 4-tier categorization.
+# Legacy terminology from early drafts mapped in comments for report traceability.
+# -----------------------------------------------------------------------------
+risk_tiers:
+  LOW:
+    min_score: 0
+    max_score: 29
+    description: "Consistent with intent or benign low-sensitivity UI action"
+    legacy_aliases: ["SAFE"]
+
+  MEDIUM:
+    min_score: 30
+    max_score: 59
+    description: "Minor anomaly or moderate sensitivity action requiring heightened scrutiny"
+    legacy_aliases: ["FLAG", "SUSPICIOUS"]
+
+  HIGH:
+    min_score: 60
+    max_score: 84
+    description: "Significant inconsistency, unknown anomaly, or unverified critical field mutation"
+    legacy_aliases: ["BLOCK-CANDIDATE"]
+
+  CRITICAL:
+    min_score: 85
+    max_score: 100
+    description: "Explicit injection marker match, foreign domain navigation, or hostile parameter tampering"
+    legacy_aliases: ["HARD_BLOCK"]
