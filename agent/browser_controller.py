@@ -62,6 +62,8 @@ class DOMSnapshot:
     visible_text: str                   = ""
     dom_hash:     str                   = ""
     screenshot_path: str                = ""
+    attack_text_detected: bool          = False
+    attack_indicators:   List[str]      = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -76,6 +78,8 @@ class DOMSnapshot:
             "visible_text":    self.visible_text[:1200],
             "dom_hash":        self.dom_hash,
             "screenshot_path": self.screenshot_path,
+            "attack_text_detected": self.attack_text_detected,
+            "attack_indicators":    self.attack_indicators,
         }
 
     def to_prompt_summary(self) -> str:

@@ -365,7 +365,7 @@ class AgentController:
                     proposed = ProposedAction.from_dict(
                         action,
                         page_url=snapshot.url,
-                        source_text=snapshot.visible_text if snapshot.attack_text_detected else None,
+                        source_text=snapshot.visible_text if getattr(snapshot, "attack_text_detected", False) else None,
                     )
                     gate_res = self.gate.check(proposed, snapshot.visible_text)
 
@@ -517,7 +517,7 @@ class AgentController:
             "page_url":    snapshot.url,
             "page_name":   snapshot.page_name,
             "result":      result_note,
-            "attack_detected": snapshot.attack_text_detected,
+            "attack_detected": getattr(snapshot, "attack_text_detected", False),
             "timestamp":   entry["timestamp"],
         })
 
