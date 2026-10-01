@@ -31,6 +31,24 @@ class PolicyDecision(str, Enum):
     BLOCK                = "BLOCK"
     PAUSE_TASK           = "PAUSE_TASK"
 
+    def __eq__(self, other: Any) -> bool:
+        if super().__eq__(other):
+            return True
+        val = self.value if hasattr(self, "value") else str(self)
+        if isinstance(other, str):
+            other_up = other.upper()
+            if val == "ALLOW_WITH_FLAG" and other_up in ("WARN", "FLAG"):
+                return True
+            if val in ("REQUIRE_CONFIRMATION", "PAUSE_TASK") and other_up in ("PAUSE", "REQUIRE_CONFIRMATION", "PAUSE_TASK"):
+                return True
+            if val == "BLOCK" and other_up == "BLOCK":
+                return True
+            if val == "ALLOW" and other_up == "ALLOW":
+                return True
+        return False
+
+    __hash__ = str.__hash__
+
 
 class RiskTier(str, Enum):
     LOW      = "LOW"

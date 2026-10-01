@@ -219,3 +219,20 @@ def test_action_sensitivity_selector_resolution_regression():
     assert sens_nav == 0.50, f"Expected 0.50 for URL navigation, got {sens_nav}"
     assert crit_nav is False
 
+
+def test_policy_decision_hashable_and_dict_keys():
+    """Verify PolicyDecision enum members are strictly hashable and work as dict keys and set members."""
+    d = {
+        PolicyDecision.ALLOW: "allow_action",
+        PolicyDecision.ALLOW_WITH_FLAG: "flag_action",
+        PolicyDecision.REQUIRE_CONFIRMATION: "confirm_action",
+        PolicyDecision.BLOCK: "block_action",
+        PolicyDecision.PAUSE_TASK: "pause_action",
+    }
+    assert d[PolicyDecision.BLOCK] == "block_action"
+    assert d[PolicyDecision.ALLOW] == "allow_action"
+    s = set(PolicyDecision)
+    assert len(s) == 5
+    assert PolicyDecision.PAUSE_TASK in s
+
+
