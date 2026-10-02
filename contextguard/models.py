@@ -31,23 +31,28 @@ class PolicyDecision(str, Enum):
     BLOCK                = "BLOCK"
     PAUSE_TASK           = "PAUSE_TASK"
 
-    def __eq__(self, other: Any) -> bool:
-        if super().__eq__(other):
-            return True
-        val = self.value if hasattr(self, "value") else str(self)
-        if isinstance(other, str):
-            other_up = other.upper()
-            if val == "ALLOW_WITH_FLAG" and other_up in ("WARN", "FLAG"):
-                return True
-            if val in ("REQUIRE_CONFIRMATION", "PAUSE_TASK") and other_up in ("PAUSE", "REQUIRE_CONFIRMATION", "PAUSE_TASK"):
-                return True
-            if val == "BLOCK" and other_up == "BLOCK":
-                return True
-            if val == "ALLOW" and other_up == "ALLOW":
-                return True
-        return False
 
-    __hash__ = str.__hash__
+def normalize_decision(value: Any) -> PolicyDecision:
+    """
+    Normalizes string aliases or enum representations to canonical PolicyDecision.
+    Maps legacy/test aliases (e.g. 'WARN' -> ALLOW_WITH_FLAG, 'PAUSE' -> PAUSE_TASK).
+    """
+    if isinstance(value, PolicyDecision):
+        return value
+    val_str = str(getattr(value, "value", value)).upper().strip()
+    alias_map = {
+        "ALLOW": PolicyDecision.ALLOW,
+        "WARN": PolicyDecision.ALLOW_WITH_FLAG,
+        "FLAG": PolicyDecision.ALLOW_WITH_FLAG,
+        "ALLOW_WITH_FLAG": PolicyDecision.ALLOW_WITH_FLAG,
+        "REQUIRE_CONFIRMATION": PolicyDecision.REQUIRE_CONFIRMATION,
+        "PAUSE": PolicyDecision.PAUSE_TASK,
+        "PAUSE_TASK": PolicyDecision.PAUSE_TASK,
+        "BLOCK": PolicyDecision.BLOCK,
+    }
+    if val_str in alias_map:
+        return alias_map[val_str]
+    raise ValueError(f"Unknown or unmappable decision value: {value!r}")
 
 
 class RiskTier(str, Enum):

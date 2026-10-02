@@ -19,6 +19,8 @@ ENV/
 contextguard.db
 *.db
 *.sqlite
+.*runtime_model_weights.json
+*runtime_model_weights.json
 
 # Downloads directory (created at runtime)
 downloads/

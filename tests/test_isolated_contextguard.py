@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from backend.database.db import ContextGuardRuntimeDAO, EvaluationDAO, TestbedDAO, init_db
 from contextguard.ml.feature_extractor import feature_extractor
 from contextguard.ml.risk_model import risk_predictor
+from contextguard.models import PolicyDecision, normalize_decision
 from contextguard.policy_engine import policy_engine
 from contextguard.pre_action_gate import PreActionGate
 from contextguard.state_collector import BrowserState
@@ -201,17 +202,17 @@ class TestContextGuardArchitecture(unittest.TestCase):
         policy.update_thresholds(allow=35.0, warn=60.0, pause=80.0)
 
         dec_low = policy.evaluate(risk_score=20, model_confidence=0.9)
-        self.assertEqual(dec_low.decision, "ALLOW")
+        self.assertEqual(normalize_decision(dec_low.decision), PolicyDecision.ALLOW)
 
         dec_med = policy.evaluate(risk_score=65, model_confidence=0.7)
-        self.assertEqual(dec_med.decision, "WARN")
+        self.assertEqual(normalize_decision(dec_med.decision), PolicyDecision.ALLOW_WITH_FLAG)
 
         dec_high = policy.evaluate(risk_score=85, model_confidence=0.85)
-        self.assertEqual(dec_high.decision, "PAUSE")
+        self.assertEqual(normalize_decision(dec_high.decision), PolicyDecision.PAUSE_TASK)
 
-        # Consequential payment with moderate risk escalates to PAUSE
+        # Consequential payment with moderate risk escalates to PAUSE / REQUIRE_CONFIRMATION
         dec_sens = policy.evaluate(risk_score=55, action_sensitivity=0.9, is_consequential=True)
-        self.assertEqual(dec_sens.decision, "PAUSE")
+        self.assertIn(normalize_decision(dec_sens.decision), (PolicyDecision.PAUSE_TASK, PolicyDecision.REQUIRE_CONFIRMATION))
         self.assertTrue(dec_sens.requires_human_confirmation)
 
     def test_06_testbed_scenarios_suite(self):

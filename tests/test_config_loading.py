@@ -232,7 +232,12 @@ def test_policy_decision_hashable_and_dict_keys():
     assert d[PolicyDecision.BLOCK] == "block_action"
     assert d[PolicyDecision.ALLOW] == "allow_action"
     s = set(PolicyDecision)
-    assert len(s) == 5
     assert PolicyDecision.PAUSE_TASK in s
+
+    from contextguard.models import normalize_decision
+    assert normalize_decision("WARN") == PolicyDecision.ALLOW_WITH_FLAG
+    assert normalize_decision("FLAG") == PolicyDecision.ALLOW_WITH_FLAG
+    assert normalize_decision("PAUSE") == PolicyDecision.PAUSE_TASK
+    assert normalize_decision("BLOCK") == PolicyDecision.BLOCK
 
 

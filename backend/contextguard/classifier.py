@@ -11,10 +11,12 @@ from __future__ import annotations
 import datetime
 import json
 import math
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-MODEL_PATH = Path(__file__).parent / "model_weights.json"
+BASE_MODEL_PATH = Path(__file__).parent / "model_weights.json"
+RUNTIME_MODEL_PATH = Path(os.environ.get("CONTEXTGUARD_RUNTIME_WEIGHTS", str(Path(__file__).parent / ".runtime_model_weights.json")))
 
 # Features used for classification
 ML_FEATURE_KEYS = [
@@ -41,9 +43,10 @@ class MLClassifier:
         self.load_model()
 
     def load_model(self) -> None:
-        if MODEL_PATH.exists():
+        path_to_load = RUNTIME_MODEL_PATH if RUNTIME_MODEL_PATH.exists() else BASE_MODEL_PATH
+        if path_to_load.exists():
             try:
-                data = json.loads(MODEL_PATH.read_text(encoding="utf-8"))
+                data = json.loads(path_to_load.read_text(encoding="utf-8"))
                 self.weights = [float(w) for w in data.get("weights", self.weights)]
                 self.bias = float(data.get("bias", self.bias))
                 self.trained_samples = int(data.get("trained_samples", 0))
@@ -59,7 +62,7 @@ class MLClassifier:
             "last_trained_at": self.last_trained_at,
             "features": ML_FEATURE_KEYS,
         }
-        MODEL_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        RUNTIME_MODEL_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
     def predict_risk(self, features: Dict[str, Any]) -> float:
         """Predicts risk score (0-100) using trained linear/logistic weights."""
