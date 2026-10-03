@@ -1,0 +1,5 @@
+Config ID,Description,Attacks Intercepted,Total Attacks,Interception Recall,Interception 95% CI Lower,Interception 95% CI Upper,Flagged Only,Flagged Only Rate,Flagged 95% CI Lower,Flagged 95% CI Upper,Clean False Interceptions,Total Clean,Clean FP Rate,Clean FP 95% CI Lower,Clean FP 95% CI Upper,Clean False Flagged,Mean Latency (ms),p95 Latency (ms)
+Config A,Field checks only (Step 2),120,150,80.00%,72.89%,85.62%,0,0.00%,0.00%,2.50%,0,30,0.00%,0.00%,11.35%,0,0.08,0.12
+Config B,Config A + Keyword taxonomy (Comp 3),150,150,100.00%,97.50%,100.00%,0,0.00%,0.00%,2.50%,0,30,0.00%,0.00%,11.35%,0,0.12,0.2
+Config C,Config B + Semantic characterization (Comp 4),150,150,100.00%,97.50%,100.00%,0,0.00%,0.00%,2.50%,0,30,0.00%,0.00%,11.35%,0,0.14,0.22
+Config D,Full Gate (All 7 Components + Policy Matrix),150,150,100.00%,97.50%,100.00%,0,0.00%,0.00%,2.50%,0,30,0.00%,0.00%,11.35%,0,35.32,42.67
