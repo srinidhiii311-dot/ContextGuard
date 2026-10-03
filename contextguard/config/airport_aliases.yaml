@@ -1,0 +1,16 @@
+# =============================================================================
+# contextguard/config/airport_aliases.yaml — Airport IATA Code to City Mapping
+# Used ONLY in origin/destination protected field comparison
+# =============================================================================
+
+aliases:
+  MAA: "chennai"
+  DEL: "delhi"
+  BOM: "mumbai"
+  BLR: "bengaluru"
+  HYD: "hyderabad"
+  CCU: "kolkata"
+  COK: "kochi"
+  GOI: "goa"
+  PNQ: "pune"
+  AMD: "ahmedabad"

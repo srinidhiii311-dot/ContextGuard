@@ -173,6 +173,13 @@ class ContextConsistencyVerifier:
         for attack_name, attack_info in at_data.get("known_attacks", {}).items():
             self.injection_markers.extend(attack_info.get("pattern_hints", []))
 
+        aliases_path = (CONFIG_DIR / "airport_aliases.yaml")
+        aliases_data = yaml.safe_load(aliases_path.read_text(encoding="utf-8")) if aliases_path.exists() else {}
+        self.airport_aliases: Dict[str, str] = {
+            str(k).strip().upper(): str(v).strip().lower()
+            for k, v in aliases_data.get("aliases", {}).items()
+        }
+
     def resolve_target_metadata(self, target: str) -> Tuple[Optional[str], float, bool]:
         """
         Returns (intent_field_name, action_sensitivity, booking_critical).
@@ -222,23 +229,132 @@ class ContextConsistencyVerifier:
         marker_hit: Optional[str] = None
 
         intent_field, sensitivity, is_critical = self.resolve_target_metadata(action.target)
+        target_low = action.target.lower().strip()
+        val_str = str(action.value).strip() if action.value is not None else ""
 
-        # Check 1: Protected field value consistency (FR7)
+        # Check 1: Protected field value consistency (FR7) with airport alias normalisation
         if intent_field and action.value is not None:
             raw_expected = str(getattr(locked_intent, intent_field, "")).strip()
             raw_proposed = str(action.value).strip()
 
-            if raw_expected and raw_proposed.lower() != raw_expected.lower():
+            if raw_expected:
+                exp_low = raw_expected.lower()
+                prop_low = raw_proposed.lower()
+                is_match = False
+
+                if exp_low == prop_low:
+                    is_match = True
+                elif intent_field in ("origin", "destination"):
+                    # Airport alias normalisation used ONLY for origin/destination field comparison
+                    norm_exp = self.airport_aliases.get(raw_expected.upper(), exp_low)
+                    norm_prop = self.airport_aliases.get(raw_proposed.upper(), prop_low)
+                    if norm_exp == norm_prop or norm_prop == exp_low or norm_exp == prop_low:
+                        is_match = True
+
+                if not is_match:
+                    inconsistencies.append(
+                        InconsistencyItem(
+                            check_type="FIELD_MISMATCH",
+                            field_name=intent_field,
+                            expected_value=raw_expected,
+                            observed_value=raw_proposed,
+                            severity=0.85 if is_critical else 0.50,
+                            detail=(
+                                f"Proposed value for protected field '{intent_field}' ('{raw_proposed}') "
+                                f"diverges from immutable locked intent ('{raw_expected}')."
+                            ),
+                        )
+                    )
+
+        # Check 1b: Travel date verification (GENERIC hard-rule check)
+        is_date_field = "date" in target_low or intent_field == "travel_date"
+        if is_date_field and val_str and getattr(locked_intent, "travel_date", None) is not None:
+            expected_date = str(locked_intent.travel_date).strip()
+            if val_str.lower() != expected_date.lower():
                 inconsistencies.append(
                     InconsistencyItem(
                         check_type="FIELD_MISMATCH",
-                        field_name=intent_field,
-                        expected_value=raw_expected,
-                        observed_value=raw_proposed,
-                        severity=0.85 if is_critical else 0.50,
+                        field_name="travel_date",
+                        expected_value=expected_date,
+                        observed_value=val_str,
+                        severity=0.85,
                         detail=(
-                            f"Proposed value for protected field '{intent_field}' ('{raw_proposed}') "
-                            f"diverges from immutable locked intent ('{raw_expected}')."
+                            f"Proposed travel date '{val_str}' diverges from "
+                            f"locked intent travel date ('{expected_date}')."
+                        ),
+                    )
+                )
+
+        # Check 1c: Contact email verification (GENERIC hard-rule check)
+        is_email_field = "email" in target_low or ("@" in val_str and "." in val_str)
+        if is_email_field and val_str and getattr(locked_intent, "contact_email", None) is not None:
+            expected_email = str(locked_intent.contact_email).strip().lower()
+            if val_str.lower() != expected_email:
+                inconsistencies.append(
+                    InconsistencyItem(
+                        check_type="FIELD_MISMATCH",
+                        field_name="contact_email",
+                        expected_value=expected_email,
+                        observed_value=val_str,
+                        severity=0.85,
+                        detail=(
+                            f"Proposed contact email '{val_str}' diverges from "
+                            f"authorized contact email ('{expected_email}')."
+                        ),
+                    )
+                )
+
+        # Check 1d: Price-affecting add-on fields when addons_allowed is 'none' (GENERIC hard-rule check)
+        addons_policy = str(getattr(locked_intent, "addons_allowed", "none") or "none").strip().lower()
+        if addons_policy == "none":
+            is_price_affecting = False
+            affected_field_name = None
+
+            # 1. Baggage surcharge
+            if "baggage" in target_low or "luggage" in target_low:
+                is_price_affecting = True
+                affected_field_name = "baggage"
+
+            # 2. Travel insurance add-on
+            elif "insurance" in target_low:
+                is_price_affecting = True
+                affected_field_name = "insurance"
+
+            # 3. Currency modification
+            elif "currency" in target_low:
+                is_price_affecting = True
+                affected_field_name = "currency"
+
+            # 4. Exit-row / paid seat fee (distinguished from standard complimentary seat)
+            elif "seat" in target_low:
+                val_low = val_str.lower()
+                paid_seat_indicators = ("exit", "extra", "legroom", "fee", "charge", "surcharge", "paid", "upgrade")
+                if any(ind in val_low for ind in paid_seat_indicators) or target_low == "#seat":
+                    is_price_affecting = True
+                    affected_field_name = "exit_row_fee"
+
+            # 5. Paid meal surcharge (distinguished from complimentary meal preference)
+            elif "meal" in target_low:
+                val_low = val_str.lower()
+                complimentary_preferences = ("veg", "vegetarian", "non-veg", "jain", "standard", "kosher", "halal", "none")
+                if not any(pref == val_low or f"{pref} meal" in val_low for pref in complimentary_preferences):
+                    is_price_affecting = True
+                    affected_field_name = "meal_surcharge"
+                elif target_low == "#meal" and any(ind in val_low for ind in ("banquet", "caviar", "fee", "surcharge", "paid")):
+                    is_price_affecting = True
+                    affected_field_name = "meal_surcharge"
+
+            if is_price_affecting:
+                inconsistencies.append(
+                    InconsistencyItem(
+                        check_type="FIELD_MISMATCH",
+                        field_name=affected_field_name or "price_affecting_addon",
+                        expected_value="addons_allowed: none",
+                        observed_value=val_str or action.target,
+                        severity=0.85,
+                        detail=(
+                            f"Action touches price-affecting field '{affected_field_name}' ('{action.target}'), "
+                            f"violating policy constraint 'addons_allowed=none'."
                         ),
                     )
                 )

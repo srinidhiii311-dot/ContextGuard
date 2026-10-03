@@ -78,6 +78,10 @@ class LockedIntent(BaseModel):
     cabin_class: str = Field(default="Economy", description="Requested cabin class")
     passenger_count: int = Field(default=1, description="Number of passengers")
     max_price: Optional[int] = Field(default=None, description="Max budget constraint")
+    travel_date: Optional[str] = Field(default=None, description="Requested travel date")
+    addons_allowed: Optional[str] = Field(default="none", description="Add-ons policy constraint: none | any | list")
+    max_fare: Optional[float] = Field(default=None, description="Max permitted fare threshold")
+    contact_email: Optional[str] = Field(default=None, description="Authorized passenger contact email")
 
     def to_dict(self) -> Dict[str, Any]:
         return self.model_dump()

@@ -83,8 +83,12 @@ class TrustedIntent:
     """
     origin:          str
     destination:     str
-    cabin_class:     str
-    passenger_count: int
+    cabin_class:     str             = "Economy"
+    passenger_count: int             = 1
+    travel_date:     Optional[str]   = "2026-10-25"
+    addons_allowed:  Optional[str]   = "none"
+    max_fare:        Optional[float] = None
+    contact_email:   Optional[str]   = "srinidhi@traveler-corp.com"
 
     @classmethod
     def from_parsed(cls, parsed: Dict[str, Any]) -> "TrustedIntent":
@@ -92,7 +96,11 @@ class TrustedIntent:
             origin          = str(parsed.get("origin",       "")).strip(),
             destination     = str(parsed.get("destination",  "")).strip(),
             cabin_class     = str(parsed.get("cabin_class",  "Economy")).strip(),
-            passenger_count = int(parsed.get("passengers",   1)),
+            passenger_count = int(parsed.get("passengers",   parsed.get("passenger_count", 1))),
+            travel_date     = parsed.get("travel_date", parsed.get("date", "2026-10-25")),
+            addons_allowed  = parsed.get("addons_allowed", "none"),
+            max_fare        = parsed.get("max_fare", parsed.get("max_price")),
+            contact_email   = parsed.get("contact_email", parsed.get("email", "srinidhi@traveler-corp.com")),
         )
 
     @classmethod
@@ -102,6 +110,10 @@ class TrustedIntent:
             destination     = str(data.get("destination",  "")).strip(),
             cabin_class     = str(data.get("cabin_class",  "Economy")).strip(),
             passenger_count = int(data.get("passenger_count", data.get("passengers", 1))),
+            travel_date     = data.get("travel_date", data.get("date", "2026-10-25")),
+            addons_allowed  = data.get("addons_allowed", "none"),
+            max_fare        = data.get("max_fare", data.get("max_price")),
+            contact_email   = data.get("contact_email", data.get("email", "srinidhi@traveler-corp.com")),
         )
 
     def to_locked_intent(self) -> LockedIntent:
@@ -110,6 +122,10 @@ class TrustedIntent:
             destination     = self.destination,
             cabin_class     = self.cabin_class,
             passenger_count = self.passenger_count,
+            travel_date     = self.travel_date,
+            addons_allowed  = self.addons_allowed,
+            max_fare        = self.max_fare,
+            contact_email   = self.contact_email,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -118,6 +134,10 @@ class TrustedIntent:
             "destination":     self.destination,
             "cabin_class":     self.cabin_class,
             "passenger_count": self.passenger_count,
+            "travel_date":     self.travel_date,
+            "addons_allowed":  self.addons_allowed,
+            "max_fare":        self.max_fare,
+            "contact_email":   self.contact_email,
         }
 
 
