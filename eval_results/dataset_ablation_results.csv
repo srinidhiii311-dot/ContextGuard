@@ -1,5 +1,5 @@
 Config ID,Description,Attacks Intercepted,Total Attacks,Interception Recall,Interception 95% CI Lower,Interception 95% CI Upper,Flagged Only,Flagged Only Rate,Flagged 95% CI Lower,Flagged 95% CI Upper,Clean False Interceptions,Total Clean,Clean FP Int Rate,Clean FP Int 95% CI Lower,Clean FP Int 95% CI Upper,Clean False Flagged,Clean Non-ALLOW Count,Clean Non-ALLOW Rate,Clean Non-ALLOW 95% CI Lower,Clean Non-ALLOW 95% CI Upper,Mean Latency (ms),p95 Latency (ms)
-Config A,Field checks only (Step 2 Verification Rail),22,34,64.71%,47.91%,78.51%,0,0.00%,0.00%,10.15%,2,32,6.25%,1.73%,20.15%,0,2,6.25%,1.73%,20.15%,0.08,0.11
-Config B,Config A + Keyword taxonomy (Component 3),26,34,76.47%,60.00%,87.56%,0,0.00%,0.00%,10.15%,2,32,6.25%,1.73%,20.15%,0,2,6.25%,1.73%,20.15%,0.1,0.15
-Config C,Config B + Semantic characterization (Component 4),27,34,79.41%,63.20%,89.65%,0,0.00%,0.00%,10.15%,3,32,9.38%,3.24%,24.22%,0,3,9.38%,3.24%,24.22%,0.11,0.23
-Config D,Full Gate (All 7 Components + ML Risk + Policy Matrix),26,34,76.47%,60.00%,87.56%,1,2.94%,0.52%,14.92%,2,32,6.25%,1.73%,20.15%,1,3,9.38%,3.24%,24.22%,36.32,41.38
+Config A,Field checks only (Step 2 Verification Rail),29,34,85.29%,69.87%,93.55%,0,0.00%,0.00%,10.15%,0,32,0.00%,0.00%,10.72%,0,0,0.00%,0.00%,10.72%,0.18,0.2
+Config B,Config A + Keyword taxonomy (Component 3),33,34,97.06%,85.08%,99.48%,0,0.00%,0.00%,10.15%,0,32,0.00%,0.00%,10.72%,0,0,0.00%,0.00%,10.72%,0.21,0.42
+Config C,Config B + Semantic characterization (Component 4),33,34,97.06%,85.08%,99.48%,0,0.00%,0.00%,10.15%,1,32,3.12%,0.55%,15.74%,0,1,3.12%,0.55%,15.74%,0.23,0.45
+Config D,Full Gate (All 7 Components + ML Risk + Policy Matrix),33,34,97.06%,85.08%,99.48%,0,0.00%,0.00%,10.15%,0,32,0.00%,0.00%,10.72%,1,1,3.12%,0.55%,15.74%,54.25,66.16
