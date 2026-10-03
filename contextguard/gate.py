@@ -443,6 +443,7 @@ class ContextGuardGate:
             prior_flags      = self._prior_flags,
             action_target    = action.target,
             action_type      = action.action_type,
+            inconsistencies  = consistency_report.inconsistencies,
         )
         timing["policy_evaluation_ms"] = (time.monotonic() - t0) * 1000
 
@@ -615,6 +616,22 @@ class ContextGuardGate:
         }
         dec_key = getattr(policy.decision, "value", str(policy.decision))
         decision = policy_map.get(dec_key, Decision.BLOCK)
+
+        # Ensure hard-rule floor: NAVIGATION_BOUNDARY or FIELD_MISMATCH gives at least REQUIRE_CONFIRMATION
+        enforce_severity = {
+            Decision.ALLOW: 0,
+            Decision.ALLOW_WITH_FLAG: 1,
+            Decision.FLAG: 1,
+            Decision.REQUIRE_CONFIRMATION: 2,
+            Decision.PAUSE_TASK: 3,
+            Decision.BLOCK: 4,
+        }
+        has_hard_rule = any(
+            inc.check_type in ("NAVIGATION_BOUNDARY", "FIELD_MISMATCH")
+            for inc in consistency.inconsistencies
+        )
+        if has_hard_rule and enforce_severity.get(decision, 0) < enforce_severity[Decision.REQUIRE_CONFIRMATION]:
+            decision = Decision.REQUIRE_CONFIRMATION
 
         # Build reason chain
         parts = [policy.reason]

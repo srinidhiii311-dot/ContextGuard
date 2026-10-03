@@ -249,6 +249,7 @@ class ContextGuardRiskAssessmentEngine:
             ),
             action_sensitivity=sensitivity,
             booking_critical=booking_critical,
+            inconsistencies=[inc.check_type for inc in consistency_report.inconsistencies],
         )
 
     def _map_to_tier(self, score: int) -> RiskTier:

@@ -80,15 +80,33 @@ class PolicyEngine:
         booking_critical: bool = False,
         action_target: Optional[str] = None,
         action_type: Optional[str] = None,
+        inconsistencies: Optional[List[Any]] = None,
+        check_types: Optional[List[str]] = None,
         **kwargs: Any,
     ) -> PolicyDecisionResult:
         """
         Maps (Risk Score, Confidence, Sensitivity, Prior Flags) -> Graduated Decision.
         Decisions: ALLOW, ALLOW_WITH_FLAG, REQUIRE_CONFIRMATION / PAUSE_TASK, BLOCK.
+        Applies a hard-rule floor AFTER the risk-tier matrix for NAVIGATION_BOUNDARY or FIELD_MISMATCH.
         """
         is_escalated = prior_flags >= self.escalation_threshold
         requires_human = False
         reasons = [context_reasons] if context_reasons else []
+
+        # Collect check types / inconsistencies from assessment
+        assessment_hard_rules = set()
+
+        direct_inconsistencies = inconsistencies or kwargs.get("inconsistencies")
+        if direct_inconsistencies:
+            for item in direct_inconsistencies:
+                val = getattr(item, "check_type", item)
+                if isinstance(val, str):
+                    assessment_hard_rules.add(val)
+
+        direct_check_types = check_types or kwargs.get("check_types")
+        if direct_check_types:
+            for ct in direct_check_types:
+                assessment_hard_rules.add(str(ct))
 
         if risk_assessment is not None:
             if hasattr(risk_assessment, "risk_score"):
@@ -99,6 +117,22 @@ class PolicyEngine:
                 action_sensitivity = risk_assessment.action_sensitivity
             elif isinstance(risk_assessment, dict):
                 action_sensitivity = risk_assessment.get("action_sensitivity", action_sensitivity)
+
+            for attr in ("inconsistencies", "check_types", "violations", "hard_rules"):
+                items = getattr(risk_assessment, attr, None)
+                if items is None and isinstance(risk_assessment, dict):
+                    items = risk_assessment.get(attr)
+                if items:
+                    for item in items:
+                        val = getattr(item, "check_type", item)
+                        if isinstance(val, str):
+                            assessment_hard_rules.add(val)
+            cr = getattr(risk_assessment, "consistency_report", None)
+            if cr and hasattr(cr, "inconsistencies"):
+                for item in cr.inconsistencies:
+                    val = getattr(item, "check_type", item)
+                    if isinstance(val, str):
+                        assessment_hard_rules.add(val)
 
             if booking_critical:
                 is_consequential = True
@@ -143,7 +177,6 @@ class PolicyEngine:
             requires_human = decision in (PolicyDecision.REQUIRE_CONFIRMATION, PolicyDecision.PAUSE_TASK)
 
             reasons.append(f"Risk tier: {tier_str} (score {risk_score}), booking_critical={booking_critical} -> {dec_str}")
-            final_reason = "; ".join(reasons)
         else:
             if risk_score is None:
                 risk_score = 0
@@ -174,7 +207,42 @@ class PolicyEngine:
                 decision = PolicyDecision.ALLOW
                 reasons.append("Risk score within normal baseline bounds")
 
-            final_reason = "; ".join(reasons) if reasons else f"Policy evaluation complete (Score: {risk_score})"
+        # Explicit severity order: ALLOW < ALLOW_WITH_FLAG < REQUIRE_CONFIRMATION < PAUSE_TASK < BLOCK
+        severity_order: Dict[PolicyDecision, int] = {
+            PolicyDecision.ALLOW: 0,
+            PolicyDecision.ALLOW_WITH_FLAG: 1,
+            PolicyDecision.REQUIRE_CONFIRMATION: 2,
+            PolicyDecision.PAUSE_TASK: 3,
+            PolicyDecision.BLOCK: 4,
+        }
+        order_to_decision: Dict[int, PolicyDecision] = {
+            0: PolicyDecision.ALLOW,
+            1: PolicyDecision.ALLOW_WITH_FLAG,
+            2: PolicyDecision.REQUIRE_CONFIRMATION,
+            3: PolicyDecision.PAUSE_TASK,
+            4: PolicyDecision.BLOCK,
+        }
+
+        # Hard-rule floor applied AFTER risk-tier matrix:
+        # If the assessment contains NAVIGATION_BOUNDARY or FIELD_MISMATCH,
+        # the final decision must be at least REQUIRE_CONFIRMATION, whatever the tier or score.
+        # Takes the maximum severity rank so it never lowers an existing decision (e.g. BLOCK remains BLOCK).
+        triggered_hard_rules = [
+            rule for rule in ("NAVIGATION_BOUNDARY", "FIELD_MISMATCH")
+            if rule in assessment_hard_rules
+        ]
+        if triggered_hard_rules:
+            floor_decision = PolicyDecision.REQUIRE_CONFIRMATION
+            current_rank = severity_order.get(decision, 0)
+            floor_rank = severity_order[floor_decision]
+            if current_rank < floor_rank:
+                decision = order_to_decision[max(current_rank, floor_rank)]
+                requires_human = True
+                reasons.append(
+                    f"Hard-rule floor applied: {', '.join(triggered_hard_rules)} elevates decision to {decision.value}"
+                )
+
+        final_reason = "; ".join(reasons) if reasons else f"Policy evaluation complete (Score: {risk_score})"
 
         return PolicyDecisionResult(
             decision=decision,
