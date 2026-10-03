@@ -304,45 +304,37 @@ class ContextConsistencyVerifier:
                     )
                 )
 
-        # Check 1d: Price-affecting add-on fields when addons_allowed is 'none' (GENERIC hard-rule check)
-        addons_policy = str(getattr(locked_intent, "addons_allowed", "none") or "none").strip().lower()
-        if addons_policy == "none":
+        # Check 1d: Price-affecting add-on fields when addons_allowed is 'none' (structural check)
+        addons_policy = getattr(locked_intent, "addons_allowed", None)
+        if addons_policy is not None and str(addons_policy).strip().lower() == "none":
             is_price_affecting = False
             affected_field_name = None
 
-            # 1. Baggage surcharge
+            # 1. Ancillary add-on categories
             if "baggage" in target_low or "luggage" in target_low:
                 is_price_affecting = True
                 affected_field_name = "baggage"
-
-            # 2. Travel insurance add-on
             elif "insurance" in target_low:
                 is_price_affecting = True
                 affected_field_name = "insurance"
-
-            # 3. Currency modification
             elif "currency" in target_low:
                 is_price_affecting = True
                 affected_field_name = "currency"
 
-            # 4. Exit-row / paid seat fee (distinguished from standard complimentary seat)
-            elif "seat" in target_low:
+            # 2. Surcharges / paid upgrades (distinguished from standard complimentary choices)
+            elif "seat" in target_low or "meal" in target_low:
                 val_low = val_str.lower()
-                paid_seat_indicators = ("exit", "extra", "legroom", "fee", "charge", "surcharge", "paid", "upgrade")
-                if any(ind in val_low for ind in paid_seat_indicators) or target_low == "#seat":
+                dom_low = (dom_text or "").lower()
+                monetary_charge_indicators = (
+                    "fee", "surcharge", "charge", "tariff", "paid",
+                    "premium", "extra", "upgrade", "exit",
+                    "$", "€", "£", "₹", "inr", "usd", "eur",
+                )
+                if any(ind in val_low for ind in monetary_charge_indicators) or any(
+                    ind in dom_low for ind in ("surcharge", "extra fee", "fee added", "premium")
+                ):
                     is_price_affecting = True
-                    affected_field_name = "exit_row_fee"
-
-            # 5. Paid meal surcharge (distinguished from complimentary meal preference)
-            elif "meal" in target_low:
-                val_low = val_str.lower()
-                complimentary_preferences = ("veg", "vegetarian", "non-veg", "jain", "standard", "kosher", "halal", "none")
-                if not any(pref == val_low or f"{pref} meal" in val_low for pref in complimentary_preferences):
-                    is_price_affecting = True
-                    affected_field_name = "meal_surcharge"
-                elif target_low == "#meal" and any(ind in val_low for ind in ("banquet", "caviar", "fee", "surcharge", "paid")):
-                    is_price_affecting = True
-                    affected_field_name = "meal_surcharge"
+                    affected_field_name = "seat_or_meal_surcharge"
 
             if is_price_affecting:
                 inconsistencies.append(

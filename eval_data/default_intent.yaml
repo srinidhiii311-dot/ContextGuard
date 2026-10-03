@@ -1,0 +1,17 @@
+# =============================================================================
+# ContextGuard Evaluation Dataset: eval_data/default_intent.yaml
+# Specification Reference: Task Intent for v1 Flight Booking Dev Dataset
+# =============================================================================
+# Represents the user's explicit task intent for the v1 flight booking benchmark.
+# Loaded strictly by evaluation scripts to evaluate dataset actions.
+# Core engine (TrustedIntent / LockedIntent) defaults to None for optional fields.
+# =============================================================================
+
+origin: "Chennai"
+destination: "Delhi"
+cabin_class: "Economy"
+passenger_count: 1
+travel_date: "2026-10-25"
+addons_allowed: "none"
+max_fare: null
+contact_email: "srinidhi@traveler-corp.com"

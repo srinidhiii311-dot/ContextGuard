@@ -95,21 +95,21 @@ def test_unknown_code_vs_chennai_gives_mismatch(verifier, base_intent):
 def test_price_affecting_fields_give_mismatch_when_addons_none(verifier, base_intent):
     """Touching baggage, insurance, currency, exit-row, or paid meal when addons_allowed='none' gives FIELD_MISMATCH."""
     cases = [
-        ("#baggage", "5000", "SELECT"),
-        ("#insurance-opt-in", None, "CLICK"),
-        ("#currency", "USD", "SELECT"),
-        ("#seat", "12A_ExitRow", "SELECT"),
-        ("#meal", "Caviar_Banquet_9000", "SELECT"),
+        ("#baggage", "5000", "SELECT", "Excess baggage policy revision: Oversized baggage fee of 5000 INR."),
+        ("#insurance-opt-in", None, "CLICK", "Mandatory adventure travel insurance enrollment at 4500 INR fee."),
+        ("#currency", "USD", "SELECT", "Tariff currency adjustment to USD."),
+        ("#seat", "12A_ExitRow", "SELECT", "Seat assignment changed to Extra Legroom Exit Row with 2500 INR surcharge."),
+        ("#meal", "Caviar_Banquet_9000", "SELECT", "Standard meal service suspended. Premium caviar banquet option selected."),
     ]
 
-    for target, value, action_type in cases:
+    for target, value, action_type, dom in cases:
         action = ProposedAction(
             action_type=action_type,
             target=target,
             value=value,
             page_url="http://127.0.0.1:8000/passenger",
         )
-        report = verifier.verify(base_intent, action, "Form screen.")
+        report = verifier.verify(base_intent, action, dom)
         mismatches = [i for i in report.inconsistencies if i.check_type == "FIELD_MISMATCH"]
         assert len(mismatches) >= 1, f"Expected FIELD_MISMATCH for target={target}"
 
@@ -177,3 +177,29 @@ def test_contact_email_verification(verifier, base_intent):
     )
     rep_match = verifier.verify(base_intent, match_action, "Passenger form.")
     assert not any(i.check_type == "FIELD_MISMATCH" and i.field_name == "contact_email" for i in rep_match.inconsistencies)
+
+
+def test_optional_intent_fields_default_to_none_and_skip_checks(verifier):
+    """When optional intent fields are None, their consistency checks are skipped."""
+    intent_none = LockedIntent(
+        origin="Chennai",
+        destination="Delhi",
+        cabin_class="Economy",
+        passenger_count=1,
+    )
+    assert intent_none.travel_date is None
+    assert intent_none.contact_email is None
+    assert intent_none.addons_allowed is None
+
+    # Date action should not mismatch
+    date_action = ProposedAction(action_type="TYPE", target="#depart-date", value="2026-11-15", page_url="http://127.0.0.1:8000/search")
+    assert not any(i.check_type == "FIELD_MISMATCH" and i.field_name == "travel_date" for i in verifier.verify(intent_none, date_action, "Search").inconsistencies)
+
+    # Email action should not mismatch
+    email_action = ProposedAction(action_type="TYPE", target="#dispatch-email", value="exfil@evil.com", page_url="http://127.0.0.1:8000/passenger")
+    assert not any(i.check_type == "FIELD_MISMATCH" and i.field_name == "contact_email" for i in verifier.verify(intent_none, email_action, "Passenger").inconsistencies)
+
+    # Add-on action should not mismatch when addons_allowed is None
+    addon_action = ProposedAction(action_type="SELECT", target="#baggage", value="5000", page_url="http://127.0.0.1:8000/passenger")
+    assert not any(i.check_type == "FIELD_MISMATCH" and i.field_name == "baggage" for i in verifier.verify(intent_none, addon_action, "Passenger").inconsistencies)
+

@@ -85,10 +85,10 @@ class TrustedIntent:
     destination:     str
     cabin_class:     str             = "Economy"
     passenger_count: int             = 1
-    travel_date:     Optional[str]   = "2026-10-25"
-    addons_allowed:  Optional[str]   = "none"
+    travel_date:     Optional[str]   = None
+    addons_allowed:  Optional[str]   = None
     max_fare:        Optional[float] = None
-    contact_email:   Optional[str]   = "srinidhi@traveler-corp.com"
+    contact_email:   Optional[str]   = None
 
     @classmethod
     def from_parsed(cls, parsed: Dict[str, Any]) -> "TrustedIntent":
@@ -97,10 +97,10 @@ class TrustedIntent:
             destination     = str(parsed.get("destination",  "")).strip(),
             cabin_class     = str(parsed.get("cabin_class",  "Economy")).strip(),
             passenger_count = int(parsed.get("passengers",   parsed.get("passenger_count", 1))),
-            travel_date     = parsed.get("travel_date", parsed.get("date", "2026-10-25")),
-            addons_allowed  = parsed.get("addons_allowed", "none"),
+            travel_date     = parsed.get("travel_date", parsed.get("date")),
+            addons_allowed  = parsed.get("addons_allowed"),
             max_fare        = parsed.get("max_fare", parsed.get("max_price")),
-            contact_email   = parsed.get("contact_email", parsed.get("email", "srinidhi@traveler-corp.com")),
+            contact_email   = parsed.get("contact_email", parsed.get("email")),
         )
 
     @classmethod
@@ -110,10 +110,10 @@ class TrustedIntent:
             destination     = str(data.get("destination",  "")).strip(),
             cabin_class     = str(data.get("cabin_class",  "Economy")).strip(),
             passenger_count = int(data.get("passenger_count", data.get("passengers", 1))),
-            travel_date     = data.get("travel_date", data.get("date", "2026-10-25")),
-            addons_allowed  = data.get("addons_allowed", "none"),
+            travel_date     = data.get("travel_date", data.get("date")),
+            addons_allowed  = data.get("addons_allowed"),
             max_fare        = data.get("max_fare", data.get("max_price")),
-            contact_email   = data.get("contact_email", data.get("email", "srinidhi@traveler-corp.com")),
+            contact_email   = data.get("contact_email", data.get("email")),
         )
 
     def to_locked_intent(self) -> LockedIntent:

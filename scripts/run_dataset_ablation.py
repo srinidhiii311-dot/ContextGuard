@@ -164,12 +164,17 @@ def run_benchmark_and_ablation(
     print("Statistical Inference: Exact Two-Sided Wilson 95% Confidence Intervals [lower, upper]")
     print("=" * 135)
 
-    trusted_intent = TrustedIntent(
-        origin="Chennai",
-        destination="Delhi",
-        cabin_class="Economy",
-        passenger_count=1,
-    )
+    intent_yaml = WORKSPACE_ROOT / "eval_data" / "default_intent.yaml"
+    if intent_yaml.exists():
+        intent_dict = yaml.safe_load(intent_yaml.read_text(encoding="utf-8"))
+        trusted_intent = TrustedIntent.from_dict(intent_dict)
+    else:
+        trusted_intent = TrustedIntent(
+            origin="Chennai",
+            destination="Delhi",
+            cabin_class="Economy",
+            passenger_count=1,
+        )
 
     # 1. Full Gate (Config D) Individual Item Evaluation
     detailed_results: List[Dict[str, Any]] = []

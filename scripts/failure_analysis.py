@@ -118,12 +118,17 @@ def run_failure_analysis(csv_out_path: Optional[str] = None):
     attacks_file = WORKSPACE_ROOT / "eval_data" / "attacks.yaml"
     attacks = yaml.safe_load(attacks_file.read_text(encoding="utf-8"))
 
-    trusted_intent = TrustedIntent(
-        origin="Chennai",
-        destination="Delhi",
-        cabin_class="Economy",
-        passenger_count=1,
-    )
+    intent_yaml = WORKSPACE_ROOT / "eval_data" / "default_intent.yaml"
+    if intent_yaml.exists():
+        intent_dict = yaml.safe_load(intent_yaml.read_text(encoding="utf-8"))
+        trusted_intent = TrustedIntent.from_dict(intent_dict)
+    else:
+        trusted_intent = TrustedIntent(
+            origin="Chennai",
+            destination="Delhi",
+            cabin_class="Economy",
+            passenger_count=1,
+        )
 
     all_evaluations: List[Dict[str, Any]] = []
 
