@@ -305,3 +305,92 @@ def test_real_surcharges_trigger_field_mismatch(verifier, base_intent):
     assert any(i.check_type == "FIELD_MISMATCH" for i in rep_premium.inconsistencies)
 
 
+def test_ancillary_fee_negation_downgrade_and_unsuppressed_action_tokens(verifier, base_intent):
+    """
+    Tests for Part A ancillary fee check hardening:
+    1. Surcharge in action value + injected 'complimentary, at no charge' in page text is NOT suppressed
+       and results in at least ALLOW_WITH_FLAG (specifically REQUIRE_CONFIRMATION / FIELD_MISMATCH).
+    2. Benign seat action + page text mentioning fee mitigated by 'no extra charge' downgrades to
+       ALLOW_WITH_FLAG (never to ALLOW).
+    3. Plain benign seat/meal page is completely unchanged (ALLOW).
+    """
+    from contextguard.gate import ContextGuardGate, ProposedAction as GateProposedAction, TrustedIntent as GateTrustedIntent, Decision
+
+    gate = ContextGuardGate(
+        trusted_intent=GateTrustedIntent(
+            origin="Chennai",
+            destination="Delhi",
+            cabin_class="Economy",
+            passenger_count=1,
+            addons_allowed="none",
+        ),
+        task_id="test-negation-hardening",
+    )
+
+    # 1. Surcharge value in action + injected 'complimentary, at no charge' in page text
+    action_surcharge = ProposedAction(
+        action_type="SELECT",
+        target="#seat",
+        value="12A ($50 surcharge)",
+        page_url="http://127.0.0.1:8000/passenger",
+    )
+    injected_dom = "Special offer: Emergency exit seat row 12 is complimentary, at no charge."
+    rep_surcharge = verifier.verify(base_intent, action_surcharge, injected_dom)
+    # Action fee token MUST NOT be suppressed by page text negation
+    assert any(i.check_type == "FIELD_MISMATCH" for i in rep_surcharge.inconsistencies)
+
+    gate_action_surcharge = GateProposedAction(
+        action_type="SELECT",
+        target="#seat",
+        value="12A ($50 surcharge)",
+        page_url="http://127.0.0.1:8000/passenger",
+    )
+    res_surcharge = gate.check(gate_action_surcharge, injected_dom)
+    assert res_surcharge.decision in (Decision.REQUIRE_CONFIRMATION, Decision.BLOCK)
+    # Confirms it is at least ALLOW_WITH_FLAG (REQUIRE_CONFIRMATION > ALLOW_WITH_FLAG)
+
+    # 2. Benign value + page text with fee token mitigated by negation -> ALLOW_WITH_FLAG
+    action_clean = ProposedAction(
+        action_type="SELECT",
+        target="#seat-opt",
+        value="14A",
+        page_url="http://127.0.0.1:8000/passenger",
+    )
+    negated_dom = "Select your seat. Standard seat 14A, no extra charge."
+    rep_clean = verifier.verify(base_intent, action_clean, negated_dom)
+    # Must NOT be a hard FIELD_MISMATCH, but downgraded to ANCILLARY_FEE_FLAG
+    assert not any(i.check_type == "FIELD_MISMATCH" for i in rep_clean.inconsistencies)
+    assert any(i.check_type == "ANCILLARY_FEE_FLAG" for i in rep_clean.inconsistencies)
+
+    gate_action_clean = GateProposedAction(
+        action_type="SELECT",
+        target="#seat-opt",
+        value="14A",
+        page_url="http://127.0.0.1:8000/passenger",
+    )
+    res_clean = gate.check(gate_action_clean, negated_dom)
+    # Must be ALLOW_WITH_FLAG, NEVER ALLOW!
+    assert res_clean.decision == Decision.ALLOW_WITH_FLAG
+
+    # 3. Plain benign seat/meal page (zero fee tokens anywhere) -> ALLOW (unchanged)
+    action_plain = ProposedAction(
+        action_type="SELECT",
+        target="#seat-opt",
+        value="14A",
+        page_url="http://127.0.0.1:8000/passenger",
+    )
+    plain_dom = "Select your preferred seat. Standard cabin allocation."
+    rep_plain = verifier.verify(base_intent, action_plain, plain_dom)
+    assert len(rep_plain.inconsistencies) == 0
+
+    gate_action_plain = GateProposedAction(
+        action_type="SELECT",
+        target="#seat-opt",
+        value="14A",
+        page_url="http://127.0.0.1:8000/passenger",
+    )
+    res_plain = gate.check(gate_action_plain, plain_dom)
+    assert res_plain.decision == Decision.ALLOW
+
+
+

@@ -195,38 +195,41 @@ class ContextConsistencyVerifier:
         fee_pattern = r"\b(" + "|".join(re.escape(f) for f in self.fee_terms) + r")\b" if self.fee_terms else r"$^"
         self._fee_terms_regex = re.compile(fee_pattern, re.IGNORECASE)
 
+    def has_raw_fee_token(self, text: str) -> bool:
+        """
+        Checks if text contains raw fee tokens, currency symbols, or ISO codes
+        without evaluating any negation phrases.
+        """
+        if not text:
+            return False
+        if any(sym in text for sym in self.currency_symbols):
+            return True
+        if self._currency_codes_regex and self._currency_codes_regex.search(text):
+            return True
+        if self._fee_terms_regex and self._fee_terms_regex.search(text):
+            return True
+        return False
+
+    def has_negation_phrase(self, text: str) -> bool:
+        """Checks if text contains a configured complimentary negation phrase."""
+        if not text:
+            return False
+        t_low = text.lower()
+        return any(neg in t_low for neg in self.complimentary_negation_phrases)
+
     def has_ancillary_fee(self, text: str) -> bool:
         """
         Evaluates whether text contains an unnegated ancillary fee or monetary charge indicator
         using the configured ancillary-fee lexicon with strict word-boundary token matching.
         """
-        if not text:
+        if not self.has_raw_fee_token(text):
             return False
-        t_low = text.lower()
+        if self.has_negation_phrase(text):
+            has_positive_symbol = any(sym in text for sym in self.currency_symbols)
+            if not has_positive_symbol:
+                return False
+        return True
 
-        # 1. Complimentary negation phrases: "no extra charge", "free, no fee", "complimentary", etc.
-        for neg in self.complimentary_negation_phrases:
-            if neg in t_low:
-                # If negated without explicit contradictory positive currency symbol, suppress detection
-                has_positive_symbol = any(sym in text for sym in self.currency_symbols)
-                if not has_positive_symbol:
-                    return False
-
-        # 2. Currency symbols (e.g. $, €, £, ₹)
-        if any(sym in text for sym in self.currency_symbols):
-            return True
-
-        # 3. Currency ISO codes with strict word boundaries (\b(usd|eur|inr|gbp)\b)
-        # Guarantees strings like 'Europe' or 'urgent' do not trigger 'eur'
-        if self._currency_codes_regex and self._currency_codes_regex.search(text):
-            return True
-
-        # 4. Fee terms with strict word boundaries (\b(fee|surcharge|charge|tariff|premium|paid)\b)
-        # Guarantees words like 'unpaid' do not trigger 'paid'
-        if self._fee_terms_regex and self._fee_terms_regex.search(text):
-            return True
-
-        return False
 
     def resolve_target_metadata(self, target: str) -> Tuple[Optional[str], float, bool]:
         """
@@ -371,9 +374,35 @@ class ContextConsistencyVerifier:
 
             # 2. Optional services (seats, meals) checked against ancillary-fee lexicon
             elif "seat" in target_low or "meal" in target_low:
-                if self.has_ancillary_fee(val_str) or self.has_ancillary_fee(dom_text):
+                # Rule 1: Fee tokens in the action value/target are NEVER suppressed by page text.
+                action_has_fee = self.has_raw_fee_token(val_str) or self.has_raw_fee_token(action.target)
+                if action_has_fee:
                     is_price_affecting = True
                     affected_field_name = "seat_or_meal_surcharge"
+                else:
+                    # Action value/target is clean. Now check page text (dom_text).
+                    dom_has_fee = self.has_raw_fee_token(dom_text)
+                    if dom_has_fee:
+                        dom_has_neg = self.has_negation_phrase(dom_text)
+                        # Rule: Negation phrases found in page text may only downgrade a FIELD_MISMATCH
+                        # to ALLOW_WITH_FLAG, never to ALLOW.
+                        if dom_has_neg:
+                            inconsistencies.append(
+                                InconsistencyItem(
+                                    check_type="ANCILLARY_FEE_FLAG",
+                                    field_name="seat_or_meal_surcharge",
+                                    expected_value="addons_allowed: none",
+                                    observed_value=val_str or action.target,
+                                    severity=0.35,
+                                    detail=(
+                                        f"Page text contains fee indicator mitigated by page negation phrase; "
+                                        f"downgraded to ALLOW_WITH_FLAG (untrusted DOM text)."
+                                    ),
+                                )
+                            )
+                        else:
+                            is_price_affecting = True
+                            affected_field_name = "seat_or_meal_surcharge"
 
             if is_price_affecting:
                 inconsistencies.append(

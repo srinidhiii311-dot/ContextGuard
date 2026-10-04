@@ -379,6 +379,8 @@ class ContextGuardGate:
         task_id:           str            = "",
         on_decision:       Optional[Callable[[Dict[str, Any]], None]] = None,
         audit_log:         Optional[List[Dict[str, Any]]] = None,
+        enable_chain_detector: bool = False,
+        chain_detector:    Optional[Any] = None,
     ) -> None:
         self.trusted_intent  = trusted_intent
         self.task_id         = task_id or str(uuid.uuid4())
@@ -386,8 +388,9 @@ class ContextGuardGate:
         self.audit_log:      List[Dict[str, Any]] = audit_log if audit_log is not None else []
         self._step           = 0
         self._prior_flags    = 0
+        self._previous_page  = None
 
-        # Instantiate all seven components
+        # Instantiate components
         self._verifier       = ContextConsistencyVerifier()
         self._detector       = ThreatDetector()
         self._characterizer  = ThreatCharacterizer()
@@ -395,17 +398,29 @@ class ContextGuardGate:
         self._policy_engine  = PolicyEngine()
         self._protected      = _load_protected_fields()
 
+        # Component 8: Attack Chain Detector (Stage 2)
+        self.enable_chain_detector = enable_chain_detector
+        if chain_detector is not None:
+            self._chain_detector = chain_detector
+        elif enable_chain_detector:
+            from contextguard.chain_detector import ChainDetector
+            self._chain_detector = ChainDetector()
+        else:
+            self._chain_detector = None
+
         # Public component aliases
         self.policy_engine   = self._policy_engine
         self.verifier        = self._verifier
         self.detector        = self._detector
         self.characterizer   = self._characterizer
         self.risk_engine     = self._risk_engine
+        self.chain_detector  = self._chain_detector
 
         # Metrics
         self._allow_count    = 0
         self._flag_count     = 0
         self._block_count    = 0
+
 
     # ------------------------------------------------------------------
     # Public API
@@ -470,6 +485,30 @@ class ContextGuardGate:
         # --- Step 9: Response Enforcement ---
         decision, reason = self._enforce(policy_result, threat_result,
                                          consistency_report, action)
+
+        # Component 8: Attack Chain Detector (Stage 2 Multi-Step Workflow Defense)
+        if self._chain_detector is not None:
+            curr_page = getattr(action, "page_url", "") or ""
+            matched, chain_id, esc = self._chain_detector.record_and_evaluate(
+                task_id=self.task_id,
+                step_number=self._step,
+                action=action,
+                consistency_report=consistency_report,
+                threat_result=threat_result,
+                current_page=curr_page,
+                previous_page=self._previous_page,
+            )
+            if matched and esc:
+                policy_map = {
+                    "BLOCK": Decision.BLOCK,
+                    "REQUIRE_CONFIRMATION": Decision.REQUIRE_CONFIRMATION,
+                    "PAUSE_TASK": Decision.PAUSE_TASK,
+                    "ALLOW_WITH_FLAG": Decision.ALLOW_WITH_FLAG,
+                }
+                decision = policy_map.get(esc, Decision.BLOCK)
+                reason = f"Multi-step attack chain detected [{chain_id}]; escalated to {esc}"
+            self._previous_page = curr_page
+
 
         # Track flags for escalation (FR40 / policy escalation)
         if decision in (Decision.ALLOW_WITH_FLAG, Decision.FLAG):
@@ -652,6 +691,15 @@ class ContextGuardGate:
         )
         if has_hard_rule and enforce_severity.get(decision, 0) < enforce_severity[Decision.REQUIRE_CONFIRMATION]:
             decision = Decision.REQUIRE_CONFIRMATION
+
+        # Negation phrases in page text may only downgrade an ancillary fee mismatch to ALLOW_WITH_FLAG, never to ALLOW
+        has_downgraded_flag = any(
+            inc.check_type == "ANCILLARY_FEE_FLAG"
+            for inc in consistency.inconsistencies
+        )
+        if has_downgraded_flag and enforce_severity.get(decision, 0) < enforce_severity[Decision.ALLOW_WITH_FLAG]:
+            decision = Decision.ALLOW_WITH_FLAG
+
 
         # Build reason chain
         parts = [policy.reason]

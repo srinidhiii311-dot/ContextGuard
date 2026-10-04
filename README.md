@@ -260,10 +260,20 @@ Expected evaluation results (rule-based engine):
 
 ## Limitations
 
-- Rule-based risk engine: novel injection phrasing not in keyword lists may be missed.
-- Agent decision engine: rule-based by default; LLM mode requires Ollama running locally.
-- Playwright requires Chromium installed (`playwright install chromium`).
-- Intervention pauses but does not permanently block — operator must decide.
+- **Rule-based risk engine**: Novel injection phrasing not in keyword lists may be missed (addressed by Component 4 semantic deviation).
+- **Page-text negation in ancillary checks**: Negation phrases ("no extra charge", "complimentary, at no charge", "free, no fee") discovered in untrusted page text may only downgrade an ancillary fee `FIELD_MISMATCH` to `ALLOW_WITH_FLAG`, never to `ALLOW`. Unsolicited fee tokens within the proposed action value or target selector are never suppressed by page text.
+- **Agent decision engine**: Rule-based by default; LLM mode requires Ollama running locally.
+- **Single-domain dev benchmark**: Current dev dataset evaluates flight booking workflows; multi-domain coverage (e-commerce, banking) is future work.
+- **Playwright dependency**: Requires Chromium installed (`playwright install chromium`).
+- **Intervention lifecycle**: Interceptions pause or request confirmation; permanent cancellation requires operator handshake.
+
+---
+
+## Threats to Validity
+
+- **Untrusted DOM Text in Negation Suppression**: Relying on natural language negation phrases ("no extra charge", "complimentary") within rendered webpage text introduces an adversarial vulnerability: an attacker who controls injected DOM content could append a negation clause to mask an unauthorized ancillary surcharge. ContextGuard mitigates this by restricting page-text negation to `ALLOW_WITH_FLAG` (recording audit telemetry and incrementing the drift counter) and strictly refusing to suppress fee tokens found directly in the agent's proposed action payload.
+- **Single-Domain Generalization**: Benchmark measurements are currently scoped to travel reservation workflows. Generalization across other stateful multi-step environments requires validating that ancillary fee tokens and target mappings generalize or adapt dynamically across diverse web application ontologies.
+
 
 ---
 

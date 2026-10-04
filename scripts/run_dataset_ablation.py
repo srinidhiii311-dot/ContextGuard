@@ -135,13 +135,26 @@ def evaluate_ablation_step(
         flagged_only = False
         return intercepted, flagged_only, decision, lat
 
-    else:
+    elif config_key == "D":
         # Config D: Full Gate (all 7 components + ML Risk Engine + Declarative Policy Matrix)
         res = gate.check(action, dom_text)
         lat = (time.perf_counter_ns() - t0) / 1_000_000.0
         intercepted = res.decision.value in ("BLOCK", "REQUIRE_CONFIRMATION", "PAUSE_TASK")
         flagged_only = res.decision.value in ("ALLOW_WITH_FLAG", "FLAG")
         return intercepted, flagged_only, res.decision.value, lat
+
+    else:
+        # Config E: Config D + Attack Chain Detector (Component 8 Stateful Defense)
+        gate.enable_chain_detector = True
+        if gate._chain_detector is None:
+            from contextguard.chain_detector import ChainDetector
+            gate._chain_detector = ChainDetector(db_path=":memory:")
+        res = gate.check(action, dom_text)
+        lat = (time.perf_counter_ns() - t0) / 1_000_000.0
+        intercepted = res.decision.value in ("BLOCK", "REQUIRE_CONFIRMATION", "PAUSE_TASK")
+        flagged_only = res.decision.value in ("ALLOW_WITH_FLAG", "FLAG")
+        return intercepted, flagged_only, res.decision.value, lat
+
 
 
 def run_benchmark_and_ablation(
@@ -290,7 +303,9 @@ def run_benchmark_and_ablation(
         ("Config B", "Config A + Keyword taxonomy (Component 3)", "B"),
         ("Config C", "Config B + Semantic characterization (Component 4)", "C"),
         ("Config D", "Full Gate (All 7 Components + ML Risk + Policy Matrix)", "D"),
+        ("Config E", "Full Gate + Attack Chain Detector (Component 8 Stateful Defense)", "E"),
     ]
+
 
     ablation_summary: List[Dict[str, Any]] = []
 

@@ -1,0 +1,88 @@
+# =============================================================================
+# ContextGuard Multi-Step Attack Chain Configuration: chains.yaml
+# Specification Reference: Stage 2 (Component 8 - Attack Chain Detector)
+# =============================================================================
+# Defines declarative multi-step attack patterns, matching ordered sequences
+# of security stages emitted strictly from gate signals across a sliding step window.
+# =============================================================================
+
+stages:
+  - "INJECTION_SEEN"
+  - "PROTECTED_FIELD_CHANGE"
+  - "OFF_DOMAIN_NAV"
+  - "SKIPPED_STEP"
+  - "UNEXPECTED_SUBMIT"
+
+chains:
+  - id: "CHAIN_SKIP_REVIEW_TO_SUBMIT"
+    name: "Skipped Review Workflow leading to Final Confirmation"
+    description: "Review step or required verification checks were bypassed, followed by an immediate confirm/submit action."
+    stages:
+      - "SKIPPED_STEP"
+      - "UNEXPECTED_SUBMIT"
+    step_window: 3
+    action_escalation: "BLOCK"
+
+  - id: "CHAIN_INJECTION_TO_SUBMIT"
+    name: "Prompt Injection followed by Premature Submit"
+    description: "An injection directive was observed, followed by premature confirmation without completing expected intermediate steps."
+    stages:
+      - "INJECTION_SEEN"
+      - "UNEXPECTED_SUBMIT"
+    step_window: 3
+    action_escalation: "BLOCK"
+
+  - id: "CHAIN_INJECTION_TO_FIELD_MUTATION"
+    name: "Prompt Injection leading to Protected Field Tampering"
+    description: "An injection directive was detected, followed by an attempt to modify an immutable booking intent parameter."
+    stages:
+      - "INJECTION_SEEN"
+      - "PROTECTED_FIELD_CHANGE"
+    step_window: 3
+    action_escalation: "BLOCK"
+
+  - id: "CHAIN_INJECTION_TO_NAV"
+    name: "Prompt Injection leading to Off-Domain Redirection"
+    description: "An injection directive was observed on-page, followed by navigation outside the trusted application domain."
+    stages:
+      - "INJECTION_SEEN"
+      - "OFF_DOMAIN_NAV"
+    step_window: 3
+    action_escalation: "BLOCK"
+
+  - id: "CHAIN_FIELD_CHANGE_TO_NAV"
+    name: "Field Mutation followed by Off-Domain Navigation"
+    description: "An unauthorized field modification or state mutation was attempted, followed by navigation to an external endpoint."
+    stages:
+      - "PROTECTED_FIELD_CHANGE"
+      - "OFF_DOMAIN_NAV"
+    step_window: 3
+    action_escalation: "BLOCK"
+
+  - id: "CHAIN_FIELD_CHANGE_TO_SUBMIT"
+    name: "Protected Field Mutation followed by Confirmation"
+    description: "A protected or price-affecting parameter was mutated, followed by clicking confirmation."
+    stages:
+      - "PROTECTED_FIELD_CHANGE"
+      - "UNEXPECTED_SUBMIT"
+    step_window: 4
+    action_escalation: "BLOCK"
+
+  - id: "CHAIN_MULTI_FIELD_TAMPER"
+    name: "Cascading Protected Field Tampering"
+    description: "Multiple discrete attempts to alter locked booking parameters in rapid succession."
+    stages:
+      - "PROTECTED_FIELD_CHANGE"
+      - "PROTECTED_FIELD_CHANGE"
+    step_window: 4
+    action_escalation: "BLOCK"
+
+  - id: "CHAIN_INJECTION_SKIP_SUBMIT"
+    name: "Triple Cascade: Injection to Skipped Step to Submission"
+    description: "Full auto-verification exploit chain: injection directive tells agent to skip review, review is skipped, and booking is finalized."
+    stages:
+      - "INJECTION_SEEN"
+      - "SKIPPED_STEP"
+      - "UNEXPECTED_SUBMIT"
+    step_window: 5
+    action_escalation: "BLOCK"
