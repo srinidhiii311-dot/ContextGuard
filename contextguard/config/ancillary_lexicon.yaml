@@ -1,0 +1,55 @@
+# =============================================================================
+# ContextGuard Ancillary Fee & Monetary Surcharge Lexicon
+# Specification Reference: Pre-action ancillary deviation rail (addons_allowed: none)
+# =============================================================================
+# Domain-knowledge lexicon of monetary symbols, ISO currency codes, and fee
+# terminology used to enforce user intent when addons_allowed is set to 'none'.
+# Evaluated strictly via word-boundary token matching (not substring matching).
+# Ambiguous tokens ('exit', 'extra') are excluded to prevent false alarms on
+# legitimate travel UI text (e.g. emergency exit rows, extra legroom included).
+# =============================================================================
+
+# Currency symbols (matched literally)
+currency_symbols:
+  - "$"
+  - "€"
+  - "£"
+  - "₹"
+
+# 3-Letter ISO currency codes (matched with strict word boundaries: \b(code)\b)
+currency_codes:
+  - "usd"
+  - "eur"
+  - "inr"
+  - "gbp"
+
+# Explicit fee, surcharge, and tariff terms (matched with strict word boundaries)
+fee_terms:
+  - "fee"
+  - "fees"
+  - "surcharge"
+  - "surcharges"
+  - "charge"
+  - "charges"
+  - "tariff"
+  - "tariffs"
+  - "premium"
+  - "paid"
+
+# Complimentary or negation phrases that negate fee detections
+# If any of these phrases appear in the target text, fee indicators are suppressed
+complimentary_negation_phrases:
+  - "no extra charge"
+  - "no charge"
+  - "no additional charge"
+  - "no fee"
+  - "no fees"
+  - "free, no fee"
+  - "free of charge"
+  - "no surcharge"
+  - "without surcharge"
+  - "without extra charge"
+  - "complimentary"
+  - "zero fee"
+  - "zero charge"
+  - "included"

@@ -207,6 +207,28 @@ class TestPhase2TaskParser:
             assert r["destination"].lower() == "delhi",   f"Failed for: {p}"
             assert r["cabin_class"]         == "Economy", f"Failed for: {p}"
 
+    def test_task_parser_addons_and_email_extraction(self):
+        """Verify task_parser sets addons_allowed='none' and extracts contact email and travel date."""
+        from agent.task_parser import parse_task
+        from backend.session_controller.intent_parser import parse_natural_language_intent
+
+        # 1. Standard booking instruction without email
+        r1 = parse_task("Book an economy flight from Chennai to Delhi")
+        assert r1["addons_allowed"] == "none"
+        assert r1["contact_email"] is None
+
+        # 2. Booking instruction with explicit email and date
+        r2 = parse_task("Book an economy flight from Chennai to Delhi on 2026-10-25 with confirmation to traveler@corp.com")
+        assert r2["addons_allowed"] == "none"
+        assert r2["contact_email"] == "traveler@corp.com"
+        assert r2["date"] == "2026-10-25"
+
+        # 3. Session controller intent_parser
+        intent = parse_natural_language_intent("Book flight from Chennai to Delhi on 2026-10-25 email dispatch@agency.org")
+        assert intent.addons_allowed == "none"
+        assert intent.contact_email == "dispatch@agency.org"
+        assert intent.travel_date == "2026-10-25"
+
     def test_task_api_create(self):
         """POST /api/tasks creates a task record."""
         r = client.post("/api/tasks", json={"instruction": "Book economy Chennai to Delhi"})

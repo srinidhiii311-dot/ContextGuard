@@ -51,13 +51,15 @@ def collect_all_keyword_sources() -> Dict[str, Set[str]]:
     checker_kws = set(m.lower() for m in verifier.injection_markers)
     sources["consistency_checker.py (injection_markers)"] = checker_kws
 
-    # 4. consistency_checker.py (ancillary charge indicators introduced in Stage 1)
-    monetary_indicators = set([
-        "fee", "surcharge", "charge", "tariff", "paid",
-        "premium", "extra", "upgrade", "exit",
-        "$", "€", "£", "₹", "inr", "usd", "eur",
-    ])
-    sources["consistency_checker.py (monetary_indicators)"] = monetary_indicators
+    # 4. ancillary_lexicon.yaml (ancillary-fee lexicon introduced in Stage 1)
+    ancillary_path = WORKSPACE_ROOT / "contextguard" / "config" / "ancillary_lexicon.yaml"
+    anc_lex = yaml.safe_load(ancillary_path.read_text(encoding="utf-8")) if ancillary_path.exists() else {}
+    lex_terms = set(
+        [str(x).lower().strip() for x in anc_lex.get("fee_terms", [])] +
+        [str(x).lower().strip() for x in anc_lex.get("currency_codes", [])] +
+        [str(x).lower().strip() for x in anc_lex.get("currency_symbols", [])]
+    )
+    sources["ancillary_lexicon.yaml"] = lex_terms
 
     return sources
 

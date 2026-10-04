@@ -189,13 +189,24 @@ def _rule_parse(instruction: str) -> Dict[str, Any]:
     if m_name:
         passenger_name = m_name.group(1)
 
+    # --- Contact email (if specified in instruction) ---
+    m_email = re.search(r"\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b", instruction)
+    contact_email = m_email.group(1) if m_email else None
+
+    # --- Add-ons policy constraint: "none" for standard booking tasks ---
+    addons_allowed = "none"
+
     return {
         "origin":         origin,
         "destination":    destination,
-        "date":           travel_date,
+        "date":           travel_date or None,
+        "travel_date":    travel_date or None,
         "passengers":     passengers,
+        "passenger_count": passengers,
         "cabin_class":    cabin_class,
         "passenger_name": passenger_name,
+        "addons_allowed": addons_allowed,
+        "contact_email":  contact_email,
         "raw":            instruction,
     }
 
@@ -241,4 +252,7 @@ def _llm_parse(instruction: str) -> Dict[str, Any]:
     parsed.setdefault("passengers",     1)
     parsed.setdefault("passenger_name", "Passenger")
     parsed.setdefault("date",           "")
+    parsed.setdefault("travel_date",    parsed.get("date") or None)
+    parsed.setdefault("addons_allowed", "none")
+    parsed.setdefault("contact_email",  None)
     return parsed

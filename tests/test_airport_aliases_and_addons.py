@@ -203,3 +203,105 @@ def test_optional_intent_fields_default_to_none_and_skip_checks(verifier):
     addon_action = ProposedAction(action_type="SELECT", target="#baggage", value="5000", page_url="http://127.0.0.1:8000/passenger")
     assert not any(i.check_type == "FIELD_MISMATCH" and i.field_name == "baggage" for i in verifier.verify(intent_none, addon_action, "Passenger").inconsistencies)
 
+
+def test_ancillary_lexicon_negation_and_word_boundaries(verifier, base_intent):
+    """
+    Word-boundary and negation tests for ancillary-fee lexicon:
+    1. Seat page saying 'no extra charge' must NOT trigger FIELD_MISMATCH.
+    2. Meal page saying 'free, no fee' must NOT trigger FIELD_MISMATCH.
+    3. Destination containing 'Europe' must NOT trigger ('eur' word-boundary).
+    """
+    # 1. Seat page saying 'no extra charge'
+    seat_action = ProposedAction(
+        action_type="SELECT",
+        target="#seat-opt",
+        value="14A",
+        page_url="http://127.0.0.1:8000/passenger",
+    )
+    rep_seat = verifier.verify(
+        base_intent,
+        seat_action,
+        "Select your preferred seat. Standard row 14, no extra charge.",
+    )
+    mismatches_seat = [i for i in rep_seat.inconsistencies if i.check_type == "FIELD_MISMATCH"]
+    assert len(mismatches_seat) == 0, f"Expected 0 mismatches for 'no extra charge', got {mismatches_seat}"
+
+    # 2. Meal page saying 'free, no fee'
+    meal_action = ProposedAction(
+        action_type="SELECT",
+        target="#meal-opt",
+        value="Vegetarian",
+        page_url="http://127.0.0.1:8000/passenger",
+    )
+    rep_meal = verifier.verify(
+        base_intent,
+        meal_action,
+        "In-flight meal options: Chef special vegetarian, free, no fee for standard booking.",
+    )
+    mismatches_meal = [i for i in rep_meal.inconsistencies if i.check_type == "FIELD_MISMATCH"]
+    assert len(mismatches_meal) == 0, f"Expected 0 mismatches for 'free, no fee', got {mismatches_meal}"
+
+    # 3. Destination containing 'Europe' (must not trip 'eur' currency code)
+    intent_europe = LockedIntent(
+        origin="Delhi",
+        destination="Europe",
+        cabin_class="Economy",
+        passenger_count=1,
+        addons_allowed="none",
+    )
+    dest_action = ProposedAction(
+        action_type="TYPE",
+        target="#destination",
+        value="Europe",
+        page_url="http://127.0.0.1:8000/search",
+    )
+    rep_dest = verifier.verify(
+        intent_europe,
+        dest_action,
+        "Flight reservation portal. Destination continent: Europe. Select standard itinerary.",
+    )
+    mismatches_dest = [i for i in rep_dest.inconsistencies if i.check_type == "FIELD_MISMATCH"]
+    assert len(mismatches_dest) == 0, f"Expected 0 mismatches for 'Europe', got {mismatches_dest}"
+
+
+def test_real_surcharges_trigger_field_mismatch(verifier, base_intent):
+    """Real monetary fees, surcharges, and currency conversions MUST trigger FIELD_MISMATCH."""
+    # 1. Real dollar surcharge on seat
+    seat_surcharge = ProposedAction(
+        action_type="SELECT",
+        target="#seat",
+        value="12A ($50 surcharge)",
+        page_url="http://127.0.0.1:8000/passenger",
+    )
+    rep_surcharge = verifier.verify(base_intent, seat_surcharge, "Passenger seat selection.")
+    assert any(i.check_type == "FIELD_MISMATCH" for i in rep_surcharge.inconsistencies)
+
+    # 2. INR surcharge in DOM
+    seat_inr = ProposedAction(
+        action_type="SELECT",
+        target="#seat",
+        value="12A_ExitRow",
+        page_url="http://127.0.0.1:8000/passenger",
+    )
+    rep_inr = verifier.verify(
+        base_intent,
+        seat_inr,
+        "Cabin crew allocation: Seat assignment changed to Extra Legroom Exit Row with 2500 INR surcharge.",
+    )
+    assert any(i.check_type == "FIELD_MISMATCH" for i in rep_inr.inconsistencies)
+
+    # 3. Meal premium fee
+    meal_premium = ProposedAction(
+        action_type="SELECT",
+        target="#meal",
+        value="Caviar_Banquet_9000",
+        page_url="http://127.0.0.1:8000/passenger",
+    )
+    rep_premium = verifier.verify(
+        base_intent,
+        meal_premium,
+        "Standard meal service suspended. Premium caviar banquet option selected with added fee.",
+    )
+    assert any(i.check_type == "FIELD_MISMATCH" for i in rep_premium.inconsistencies)
+
+

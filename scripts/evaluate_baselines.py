@@ -27,7 +27,9 @@ import re
 import statistics
 import sys
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Tuple
+import yaml
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -230,12 +232,17 @@ def run_baseline_benchmark(num_trials_per_scenario: int = 5, warmup_runs: int = 
     print(f"Comparing 4 Defense Paradigms across 12 Scenario Types ({num_trials_per_scenario} Replications Each, {warmup_runs} Warmup Runs Discarded)")
     print("=" * 145)
 
-    intent = TrustedIntent(
-        origin="Chennai",
-        destination="Delhi",
-        cabin_class="Economy",
-        passenger_count=1,
-    )
+    intent_path = Path(__file__).resolve().parent.parent / "eval_data" / "default_intent.yaml"
+    if intent_path.exists():
+        intent_dict = yaml.safe_load(intent_path.read_text(encoding="utf-8"))
+        intent = TrustedIntent.from_dict(intent_dict)
+    else:
+        intent = TrustedIntent(
+            origin="Chennai",
+            destination="Delhi",
+            cabin_class="Economy",
+            passenger_count=1,
+        )
 
     cg_defense = ContextGuardDefense(intent)
     defenses = [

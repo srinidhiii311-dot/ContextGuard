@@ -40,6 +40,7 @@ from typing import Any, Dict, List, Optional
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+import yaml
 from attacks.plan_integrity import get_payload as get_plan_payload
 from contextguard.gate import ContextGuardGate, ProposedAction, TrustedIntent
 from scripts.stats import format_ci, wilson
@@ -52,12 +53,17 @@ def run_evasion_evaluation(num_runs_per_scenario: int = 30, csv_path: Optional[s
     print("Statistical Inference: Wilson 95% Two-Sided Confidence Intervals [lower, upper]")
     print("=" * 135)
 
-    intent = TrustedIntent(
-        origin="Chennai",
-        destination="Delhi",
-        cabin_class="Economy",
-        passenger_count=1,
-    )
+    intent_path = Path(__file__).resolve().parent.parent / "eval_data" / "default_intent.yaml"
+    if intent_path.exists():
+        intent_dict = yaml.safe_load(intent_path.read_text(encoding="utf-8"))
+        intent = TrustedIntent.from_dict(intent_dict)
+    else:
+        intent = TrustedIntent(
+            origin="Chennai",
+            destination="Delhi",
+            cabin_class="Economy",
+            passenger_count=1,
+        )
 
     evasion_scenarios = [
         {
@@ -236,9 +242,11 @@ def run_evasion_evaluation(num_runs_per_scenario: int = 30, csv_path: Optional[s
 
 
 if __name__ == "__main__":
+    default_csv = os.path.join(os.path.dirname(__file__), "..", "eval_results", "evasion_evaluation_results.csv")
     parser = argparse.ArgumentParser(description="Evaluate ContextGuard Generalization on Adversarial Evasion Set.")
     parser.add_argument("--runs", type=int, default=30, help="Number of runs per scenario (default: 30)")
-    parser.add_argument("--csv-out", type=str, default=None, help="Optional CSV destination path")
+    parser.add_argument("--csv-out", type=str, default=default_csv, help="Optional CSV destination path")
     args = parser.parse_args()
 
     run_evasion_evaluation(num_runs_per_scenario=args.runs, csv_path=args.csv_out)
+

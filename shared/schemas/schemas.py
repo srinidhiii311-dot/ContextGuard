@@ -19,7 +19,11 @@ class TrustedIntent(BaseModel):
     destination: str = "Bangalore"
     cabin_class: str = "Economy"
     passenger_count: int = 1
-    date: Optional[str] = "2026-09-25"
+    date: Optional[str] = None
+    travel_date: Optional[str] = None
+    addons_allowed: Optional[str] = None
+    max_fare: Optional[float] = None
+    contact_email: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -27,7 +31,11 @@ class TrustedIntent(BaseModel):
             "destination": self.destination,
             "cabin_class": self.cabin_class,
             "passenger_count": self.passenger_count,
-            "date": self.date,
+            "date": self.date or self.travel_date,
+            "travel_date": self.travel_date or self.date,
+            "addons_allowed": self.addons_allowed,
+            "max_fare": self.max_fare,
+            "contact_email": self.contact_email,
         }
 
 

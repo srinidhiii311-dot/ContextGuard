@@ -10,6 +10,7 @@ This is the single object the risk_engine reads.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import re
 from typing import Any, Dict, List, Optional
 
 from contextguard.action_analyzer import ActionFinding, action_analyzer
@@ -180,6 +181,53 @@ class ContextConsistencyVerifier:
             for k, v in aliases_data.get("aliases", {}).items()
         }
 
+        # Ancillary-fee lexicon configuration (Phase 1 / Stage 1 hardening)
+        ancillary_path = (CONFIG_DIR / "ancillary_lexicon.yaml")
+        ancillary_data = yaml.safe_load(ancillary_path.read_text(encoding="utf-8")) if ancillary_path.exists() else {}
+        self.currency_symbols: List[str] = [str(s) for s in ancillary_data.get("currency_symbols", ["$", "€", "£", "₹"])]
+        self.currency_codes: List[str] = [str(c).lower().strip() for c in ancillary_data.get("currency_codes", ["usd", "eur", "inr", "gbp"])]
+        self.fee_terms: List[str] = [str(f).lower().strip() for f in ancillary_data.get("fee_terms", ["fee", "surcharge", "charge", "tariff", "premium", "paid"])]
+        self.complimentary_negation_phrases: List[str] = [str(p).lower().strip() for p in ancillary_data.get("complimentary_negation_phrases", [])]
+
+        code_pattern = r"\b(" + "|".join(re.escape(c) for c in self.currency_codes) + r")\b" if self.currency_codes else r"$^"
+        self._currency_codes_regex = re.compile(code_pattern, re.IGNORECASE)
+
+        fee_pattern = r"\b(" + "|".join(re.escape(f) for f in self.fee_terms) + r")\b" if self.fee_terms else r"$^"
+        self._fee_terms_regex = re.compile(fee_pattern, re.IGNORECASE)
+
+    def has_ancillary_fee(self, text: str) -> bool:
+        """
+        Evaluates whether text contains an unnegated ancillary fee or monetary charge indicator
+        using the configured ancillary-fee lexicon with strict word-boundary token matching.
+        """
+        if not text:
+            return False
+        t_low = text.lower()
+
+        # 1. Complimentary negation phrases: "no extra charge", "free, no fee", "complimentary", etc.
+        for neg in self.complimentary_negation_phrases:
+            if neg in t_low:
+                # If negated without explicit contradictory positive currency symbol, suppress detection
+                has_positive_symbol = any(sym in text for sym in self.currency_symbols)
+                if not has_positive_symbol:
+                    return False
+
+        # 2. Currency symbols (e.g. $, €, £, ₹)
+        if any(sym in text for sym in self.currency_symbols):
+            return True
+
+        # 3. Currency ISO codes with strict word boundaries (\b(usd|eur|inr|gbp)\b)
+        # Guarantees strings like 'Europe' or 'urgent' do not trigger 'eur'
+        if self._currency_codes_regex and self._currency_codes_regex.search(text):
+            return True
+
+        # 4. Fee terms with strict word boundaries (\b(fee|surcharge|charge|tariff|premium|paid)\b)
+        # Guarantees words like 'unpaid' do not trigger 'paid'
+        if self._fee_terms_regex and self._fee_terms_regex.search(text):
+            return True
+
+        return False
+
     def resolve_target_metadata(self, target: str) -> Tuple[Optional[str], float, bool]:
         """
         Returns (intent_field_name, action_sensitivity, booking_critical).
@@ -304,7 +352,7 @@ class ContextConsistencyVerifier:
                     )
                 )
 
-        # Check 1d: Price-affecting add-on fields when addons_allowed is 'none' (structural check)
+        # Check 1d: Ancillary-fee lexicon verification (addons_allowed: none)
         addons_policy = getattr(locked_intent, "addons_allowed", None)
         if addons_policy is not None and str(addons_policy).strip().lower() == "none":
             is_price_affecting = False
@@ -321,18 +369,9 @@ class ContextConsistencyVerifier:
                 is_price_affecting = True
                 affected_field_name = "currency"
 
-            # 2. Surcharges / paid upgrades (distinguished from standard complimentary choices)
+            # 2. Optional services (seats, meals) checked against ancillary-fee lexicon
             elif "seat" in target_low or "meal" in target_low:
-                val_low = val_str.lower()
-                dom_low = (dom_text or "").lower()
-                monetary_charge_indicators = (
-                    "fee", "surcharge", "charge", "tariff", "paid",
-                    "premium", "extra", "upgrade", "exit",
-                    "$", "€", "£", "₹", "inr", "usd", "eur",
-                )
-                if any(ind in val_low for ind in monetary_charge_indicators) or any(
-                    ind in dom_low for ind in ("surcharge", "extra fee", "fee added", "premium")
-                ):
+                if self.has_ancillary_fee(val_str) or self.has_ancillary_fee(dom_text):
                     is_price_affecting = True
                     affected_field_name = "seat_or_meal_surcharge"
 
@@ -346,7 +385,7 @@ class ContextConsistencyVerifier:
                         severity=0.85,
                         detail=(
                             f"Action touches price-affecting field '{affected_field_name}' ('{action.target}'), "
-                            f"violating policy constraint 'addons_allowed=none'."
+                            f"flagged by ancillary-fee lexicon violating policy constraint 'addons_allowed=none'."
                         ),
                     )
                 )

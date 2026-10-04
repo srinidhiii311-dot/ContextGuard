@@ -85,7 +85,7 @@ def parse_natural_language_intent(instruction: str, defaults: Dict[str, Any] = N
     destination = destination or "Bangalore"
 
     # 4. Date
-    date = defaults.get("date")
+    date = defaults.get("date") or defaults.get("travel_date")
     if not date:
         date_match = re.search(r"(\d{4}-\d{2}-\d{2})", text)
         if date_match:
@@ -93,10 +93,20 @@ def parse_natural_language_intent(instruction: str, defaults: Dict[str, Any] = N
         else:
             date = (datetime.date.today() + datetime.timedelta(days=7)).isoformat()
 
+    # 5. Add-ons policy (default "none" for booking tasks unless user explicitly requested)
+    addons_allowed = defaults.get("addons_allowed", "none")
+
+    # 6. Contact email (if user specifies an email address)
+    email_match = re.search(r"\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b", text)
+    contact_email = defaults.get("contact_email") or (email_match.group(1) if email_match else None)
+
     return TrustedIntent(
         origin=origin,
         destination=destination,
         cabin_class=cabin_class,
         passenger_count=passenger_count,
         date=date,
+        travel_date=date,
+        addons_allowed=addons_allowed,
+        contact_email=contact_email,
     )
