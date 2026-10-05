@@ -18,6 +18,8 @@ ENV/
 # Database
 contextguard.db
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 .*runtime_model_weights.json
 *runtime_model_weights.json
