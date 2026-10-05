@@ -134,6 +134,61 @@ class TestPhase3ApprovalsWorkflow(unittest.TestCase):
         self.assertEqual(dec_resp.status_code, 200)
         self.assertEqual(dec_resp.json()["status"], "APPROVED")
 
+    def test_audit_checkpoint_anchoring_and_truncation_detection(self):
+        """
+        Step 3.8 / S8 Test:
+        Validates checkpoint anchoring to external JSONL file and
+        detection of newest-row truncation attacks.
+        """
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            anchor_file = Path(tmpdir) / "audit_anchor.jsonl"
+            initial_count = int(self.conn.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0])
+
+            # 1. Append 5 records
+            for i in range(1, 6):
+                self.audit.append(f"EVENT_{i}", f"actor_{i}", {"index": i})
+
+            # 2. Write external anchor checkpoint
+            chk = self.audit.write_checkpoint(anchor_path=anchor_file)
+            self.assertEqual(chk["row_count"], initial_count + 5)
+            self.assertTrue(anchor_file.exists())
+
+            # 3. Verify against anchor -> must succeed
+            ver_ok = self.audit.verify_against_anchor(anchor_path=anchor_file)
+            self.assertTrue(ver_ok.ok)
+            self.assertEqual(ver_ok.checked, initial_count + 5)
+
+            # 4. Truncate newest 2 rows from SQLite audit_log table
+            self.conn.execute("DELETE FROM audit_log WHERE id > ?", (initial_count + 3,))
+            self.conn.commit()
+
+            # 5. Verify against anchor -> MUST DETECT TRUNCATION
+            ver_truncated = self.audit.verify_against_anchor(anchor_path=anchor_file)
+            self.assertFalse(ver_truncated.ok)
+            self.assertIn("truncated", ver_truncated.reason)
+            self.assertEqual(ver_truncated.checked, initial_count + 3)
+
+    def test_api_audit_verify_dual_endpoints(self):
+        """Validates GET /api/audit/verify and GET /audit/verify with analyst role."""
+        client = TestClient(app)
+        if not app.state.approval_svc.get_user("test_analyst"):
+            app.state.approval_svc.create_user("test_analyst", "analyst_secret", role="analyst")
+        login_resp = client.post("/api/auth/login", json={"username": "test_analyst", "password": "analyst_secret"})
+        token = login_resp.json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        resp1 = client.get("/api/audit/verify", headers=headers)
+        self.assertEqual(resp1.status_code, 200)
+        self.assertIn("ok", resp1.json())
+
+        resp2 = client.get("/audit/verify", headers=headers)
+        self.assertEqual(resp2.status_code, 200)
+        self.assertIn("ok", resp2.json())
+
 
 if __name__ == "__main__":
     unittest.main()
+

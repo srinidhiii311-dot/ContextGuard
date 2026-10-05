@@ -89,8 +89,12 @@ def create_router(svc: ApprovalService, secret: str, token_ttl: int = 3600,
             raise HTTPException(403, str(e))
 
     @router.get("/api/audit/verify")
-    def audit_verify(_: dict = Depends(require_role("analyst"))) -> dict:
-        r = svc.audit.verify()
+    @router.get("/audit/verify")
+    def audit_verify(against_anchor: bool = True, _: dict = Depends(require_role("analyst"))) -> dict:
+        if against_anchor and hasattr(svc.audit, "verify_against_anchor"):
+            r = svc.audit.verify_against_anchor()
+        else:
+            r = svc.audit.verify()
         return {"ok": r.ok, "checked": r.checked, "first_bad_id": r.first_bad_id, "reason": r.reason}
 
     return router
