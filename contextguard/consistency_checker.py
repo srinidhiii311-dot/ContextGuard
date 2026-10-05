@@ -538,3 +538,108 @@ class ContextConsistencyVerifier:
         except Exception:
             return False
 
+
+def fee_floor(
+    intent: Any,
+    action: Any,
+    dom_text: str = "",
+    visible_form_state: Optional[Dict[str, Any]] = None,
+) -> tuple[Optional[str], str]:
+    """
+    Deterministic fee floor check (Phase 0.5 / Shortfall S4 fix).
+    Parses structured price delta between user's locked intent and current page state / action.
+    If delta is non-zero and unexplained by user intent, forces REQUIRE_CONFIRMATION
+    regardless of what page text claims ("complimentary", "included", "no charge").
+
+    Subject to strict raise-only discipline: can only escalate a decision,
+    never soften one coming from elsewhere in the pipeline.
+    """
+    addons_allowed = getattr(intent, "addons_allowed", None)
+    if isinstance(intent, dict):
+        addons_allowed = intent.get("addons_allowed")
+    max_fare = getattr(intent, "max_fare", None)
+    if isinstance(intent, dict):
+        max_fare = intent.get("max_fare")
+
+    target = getattr(action, "target", "")
+    val = getattr(action, "value", "") or ""
+    if isinstance(action, dict):
+        target = action.get("target", "")
+        val = action.get("value", "") or ""
+
+    target_low = str(target).lower().strip()
+    val_str = str(val).strip()
+
+    is_addons_none = addons_allowed is not None and str(addons_allowed).strip().lower() == "none"
+    unexplained_delta = False
+    delta_detail = ""
+
+    is_addon_target = any(
+        k in target_low for k in [
+            "baggage", "luggage", "meal", "seat", "insurance",
+            "currency", "surcharge", "fee", "addon", "tariff"
+        ]
+    )
+
+    num_match = re.search(r"(\d+(?:\.\d+)?)", val_str)
+    action_amount = float(num_match.group(1)) if num_match else 0.0
+
+    if is_addons_none:
+        fee_terms = ["fee", "surcharge", "charge", "tariff", "premium", "paid", "$", "€", "£", "₹", "inr", "usd"]
+        has_fee_term_in_val = any(ft in val_str.lower() for ft in fee_terms)
+
+        if is_addon_target and (action_amount > 0 or has_fee_term_in_val):
+            is_std_seat_or_meal = bool(re.match(r"^\d{1,2}[A-F]$", val_str, re.IGNORECASE)) or val_str.lower() in ("veg", "non-veg", "jain", "standard", "economy")
+            if not (is_std_seat_or_meal and not has_fee_term_in_val):
+                unexplained_delta = True
+                delta_detail = f"Action targets add-on field '{target}' with value '{val_str}'"
+
+        if not unexplained_delta and dom_text:
+            surcharge_patterns = [
+                r"(?:surcharge|fee|tariff|extra\s+charge|additional\s+fare)\s*(?:of|:)?\s*(?:₹|\$|€|£|inr|usd|eur|gbp)?\s*(\d+(?:,\d{3})*(?:\.\d+)?)",
+                r"(\d+(?:,\d{3})*(?:\.\d+)?)\s*(?:₹|\$|€|£|inr|usd|eur|gbp)\s*(?:surcharge|fee|tariff|extra\s+charge)",
+            ]
+            for pat in surcharge_patterns:
+                m = re.search(pat, dom_text, re.IGNORECASE)
+                if m:
+                    amt = float(m.group(1).replace(",", ""))
+                    if amt > 0:
+                        if is_addon_target or any(k in target_low for k in ["confirm", "submit", "pay", "book"]):
+                            unexplained_delta = True
+                            delta_detail = f"Page contains structured fee delta ({amt} currency units) while addons_allowed='none'"
+                            break
+
+        if not unexplained_delta and visible_form_state:
+            for k, v in visible_form_state.items():
+                if any(k_sub in k.lower() for k_sub in ["surcharge", "fee", "addon", "extra", "insurance", "baggage"]):
+                    try:
+                        v_num = float(str(v).replace(",", ""))
+                        if v_num > 0:
+                            unexplained_delta = True
+                            delta_detail = f"Visible form state contains structured surcharge '{k}={v}'"
+                            break
+                    except ValueError:
+                        pass
+
+    if not unexplained_delta and max_fare is not None:
+        total_patterns = [
+            r"(?:total(?:\s+fare)?|grand\s+total|final\s+price)\s*(?:of|:)?\s*(?:₹|\$|€|£|inr|usd|eur|gbp)?\s*(\d+(?:,\d{3})*(?:\.\d+)?)",
+        ]
+        for pat in total_patterns:
+            m = re.search(pat, dom_text, re.IGNORECASE)
+            if m:
+                total_val = float(m.group(1).replace(",", ""))
+                if total_val > float(max_fare):
+                    unexplained_delta = True
+                    delta_detail = f"Page total ({total_val}) exceeds max_fare ({max_fare})"
+                    break
+
+    if unexplained_delta:
+        return (
+            "REQUIRE_CONFIRMATION",
+            f"Fee floor violation: {delta_detail}; forces REQUIRE_CONFIRMATION regardless of reassuring page prose."
+        )
+
+    return None, ""
+
+

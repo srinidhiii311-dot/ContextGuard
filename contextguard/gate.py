@@ -49,7 +49,7 @@ from contextguard.models import (
     RiskTier,
     ThreatDetectionResult,
 )
-from contextguard.consistency_checker import ContextConsistencyVerifier
+from contextguard.consistency_checker import ContextConsistencyVerifier, fee_floor
 from contextguard.threat_detector import ThreatDetector
 from contextguard.threat_characterizer import ThreatCharacterizer, compute_cosine_distance
 from contextguard.risk_engine import ContextGuardRiskAssessmentEngine
@@ -571,8 +571,14 @@ class ContextGuardGate:
         timing["policy_evaluation_ms"] = (time.monotonic() - t0) * 1000
 
         # --- Step 9: Response Enforcement ---
-        decision, reason = self._enforce(policy_result, threat_result,
-                                         consistency_report, action)
+        decision, reason = self._enforce(
+            policy_result,
+            threat_result,
+            consistency_report,
+            action,
+            dom_text=current_dom_text,
+            visible_form_state=getattr(snapshot, "visible_form_state", {}) if snapshot else {},
+        )
 
         # Component 8: Attack Chain Detector (Stage 2 Multi-Step Workflow Defense)
         if self._chain_detector is not None:
@@ -752,6 +758,8 @@ class ContextGuardGate:
         threat:     ThreatDetectionResult,
         consistency: ModelConsistencyReport,
         action:     ProposedAction,
+        dom_text:   str = "",
+        visible_form_state: Optional[Dict[str, Any]] = None,
     ) -> tuple[Decision, str]:
         """Map PolicyDecision to Decision enum and build human-readable reason."""
         policy_map = {
@@ -787,6 +795,21 @@ class ContextGuardGate:
         )
         if has_downgraded_flag and enforce_severity.get(decision, 0) < enforce_severity[Decision.ALLOW_WITH_FLAG]:
             decision = Decision.ALLOW_WITH_FLAG
+
+        # Step 8.6 — Deterministic Fee Floor Check (Phase 0.5 / Shortfall S4 fix)
+        # Sits in the same place as hard-rule floor and obeys strict raise-only discipline:
+        # If a structured price delta is non-zero and unexplained by user intent,
+        # forces REQUIRE_CONFIRMATION regardless of reassuring page prose ("complimentary", "no charge").
+        ff_decision_str, ff_reason = fee_floor(
+            intent=self.trusted_intent,
+            action=action,
+            dom_text=dom_text,
+            visible_form_state=visible_form_state,
+        )
+        if ff_decision_str:
+            ff_decision = Decision[ff_decision_str]
+            if enforce_severity.get(decision, 0) < enforce_severity[ff_decision]:
+                decision = ff_decision
 
 
         # Build reason chain

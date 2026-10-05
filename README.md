@@ -165,6 +165,25 @@ Detailed per-item decision audit trails, failure breakdowns, and confusion matri
 
 ---
 
+## Threat Model & Security Scope (Phase 0.5 / S10)
+
+ContextGuard operates under an explicit threat model defining the security boundary between untrusted web content and the autonomous browser agent:
+
+### In-Scope Threats Defended Against
+- **Indirect Prompt Injection**: Malicious instructions embedded in webpage text, HTML attributes, DOM comments, or CSS-hidden containers that enter the agent's observation context to hijack task execution.
+- **Unauthorized Parameter Mutation**: Adversarial tampering with protected booking intent fields (origin, destination, cabin class, passenger count, travel date, authorized contact email).
+- **Navigation Boundary Divergence**: Redirection or deep-linking to unapproved external origins, phishing portals, or credential harvesting servers.
+- **Unmapped Fee Tampering & Tariff Inflation**: Stealthy insertion of surcharges, excessive baggage tiers, catering banquets, exit-row seat fees, or insurance opt-ins violating `addons_allowed: none`.
+- **Multi-Step Attack Chains**: Sequences that stage an injection to bypass verification steps (e.g., skipping review directly to booking confirmation).
+
+### Explicitly Out-of-Scope
+- **Model Weight Poisoning**: Pre-training or fine-tuning backdoors embedded directly into the agent's foundation model weights.
+- **Browser & OS Supply-Chain Compromise**: Compromised browser binaries, malicious browser extensions, kernel rootkits, or hypervisor escapes.
+- **Side-Channel & Out-of-Band Attacks**: Attacks that never touch the DOM, HTTP traffic, or page text observed by the gateway (e.g., side-channel network timing attacks).
+- **Insider Threat / Rogue Approvers**: Malicious actions explicitly approved by authenticated supervisors holding legitimate multi-role signing keys.
+
+---
+
 ## Security Assumptions
 
 1. **Independent Pre-Action Gate**: ContextGuard monitors and policy evaluation execute out-of-band and synchronously before the browser controller dispatches the proposed action.
@@ -181,7 +200,7 @@ Detailed per-item decision audit trails, failure breakdowns, and confusion matri
 - **Scripted vs LLM Agents**: The core evaluation evaluates the pre-action safety gate against deterministic actions and simulated agent trajectories; live agent susceptibility evaluations are reported separately.
 - **Model Weights Calibration**: Default runtime logistic weights were calibrated on reference samples; while effective for demonstrative scoring, production deployment requires continuous telemetry training.
 - **Component 4 Context-Length Sensitivity**: Semantic cosine deviation relies on embedding representations whose sensitivity can degrade on extremely long or noisy DOM pages.
-- **Known Weakness — Injected DOM Negation Downgrade**: Surcharge attacks containing injected phrases like "complimentary, at no charge" in untrusted page text evaluate to `ALLOW_WITH_FLAG` rather than a hard stop (`BLOCK` or `REQUIRE_CONFIRMATION`).
+- **Fee Floor Negation Mitigation (Phase 0.5 Closed)**: Surcharge attacks with injected negation phrases ('complimentary, at no charge') are deterministically intercepted at `REQUIRE_CONFIRMATION` or `BLOCK` via `fee_floor()`, which parses structured price deltas and ignores reassuring prose. Actions with zero price delta on pages mentioning fee keywords remain calibrated at `ALLOW_WITH_FLAG`.
 - **Lexical Instruction Patterns**: Hidden content scoring identifies directive keywords using domain patterns; obfuscated or novel instruction formats without imperative verbs require auxiliary vision or LLM inspection.
 - **Audit Log Truncation**: While the SHA-256 hash chain detects in-place record modification or intermediate row deletion, it cannot detect truncation of the most recent tail records unless the latest block hash is anchored externally.
 
@@ -189,7 +208,7 @@ Detailed per-item decision audit trails, failure breakdowns, and confusion matri
 
 ## Threats to Validity
 
-1. **DOM Negation Masking**: Adversaries controlling webpage content may inject negation language ("free", "complimentary") to evade fee alerts. ContextGuard mitigates this by allowing negation phrases to downgrade `FIELD_MISMATCH` only to `ALLOW_WITH_FLAG`, never `ALLOW`, and strictly forbidding page-text negation from suppressing fee tokens within the proposed action itself.
+1. **DOM Negation Masking**: Adversaries controlling webpage content may inject negation language ("free", "complimentary") to evade fee alerts. ContextGuard closes this loophole via the deterministic `fee_floor()` check, which parses structured price deltas between locked intent and page state, strictly requiring confirmation on any unexplained fee delta regardless of reassuring page prose.
 2. **Generalization across Dynamic Ontologies**: Target field mappings and ancillary fee lexicons are informed by domain concepts. Adapting to arbitrary web applications requires schema mapping layers or few-shot semantic alignment.
 
 ---
