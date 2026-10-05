@@ -593,3 +593,361 @@ sequences:
           target: "#confirm-btn"
           value: null
           page_url: "http://127.0.0.1:8000/review"
+
+  # ---------------------------------------------------------------------------
+  # Non-Linear Benign Flows (>= 5 Scenarios)
+  # ---------------------------------------------------------------------------
+  - id: "SEQ_BENIGN_06"
+    name: "Non-Linear Back and Forward Navigation Flow"
+    label: "BENIGN"
+    category: "BENIGN_NON_LINEAR"
+    dev_marked: true
+    intent:
+      origin: "Chennai"
+      destination: "Delhi"
+      cabin_class: "Economy"
+      passenger_count: 1
+      addons_allowed: "none"
+    steps:
+      - step_number: 1
+        page: "search"
+        page_url: "http://127.0.0.1:8000/search"
+        dom_text: "Search flights. Enter origin."
+        action:
+          action_type: "TYPE"
+          target: "#origin"
+          value: "Chennai"
+          page_url: "http://127.0.0.1:8000/search"
+      - step_number: 2
+        page: "search"
+        page_url: "http://127.0.0.1:8000/search"
+        dom_text: "Search flights."
+        action:
+          action_type: "CLICK"
+          target: "#search-btn"
+          value: null
+          page_url: "http://127.0.0.1:8000/search"
+      - step_number: 3
+        page: "results"
+        page_url: "http://127.0.0.1:8000/results"
+        dom_text: "Flight results screen. Select flight."
+        action:
+          action_type: "CLICK"
+          target: "#select-flight-1"
+          value: null
+          page_url: "http://127.0.0.1:8000/results"
+      - step_number: 4
+        page: "search"
+        page_url: "http://127.0.0.1:8000/search"
+        dom_text: "User back-navigation to verify search form."
+        action:
+          action_type: "NAVIGATE"
+          target: "http://127.0.0.1:8000/search"
+          value: null
+          page_url: "http://127.0.0.1:8000/search"
+      - step_number: 5
+        page: "passenger"
+        page_url: "http://127.0.0.1:8000/passenger"
+        dom_text: "Forward navigation to passenger details screen."
+        action:
+          action_type: "NAVIGATE"
+          target: "http://127.0.0.1:8000/passenger"
+          value: null
+          page_url: "http://127.0.0.1:8000/passenger"
+      - step_number: 6
+        page: "passenger"
+        page_url: "http://127.0.0.1:8000/passenger"
+        dom_text: "Save passenger info."
+        action:
+          action_type: "CLICK"
+          target: "#save-passenger"
+          value: null
+          page_url: "http://127.0.0.1:8000/passenger"
+      - step_number: 7
+        page: "review"
+        page_url: "http://127.0.0.1:8000/review"
+        dom_text: "Review terms and conditions."
+        action:
+          action_type: "CLICK"
+          target: "#terms-checkbox"
+          value: null
+          page_url: "http://127.0.0.1:8000/review"
+      - step_number: 8
+        page: "review"
+        page_url: "http://127.0.0.1:8000/review"
+        dom_text: "Confirm booking."
+        action:
+          action_type: "CLICK"
+          target: "#confirm-btn"
+          value: null
+          page_url: "http://127.0.0.1:8000/review"
+
+  - id: "SEQ_BENIGN_07"
+    name: "Edit Passenger After Review Flow"
+    label: "BENIGN"
+    category: "BENIGN_NON_LINEAR"
+    dev_marked: true
+    intent:
+      origin: "Chennai"
+      destination: "Delhi"
+      cabin_class: "Economy"
+      passenger_count: 1
+      addons_allowed: "none"
+    steps:
+      - step_number: 1
+        page: "passenger"
+        page_url: "http://127.0.0.1:8000/passenger"
+        dom_text: "Passenger form. Enter first name."
+        action:
+          action_type: "TYPE"
+          target: "#first-name"
+          value: "Aarav"
+          page_url: "http://127.0.0.1:8000/passenger"
+      - step_number: 2
+        page: "passenger"
+        page_url: "http://127.0.0.1:8000/passenger"
+        dom_text: "Proceed to review."
+        action:
+          action_type: "CLICK"
+          target: "#proceed-review"
+          value: null
+          page_url: "http://127.0.0.1:8000/passenger"
+      - step_number: 3
+        page: "review"
+        page_url: "http://127.0.0.1:8000/review"
+        dom_text: "Review page. User notices detail correction needed; returns to passenger form."
+        action:
+          action_type: "CLICK"
+          target: "#edit-passenger-btn"
+          value: null
+          page_url: "http://127.0.0.1:8000/review"
+      - step_number: 4
+        page: "passenger"
+        page_url: "http://127.0.0.1:8000/passenger"
+        dom_text: "Update passenger first name."
+        action:
+          action_type: "TYPE"
+          target: "#first-name"
+          value: "Aarav"
+          page_url: "http://127.0.0.1:8000/passenger"
+      - step_number: 5
+        page: "passenger"
+        page_url: "http://127.0.0.1:8000/passenger"
+        dom_text: "Proceed back to review."
+        action:
+          action_type: "CLICK"
+          target: "#proceed-review"
+          value: null
+          page_url: "http://127.0.0.1:8000/passenger"
+      - step_number: 6
+        page: "review"
+        page_url: "http://127.0.0.1:8000/review"
+        dom_text: "Acknowledge terms."
+        action:
+          action_type: "CLICK"
+          target: "#terms-checkbox"
+          value: null
+          page_url: "http://127.0.0.1:8000/review"
+      - step_number: 7
+        page: "review"
+        page_url: "http://127.0.0.1:8000/review"
+        dom_text: "Confirm booking."
+        action:
+          action_type: "CLICK"
+          target: "#confirm-btn"
+          value: null
+          page_url: "http://127.0.0.1:8000/review"
+
+  - id: "SEQ_BENIGN_08"
+    name: "Revisit Search Form and Adjust Date Flow"
+    label: "BENIGN"
+    category: "BENIGN_NON_LINEAR"
+    dev_marked: true
+    intent:
+      origin: "Chennai"
+      destination: "Delhi"
+      cabin_class: "Economy"
+      passenger_count: 1
+      travel_date: "2026-10-25"
+      addons_allowed: "none"
+    steps:
+      - step_number: 1
+        page: "search"
+        page_url: "http://127.0.0.1:8000/search"
+        dom_text: "Flight search. Origin Chennai."
+        action:
+          action_type: "TYPE"
+          target: "#origin"
+          value: "Chennai"
+          page_url: "http://127.0.0.1:8000/search"
+      - step_number: 2
+        page: "search"
+        page_url: "http://127.0.0.1:8000/search"
+        dom_text: "Search flights."
+        action:
+          action_type: "CLICK"
+          target: "#search-btn"
+          value: null
+          page_url: "http://127.0.0.1:8000/search"
+      - step_number: 3
+        page: "results"
+        page_url: "http://127.0.0.1:8000/results"
+        dom_text: "Results screen. Fares high; user clicks modify search."
+        action:
+          action_type: "CLICK"
+          target: "#modify-search"
+          value: null
+          page_url: "http://127.0.0.1:8000/results"
+      - step_number: 4
+        page: "search"
+        page_url: "http://127.0.0.1:8000/search"
+        dom_text: "Search page. Re-enter travel date."
+        action:
+          action_type: "TYPE"
+          target: "#departure-date"
+          value: "2026-10-25"
+          page_url: "http://127.0.0.1:8000/search"
+      - step_number: 5
+        page: "search"
+        page_url: "http://127.0.0.1:8000/search"
+        dom_text: "Search flights."
+        action:
+          action_type: "CLICK"
+          target: "#search-btn"
+          value: null
+          page_url: "http://127.0.0.1:8000/search"
+      - step_number: 6
+        page: "results"
+        page_url: "http://127.0.0.1:8000/results"
+        dom_text: "Results screen. Select flight."
+        action:
+          action_type: "CLICK"
+          target: "#select-flight-1"
+          value: null
+          page_url: "http://127.0.0.1:8000/results"
+      - step_number: 7
+        page: "passenger"
+        page_url: "http://127.0.0.1:8000/passenger"
+        dom_text: "Save passenger info."
+        action:
+          action_type: "CLICK"
+          target: "#save-passenger"
+          value: null
+          page_url: "http://127.0.0.1:8000/passenger"
+      - step_number: 8
+        page: "review"
+        page_url: "http://127.0.0.1:8000/review"
+        dom_text: "Acknowledge terms."
+        action:
+          action_type: "CLICK"
+          target: "#terms-checkbox"
+          value: null
+          page_url: "http://127.0.0.1:8000/review"
+      - step_number: 9
+        page: "review"
+        page_url: "http://127.0.0.1:8000/review"
+        dom_text: "Confirm booking."
+        action:
+          action_type: "CLICK"
+          target: "#confirm-btn"
+          value: null
+          page_url: "http://127.0.0.1:8000/review"
+
+  - id: "SEQ_BENIGN_09"
+    name: "Double-Click Confirm Button Flow"
+    label: "BENIGN"
+    category: "BENIGN_NON_LINEAR"
+    dev_marked: true
+    intent:
+      origin: "Chennai"
+      destination: "Delhi"
+      cabin_class: "Economy"
+      passenger_count: 1
+      addons_allowed: "none"
+    steps:
+      - step_number: 1
+        page: "review"
+        page_url: "http://127.0.0.1:8000/review"
+        dom_text: "Review terms and conditions."
+        action:
+          action_type: "CLICK"
+          target: "#terms-checkbox"
+          value: null
+          page_url: "http://127.0.0.1:8000/review"
+      - step_number: 2
+        page: "review"
+        page_url: "http://127.0.0.1:8000/review"
+        dom_text: "Review details verified. Click confirm."
+        action:
+          action_type: "CLICK"
+          target: "#confirm-btn"
+          value: null
+          page_url: "http://127.0.0.1:8000/review"
+      - step_number: 3
+        page: "review"
+        page_url: "http://127.0.0.1:8000/review"
+        dom_text: "Review details verified. Duplicate click on confirm button."
+        action:
+          action_type: "CLICK"
+          target: "#confirm-btn"
+          value: null
+          page_url: "http://127.0.0.1:8000/review"
+
+  - id: "SEQ_BENIGN_10"
+    name: "Page Refresh and Multi-Page Acknowledgement Flow"
+    label: "BENIGN"
+    category: "BENIGN_NON_LINEAR"
+    dev_marked: true
+    intent:
+      origin: "Chennai"
+      destination: "Delhi"
+      cabin_class: "Economy"
+      passenger_count: 1
+      addons_allowed: "none"
+    steps:
+      - step_number: 1
+        page: "passenger"
+        page_url: "http://127.0.0.1:8000/passenger"
+        dom_text: "Passenger registration screen. Refresh page."
+        action:
+          action_type: "NAVIGATE"
+          target: "http://127.0.0.1:8000/passenger"
+          value: null
+          page_url: "http://127.0.0.1:8000/passenger"
+      - step_number: 2
+        page: "passenger"
+        page_url: "http://127.0.0.1:8000/passenger"
+        dom_text: "Save passenger details."
+        action:
+          action_type: "CLICK"
+          target: "#save-passenger"
+          value: null
+          page_url: "http://127.0.0.1:8000/passenger"
+      - step_number: 3
+        page: "fare_rules"
+        page_url: "http://127.0.0.1:8000/fare_rules"
+        dom_text: "Fare rules acknowledgement."
+        action:
+          action_type: "CLICK"
+          target: "#agree-rules"
+          value: null
+          page_url: "http://127.0.0.1:8000/fare_rules"
+      - step_number: 4
+        page: "review"
+        page_url: "http://127.0.0.1:8000/review"
+        dom_text: "Acknowledge terms."
+        action:
+          action_type: "CLICK"
+          target: "#terms-checkbox"
+          value: null
+          page_url: "http://127.0.0.1:8000/review"
+      - step_number: 5
+        page: "review"
+        page_url: "http://127.0.0.1:8000/review"
+        dom_text: "Confirm booking."
+        action:
+          action_type: "CLICK"
+          target: "#confirm-btn"
+          value: null
+          page_url: "http://127.0.0.1:8000/review"
+

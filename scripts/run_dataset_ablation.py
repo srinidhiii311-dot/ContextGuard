@@ -303,9 +303,7 @@ def run_benchmark_and_ablation(
         ("Config B", "Config A + Keyword taxonomy (Component 3)", "B"),
         ("Config C", "Config B + Semantic characterization (Component 4)", "C"),
         ("Config D", "Full Gate (All 7 Components + ML Risk + Policy Matrix)", "D"),
-        ("Config E", "Full Gate + Attack Chain Detector (Component 8 Stateful Defense)", "E"),
     ]
-
 
     ablation_summary: List[Dict[str, Any]] = []
 

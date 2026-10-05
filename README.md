@@ -261,6 +261,7 @@ Expected evaluation results (rule-based engine):
 ## Limitations
 
 - **Rule-based risk engine**: Novel injection phrasing not in keyword lists may be missed (addressed by Component 4 semantic deviation).
+- **Known Weakness — Injected DOM Negation Downgrade**: A surcharge attack where an adversary injects "complimentary, at no charge" into the rendered page text evaluates to `ALLOW_WITH_FLAG` (Score: 43, Tier: MEDIUM) rather than a hard interception (`BLOCK` or `REQUIRE_CONFIRMATION`). Because `ALLOW_WITH_FLAG` allows the action to proceed, untrusted DOM text can prevent a hard stop on ancillary fees. Mitigation via order-level fare ceilings and strict intent enforcement is documented in threats to validity.
 - **Page-text negation in ancillary checks**: Negation phrases ("no extra charge", "complimentary, at no charge", "free, no fee") discovered in untrusted page text may only downgrade an ancillary fee `FIELD_MISMATCH` to `ALLOW_WITH_FLAG`, never to `ALLOW`. Unsolicited fee tokens within the proposed action value or target selector are never suppressed by page text.
 - **Agent decision engine**: Rule-based by default; LLM mode requires Ollama running locally.
 - **Single-domain dev benchmark**: Current dev dataset evaluates flight booking workflows; multi-domain coverage (e-commerce, banking) is future work.

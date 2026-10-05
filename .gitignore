@@ -54,3 +54,7 @@ secrets.json
 # Playwright
 playwright-report/
 test-results/
+
+# Kit source
+contextguard_kit/
+

@@ -109,6 +109,15 @@ def evaluate_config_step(config_key: str, gate: ContextGuardGate, action: Propos
         )
         return (time.perf_counter_ns() - t0) / 1_000_000.0
 
+    elif config_key == "E":
+        # Full Gate + Component 8 Attack Chain Detector
+        gate.enable_chain_detector = True
+        if gate._chain_detector is None:
+            from contextguard.chain_detector import ChainDetector
+            gate._chain_detector = ChainDetector(db_path=":memory:")
+        _ = gate.check(action, dom_text)
+        return (time.perf_counter_ns() - t0) / 1_000_000.0
+
     else:
         # Full Gate (Config D, End-to-End with SQLite persistence)
         _ = gate.check(action, dom_text)
@@ -159,6 +168,7 @@ def run_latency_benchmark(iterations: int = 250, warmup: int = 30):
         ("Config C", "Config B + Semantic characterization (Comp 4)", "C"),
         ("Config D (In-Memory)", "Full Gate Pipeline (In-Memory, no DB commit)", "D_in_memory"),
         ("Config D (End-to-End)", "Full Gate (All 7 Components + SQLite Audit Log)", "D"),
+        ("Config E (Stateful)", "Full Gate + Component 8 Attack Chain Detector", "E"),
     ]
 
     summary_rows = []

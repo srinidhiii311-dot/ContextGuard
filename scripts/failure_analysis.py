@@ -206,10 +206,21 @@ def run_failure_analysis(csv_out_path: Optional[str] = None):
 
     print("=" * 115)
     print("* Statistically significant shift (p < 0.05).")
-    print("Interpretation:")
-    print("  - A -> B: Component 3 (Taxonomy) intercepts 4 attacks missed by Step 2 field rails (n01=4, n10=0, p=0.1250).")
-    print("  - B -> C: Component 4 (Semantic Deviation) captures unmapped exfiltration attacks (n01=1, n10=0, p=1.0000).")
-    print("  - C -> D: Config D graduates 4 borderlines to ALLOW_WITH_FLAG rather than outright blocking (n10=4, n01=0, p=0.1250).")
+
+    # Item sets uniquely caught per configuration tier
+    caught_A = [r["item_id"] for r in all_evaluations if r["int_A"]]
+    uniquely_B = [r["item_id"] for r in all_evaluations if r["int_B"] and not r["int_A"]]
+    uniquely_C = [r["item_id"] for r in all_evaluations if r["int_C"] and not r["int_B"]]
+    uniquely_D = [r["item_id"] for r in all_evaluations if r["int_D"] and not r["int_C"]]
+    missed_D = [r["item_id"] for r in all_evaluations if not r["int_D"]]
+
+    print("\n--- CONFIGURATION TIER INTERCEPTION BREAKDOWN ---")
+    print(f"Config A (Verification Rails) Intercepts ({len(caught_A)}/34): {', '.join(caught_A)}")
+    print(f"Config B Uniquely Intercepts over A ({len(uniquely_B)} items): {', '.join(uniquely_B) if uniquely_B else 'None'}")
+    print(f"Config C Uniquely Intercepts over B ({len(uniquely_C)} items): {', '.join(uniquely_C) if uniquely_C else 'None'}")
+    print(f"Config D Uniquely Intercepts over C ({len(uniquely_D)} items): {', '.join(uniquely_D) if uniquely_D else 'None'}")
+    print(f"Still Missed by Config D ({len(missed_D)} items): {', '.join(missed_D) if missed_D else 'None'}")
+    print("=" * 115)
 
     # Filter Failure Items: Not intercepted by D OR (Intercepted by C but not by D)
     failure_items = [
