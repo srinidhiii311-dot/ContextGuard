@@ -202,7 +202,21 @@ ContextGuard operates under an explicit threat model defining the security bound
 - **Component 4 Context-Length Sensitivity**: Semantic cosine deviation relies on embedding representations whose sensitivity can degrade on extremely long or noisy DOM pages.
 - **Fee Floor Negation Mitigation (Phase 0.5 Closed)**: Surcharge attacks with injected negation phrases ('complimentary, at no charge') are deterministically intercepted at `REQUIRE_CONFIRMATION` or `BLOCK` via `fee_floor()`, which parses structured price deltas and ignores reassuring prose. Actions with zero price delta on pages mentioning fee keywords remain calibrated at `ALLOW_WITH_FLAG`.
 - **Lexical Instruction Patterns**: Hidden content scoring identifies directive keywords using domain patterns; obfuscated or novel instruction formats without imperative verbs require auxiliary vision or LLM inspection.
-- **Audit Log Truncation**: While the SHA-256 hash chain detects in-place record modification or intermediate row deletion, it cannot detect truncation of the most recent tail records unless the latest block hash is anchored externally.
+- **Audit Log Truncation (Step 3.8 Closed)**: The SHA-256 hash chain is paired with periodic HMAC-SHA256 checkpoint anchors written to external storage (`audit_anchor.jsonl`). Truncation of newest rows is detectably flagged via `verify_against_anchor()` and exposed on `/audit/verify`.
+
+---
+
+## Gate Coverage Audit (Phase H / S11)
+
+Every proposed browser action emitted by the agent controller is routed synchronously through the pre-action safety gateway prior to execution:
+
+| Action Type | Agent Emitted Operation | Gated Prior to Browser Execution? | Verification Evidence (Test Name) |
+|---|---|:---:|---|
+| **`TYPE` / `FILL`** | Form inputs, contact email, passenger names, airport codes | **YES** | `test_gate_coverage_action_type_type` in [`tests/test_phase_h_hardening.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/tests/test_phase_h_hardening.py) |
+| **`SELECT`** | Dropdown options (cabin class, flight cards, baggage tiers, meals) | **YES** | `test_gate_coverage_action_type_select` in [`tests/test_phase_h_hardening.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/tests/test_phase_h_hardening.py) |
+| **`CLICK`** | Buttons, checkboxes, ancillary add-on toggles | **YES** | `test_gate_coverage_action_type_click` in [`tests/test_phase_h_hardening.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/tests/test_phase_h_hardening.py) |
+| **`NAVIGATE`** | Cross-origin redirects, external phishing links, deep links | **YES** | `test_gate_coverage_action_type_navigate` in [`tests/test_phase_h_hardening.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/tests/test_phase_h_hardening.py) |
+| **`SUBMIT`** | Final booking confirmation and checkout requests | **YES** | `test_gate_coverage_action_type_submit` in [`tests/test_phase_h_hardening.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/tests/test_phase_h_hardening.py) |
 
 ---
 
