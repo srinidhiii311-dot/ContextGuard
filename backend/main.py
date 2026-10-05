@@ -646,6 +646,65 @@ def get_audit_records(
     return get_audit_log(task_id, limit)
 
 
+# ---------------------------------------------------------------------------
+# DOM Baseline Endpoints (Phase 1)
+# ---------------------------------------------------------------------------
+class BaselineCaptureBody(BaseModel):
+    page: str
+    html: str
+    approved_by: Optional[str] = None
+    reason: Optional[str] = None
+
+
+class BaselineApproveBody(BaseModel):
+    html: str
+    approved_by: str
+    reason: str
+
+
+@app.post("/api/baseline/capture")
+def api_baseline_capture(body: BaselineCaptureBody) -> Dict[str, Any]:
+    from contextguard.dom_baseline import BaselineStore
+    conn = get_conn()
+    try:
+        store = BaselineStore(conn)
+        ver = store.capture(body.page, body.html, approved_by=body.approved_by, reason=body.reason)
+        return {"status": "ok", "page": body.page, "version": ver}
+    finally:
+        conn.close()
+
+
+@app.get("/api/baseline/{page}")
+def api_baseline_get(page: str) -> Dict[str, Any]:
+    from contextguard.dom_baseline import BaselineStore
+    conn = get_conn()
+    try:
+        store = BaselineStore(conn)
+        snap = store.latest(page)
+        if not snap:
+            raise HTTPException(404, detail=f"No baseline found for page '{page}'")
+        return {"page": page, "snapshot": json.loads(snap.to_json())}
+    finally:
+        conn.close()
+
+
+@app.post("/api/baseline/{page}/approve-drift")
+def api_baseline_approve_drift(page: str, body: BaselineApproveBody) -> Dict[str, Any]:
+    if not body.reason or not body.reason.strip():
+        raise HTTPException(400, detail="reason is required")
+    from contextguard.dom_baseline import BaselineStore
+    conn = get_conn()
+    try:
+        store = BaselineStore(conn)
+        ver = store.approve_drift(page, body.html, approved_by=body.approved_by, reason=body.reason)
+        return {"status": "ok", "page": page, "version": ver}
+    except Exception as e:
+        raise HTTPException(400, detail=str(e))
+    finally:
+        conn.close()
+
+
+
 @app.get("/api/contextguard/risk/{task_id}")
 def get_task_risk_summary(task_id: str) -> Dict[str, Any]:
     conn = get_conn()

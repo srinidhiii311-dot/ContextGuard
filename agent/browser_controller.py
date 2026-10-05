@@ -64,6 +64,8 @@ class DOMSnapshot:
     screenshot_path: str                = ""
     attack_text_detected: bool          = False
     attack_indicators:   List[str]      = field(default_factory=list)
+    raw_html:            str            = ""
+    hidden_findings:     List[Dict[str, str]] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -80,6 +82,8 @@ class DOMSnapshot:
             "screenshot_path": self.screenshot_path,
             "attack_text_detected": self.attack_text_detected,
             "attack_indicators":    self.attack_indicators,
+            "raw_html":        self.raw_html,
+            "hidden_findings": self.hidden_findings,
         }
 
     def to_prompt_summary(self) -> str:
@@ -213,6 +217,19 @@ class BrowserController:
         text      = data.get("text", "")
         dom_hash  = hashlib.md5(text.encode()).hexdigest()
 
+        raw_html = ""
+        hidden_findings = []
+        try:
+            raw_html = await self._page.content()
+        except Exception:
+            pass
+
+        try:
+            from contextguard.hidden_content import scan_page_async
+            hidden_findings = await scan_page_async(self._page)
+        except Exception:
+            pass
+
         return DOMSnapshot(
             url=url,
             title=title,
@@ -224,6 +241,8 @@ class BrowserController:
             links=data.get("links", []),
             visible_text=text,
             dom_hash=dom_hash,
+            raw_html=raw_html,
+            hidden_findings=hidden_findings,
         )
 
     # ------------------------------------------------------------------

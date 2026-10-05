@@ -91,6 +91,13 @@ class ContextStore:
     def __init__(self) -> None:
         # task_id -> list of ContextSnapshot (most recent last)
         self._snapshots: Dict[str, list] = {}
+        try:
+            from backend.database.db import get_conn
+            from contextguard.dom_baseline import BaselineStore
+            self._baseline_conn = get_conn()
+            self.baseline_store = BaselineStore(self._baseline_conn)
+        except Exception:
+            self.baseline_store = None
 
     def capture(
         self,
@@ -111,6 +118,15 @@ class ContextStore:
         page_name = getattr(dom_snapshot, "page_name",    "")
         dom_hash  = getattr(dom_snapshot, "dom_hash",     "")
         vis_text  = getattr(dom_snapshot, "visible_text", "")
+        raw_html  = getattr(dom_snapshot, "raw_html",     "")
+
+        # Capture per-page baselines through BaselineStore (clean run only)
+        clean_pages = {"search", "results", "passenger", "review", "confirm", "confirmed"}
+        if status == "CLEAN" and raw_html and page_name in clean_pages and self.baseline_store:
+            try:
+                self.baseline_store.capture(page_name, raw_html)
+            except Exception:
+                pass
 
         snap = ContextSnapshot(
             task_id       = task_id,
