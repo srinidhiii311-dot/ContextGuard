@@ -33,7 +33,27 @@ WORKSPACE_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(WORKSPACE_ROOT))
 
 from contextguard.gate import ContextGuardGate, ProposedAction, TrustedIntent
+from contextguard.llm_checker import LLMChecker, provider_from_env, Verdict
 from scripts.stats import format_ci, wilson
+
+
+class TrackingLLMChecker(LLMChecker):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.total_invocations = 0
+        self.cache_hit_count = 0
+        self.fallback_count = 0
+
+    def check(self, intent: dict, action: dict, page_text: str, dom_hash: Optional[str] = None) -> Verdict:
+        self.total_invocations += 1
+        k = self.key(intent, action, dom_hash, page_text)
+        if k in self.cache:
+            self.cache_hit_count += 1
+        v = super().check(intent, action, page_text, dom_hash)
+        if v.source == "fallback":
+            self.fallback_count += 1
+        return v
+
 
 
 def load_datasets(benign_path: Optional[str] = None) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
@@ -137,6 +157,15 @@ def evaluate_ablation_step(
 
     elif config_key == "D":
         # Config D: Full Gate (all 7 components + ML Risk Engine + Declarative Policy Matrix)
+        res = gate.check(action, dom_text)
+        lat = (time.perf_counter_ns() - t0) / 1_000_000.0
+        intercepted = res.decision.value in ("BLOCK", "REQUIRE_CONFIRMATION", "PAUSE_TASK")
+        flagged_only = res.decision.value in ("ALLOW_WITH_FLAG", "FLAG")
+        return intercepted, flagged_only, res.decision.value, lat
+
+    elif config_key == "H":
+        # Config H: Config D + Real LLM Semantic Consistency Checker (Grey-zone Raiser)
+        gate.enable_llm_checker = True
         res = gate.check(action, dom_text)
         lat = (time.perf_counter_ns() - t0) / 1_000_000.0
         intercepted = res.decision.value in ("BLOCK", "REQUIRE_CONFIRMATION", "PAUSE_TASK")
@@ -303,9 +332,13 @@ def run_benchmark_and_ablation(
         ("Config B", "Config A + Keyword taxonomy (Component 3)", "B"),
         ("Config C", "Config B + Semantic characterization (Component 4)", "C"),
         ("Config D", "Full Gate (All 7 Components + ML Risk + Policy Matrix)", "D"),
+        ("Config H", "Config D + Real LLM Checker (Row H)", "H"),
     ]
 
     ablation_summary: List[Dict[str, Any]] = []
+    d_decisions: Dict[str, str] = {}
+    h_decisions: Dict[str, str] = {}
+    shared_checker = TrackingLLMChecker(provider_from_env())
 
     for cfg_id, cfg_desc, cfg_key in ablation_configs:
         cfg_atk_int = 0
@@ -318,9 +351,18 @@ def run_benchmark_and_ablation(
         # Run across all attack items
         for item in attacks:
             action = make_proposed_action(item)
-            gate = ContextGuardGate(trusted_intent=trusted_intent, task_id=f"abl-{cfg_key}-{item['id']}")
+            gate = ContextGuardGate(
+                trusted_intent=trusted_intent,
+                task_id=f"abl-{cfg_key}-{item['id']}",
+                enable_llm_checker=(cfg_key == "H"),
+                llm_checker=shared_checker if cfg_key == "H" else None,
+            )
             intercepted, flagged_only, decision, lat = evaluate_ablation_step(cfg_key, gate, action, item["dom_text"])
             latencies.append(lat)
+            if cfg_key == "D":
+                d_decisions[item["id"]] = decision
+            elif cfg_key == "H":
+                h_decisions[item["id"]] = decision
             if intercepted:
                 cfg_atk_int += 1
             elif flagged_only:
@@ -329,9 +371,18 @@ def run_benchmark_and_ablation(
         # Run across all benign items
         for item in benign:
             action = make_proposed_action(item)
-            gate = ContextGuardGate(trusted_intent=trusted_intent, task_id=f"abl-{cfg_key}-{item['id']}")
+            gate = ContextGuardGate(
+                trusted_intent=trusted_intent,
+                task_id=f"abl-{cfg_key}-{item['id']}",
+                enable_llm_checker=(cfg_key == "H"),
+                llm_checker=shared_checker if cfg_key == "H" else None,
+            )
             intercepted, flagged_only, decision, lat = evaluate_ablation_step(cfg_key, gate, action, item["dom_text"])
             latencies.append(lat)
+            if cfg_key == "D":
+                d_decisions[item["id"]] = decision
+            elif cfg_key == "H":
+                h_decisions[item["id"]] = decision
             if intercepted:
                 cfg_ben_fp_int += 1
             elif flagged_only:
@@ -385,6 +436,31 @@ def run_benchmark_and_ablation(
         ))
 
     print("=" * 172)
+
+    # Row H Separate Performance & Audit Report
+    changed_items = [
+        (item_id, d_decisions[item_id], h_decisions[item_id])
+        for item_id in d_decisions
+        if item_id in h_decisions and d_decisions[item_id] != h_decisions[item_id]
+    ]
+    llm_lats = shared_checker.latencies
+    mean_llm_lat = statistics.mean(llm_lats) if llm_lats else 0.0
+    p95_llm_lat = sorted(llm_lats)[int(len(llm_lats) * 0.95)] if llm_lats else 0.0
+
+    print("\n" + "=" * 100)
+    print("CONFIG H (REAL LLM SEMANTIC CHECKER) SEPARATE PERFORMANCE & AUDIT REPORT")
+    print("=" * 100)
+    print(f"Total Gate Checks under Config H            : {n_total}")
+    print(f"Total Invocations sent to LLM Checker       : {shared_checker.total_invocations}")
+    print(f"Cache Hits                                  : {shared_checker.cache_hit_count}")
+    print(f"Calls Falling Back (llm_unavailable)        : {shared_checker.fallback_count}")
+    print(f"LLM Call Latency (ms)                       : Mean = {mean_llm_lat:.2f} ms | p95 = {p95_llm_lat:.2f} ms")
+    print(f"Items with Decision Changes vs Config D     : {len(changed_items)}")
+    for cid, d_dec, h_dec in changed_items:
+        print(f"  - Item {cid}: Config D = {d_dec} -> Config H = {h_dec}")
+    if not changed_items:
+        print("  - None (All rule scores maintained; fallback to deterministic rules when LLM unavailable)")
+    print("=" * 100 + "\n")
 
     # 4. CSV Exports
     # Details CSV

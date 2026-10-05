@@ -21,6 +21,7 @@ Spec references:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 import uuid
@@ -535,13 +536,16 @@ class ContextGuardGate:
                 )
 
         # Phase 2: LLM semantic consistency check (invoked in grey zone 30-59, never over BLOCK)
+        llm_flags = []
         if self.enable_llm_checker and self._llm_checker:
             from contextguard.llm_checker import should_invoke, apply_verdict
             if should_invoke(risk_result.risk_score, ""):
                 intent_d = self.trusted_intent.to_dict() if hasattr(self.trusted_intent, "to_dict") else self.trusted_intent.__dict__
                 action_d = {"type": action.action_type, "target": action.target, "value": action.value}
-                v = self._llm_checker.check(intent_d, action_d, current_dom_text)
+                dh = hashlib.sha256((raw_html or current_dom_text).encode()).hexdigest()
+                v = self._llm_checker.check(intent_d, action_d, current_dom_text, dom_hash=dh)
                 applied = apply_verdict(risk_result.risk_score, v)
+                llm_flags.extend(applied.get("flags", []))
                 if applied["escalated"]:
                     new_score = applied["score"]
                     new_tier = self._risk_engine._map_to_tier(new_score)
