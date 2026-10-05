@@ -224,20 +224,23 @@ def launch() -> None:
     if not _run_checks():
         sp(_c("red","  Aborted.")); sys.exit(1)
 
+    host = os.getenv("HOST", "127.0.0.1")
+    port = int(os.getenv("PORT", "8000"))
+
     services = [
         Service(
             name     = "Platform API",
             cmd      = [PYTHON, "-m", "uvicorn", "backend.main:app",
-                        "--host", "127.0.0.1", "--port", "8000",
+                        "--host", host, "--port", str(port),
                         "--log-level", "warning"],
-            url      = "http://127.0.0.1:8000",
+            url      = f"http://{host}:{port}",
             health   = "/api/health",
             critical = True,
         ),
     ]
 
-    sp(_c("bold","\n  Clearing port 8000..."))
-    _kill_port(8000)
+    sp(_c("bold",f"\n  Clearing port {port}..."))
+    _kill_port(port)
     time.sleep(0.5)
 
     sp(_c("bold","\n  Starting services...\n"))
@@ -312,7 +315,16 @@ def main() -> None:
                    help="Run evaluation report only then exit")
     p.add_argument("--api-only", action="store_true",
                    help="Start API server only")
+    p.add_argument("--headless", action="store_true", default=os.getenv("HEADLESS") == "1",
+                   help="Run browser in headless mode")
+    p.add_argument("--no-browser-open", action="store_true", default=os.getenv("NO_BROWSER_OPEN") == "1",
+                   help="Do not automatically open browser on launch")
     args = p.parse_args()
+
+    if args.headless:
+        os.environ["HEADLESS"] = "1"
+    if args.no_browser_open:
+        os.environ["NO_BROWSER_OPEN"] = "1"
 
     if args.bench: run_benchmark(); return
     if args.eval:  run_eval_only(); return

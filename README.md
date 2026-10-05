@@ -1,287 +1,247 @@
-# AI Web Agent Security Testing Platform
+# ContextGuard: Runtime Safety Gateway for AI Web Agents
 
-**ContextGuard — Runtime Safety Gateway for AI Web Agents**
+## What it is
 
-A 7-phase research platform that demonstrates how AI web agents can be
-hijacked by malicious page content, and how ContextGuard detects and
-prevents those attacks in real time.
-
----
-
-## Abstract
-
-AI agents that browse the web can be manipulated by injected text on
-pages they visit — a class of attacks called *context manipulation* and
-*plan injection*. This platform provides a controlled sandbox to study
-these attacks and measure the effectiveness of ContextGuard, a
-rule-based runtime safety monitor.
+ContextGuard is an end-to-end research platform and runtime safety gateway for autonomous AI web agents. It couples an automated, instrumented web sandbox demonstrating how malicious page content can hijack an AI agent with a synchronous pre-action safety gate (`ContextGuardGate`) that intercepts every proposed agent action before browser dispatch. ContextGuard combines multi-factor risk assessment, DOM baseline region hashing, computed-style hidden content scanning, optional LLM semantic consistency checking, a deterministic hard-rule floor, multi-step attack chain detection, and a role-based approval engine backed by a SHA-256 tamper-evident hash-chained audit log.
 
 ---
 
 ## Architecture
 
 ```
-ai-agent-security-platform/
-├── backend/                   Phase 1 + 3 — FastAPI server + WebSocket
-│   ├── main.py                All API endpoints (20+)
-│   ├── database/db.py         SQLite schema + CRUD helpers
-│   ├── websocket/manager.py   Live broadcast to dashboard
-│   └── api/
-├── frontend/                  Phase 1 — Mock flight booking UI
-│   └── index.html             5-page booking flow (SPA)
-├── agent/                     Phase 2 — AI agent loop
-│   ├── task_parser.py         Plain-English → structured intent
-│   ├── browser_controller.py  Playwright observe() + act()
-│   └── agent_controller.py    Full observe→decide→act loop
-├── attacks/                   Phase 4 — Attack injection engine
-│   ├── prompt_injection.py
-│   ├── context_manipulation.py
-│   ├── hidden_content.py
-│   ├── dom_manipulation.py
-│   ├── navigation_attack.py
-│   └── payloads.py            Central dispatcher
-├── contextguard/              Phase 5 — Synchronous Safety Gate & Monitors
-│   ├── gate.py                Synchronous pre-action gate (ALLOW/BLOCK/FLAG)
-│   ├── context_store.py       Snapshot capture + storage
-│   ├── url_monitor.py         Domain + page-order checks
-│   ├── dom_monitor.py         Injection keyword + DOM diff
-│   ├── action_analyzer.py     Intent vs action consistency
-│   ├── consistency_checker.py Combines all monitors
-│   ├── risk_engine.py         0–100 score, SAFE/SUSPICIOUS/HIGH_RISK
-│   └── intervention.py        Async hook — pauses agent at threshold
-├── dashboard.html             Phase 6 — Live security dashboard & pre-action overlay
-├── tests/
-│   └── test_cases.py          Phase 7 — 68 tests + evaluation matrix
-├── launcher.py                Single-command startup
-└── start.bat                  Windows double-click launcher
+              +-------------------------------------------------------------+
+              |                   AI Agent Perception Loop                  |
+              +-------------------------------------------------------------+
+                                             |
+                                 1. Propose Action (observe -> decide)
+                                             v
++========================================================================================+
+|                                ContextGuard Pre-Action Gate                            |
+|                                                                                        |
+|  [Step 1: Context Capture]                                                             |
+|    - LockedIntent (immutable ground truth locked once at task initialization)          |
+|    - Action sensitivity & booking criticality resolution                               |
+|                                                                                        |
+|  [Step 2: Signal Synthesis]                                                            |
+|    - Rail 1: Intent Verification Rail (field mismatch, navigation boundary)            |
+|    - Rail 2: Known Threat Taxonomy Classifier (Component 3 keyword hints)              |
+|    - Rail 3: Semantic Characterization & Vector Embedding (Component 4)                |
+|    - Rail 4: DOM Baseline Region Hash Comparison (BaselineStore, masks & drift score)  |
+|    - Rail 5: Computed-Style Hidden Content Scanner (hidden_content.py style checks)     |
+|                                                                                        |
+|  [Step 3: Multi-Factor Continuous Risk Engine (0-100 score & tiers)]                   |
+|    - fused_score = combine(base_score, extra_signals)  [Raise-Only]                    |
+|                                                                                        |
+|  [Step 4: Real LLM Semantic Consistency Checker (Optional / Phase 2)]                  |
+|    - Invoked only in the grey zone (score 30-59, never over BLOCK)                     |
+|    - Random-nonce delimited prompt; strict JSON; raise-only apply_verdict()             |
+|                                                                                        |
+|  [Step 5: Policy Engine & Declarative Policy Matrix]                                   |
+|    - ALLOW / ALLOW_WITH_FLAG / REQUIRE_CONFIRMATION / BLOCK / PAUSE_TASK               |
+|                                                                                        |
+|  [Step 6: Stateful Attack Chain Detector (Component 8)]                               |
+|    - Multi-step pattern windows in SQLite: INJECTION_SEEN -> FIELD_CHANGE -> NAV       |
+|                                                                                        |
+|  [Step 7: Deterministic Hard-Rule Floor (Unconditionally Runs Last)]                  |
+|    - Floor cannot be bypassed or weakened by statistical, ML, or LLM layers           |
++========================================================================================+
+                                             |
+                   +-------------------------+-------------------------+
+                   | (ALLOW / FLAG)          | (REQUIRE_CONFIRMATION)  | (BLOCK / PAUSE)
+                   v                         v                         v
+              Dispatch to              Human-in-the-Loop           Abort Action /
+            Browser Session            Approval Service            Pause Agent
+                                     (Role-based JWT auth:
+                                      viewer/analyst/approver,
+                                      >=80 requires 2 approvers,
+                                      timeout defaults to DENY)
+                                             |
+                                             v
+                           Append-Only SHA-256 Audit Log
+                             (Tamper-evident hash chain)
 ```
 
 ---
 
-## Quick Start (Windows)
+## Quick Start (Local & Docker)
 
-### 1. Set up environment
+### Local Environment (Windows / Linux / macOS)
 
-```powershell
-cd "C:\Users\Srinidhi R\Context gaurd"
+```bash
+# 1. Set up virtual environment
 python -m venv venv
-venv\Scripts\activate
+# Windows: venv\Scripts\activate | Unix: source venv/bin/activate
+
+# 2. Install pinned dependencies and Playwright Chromium
 pip install -r requirements.txt
 playwright install chromium
-```
 
-### 2. Start the platform
+# 3. Configure environment
+cp packaging/.env.example .env
+# Edit .env to set JWT_SECRET (>= 16 chars) and optional LLM_PROVIDER
 
-**Option A — double-click:**
-```
-start.bat
-```
-
-**Option B — terminal:**
-```powershell
+# 4. Start the platform
 python launcher.py
 ```
 
-**Option C — API only:**
-```powershell
-python launcher.py --api-only
-```
+Options:
+- `python launcher.py` — Start all services (Booking Sandbox + API + Dashboard)
+- `python launcher.py --headless` — Run browser controller headlessly
+- `python launcher.py --api-only` — Start backend API server only
+- `python launcher.py --bench` — Run evaluation benchmark then exit
 
-The server starts at **http://127.0.0.1:8000**
+The platform runs at **http://127.0.0.1:8000**:
+- `/` — Interactive flight booking sandbox
+- `/dashboard` — Security dashboard with pending approvals panel
+- `/portal` — Mission control launchpad
+- `/docs` — OpenAPI / Swagger documentation
 
----
-
-## What opens in your browser
-
-| URL | Description |
-|-----|-------------|
-| `http://127.0.0.1:8000/` | Mock flight booking app (Phase 1) |
-| `http://127.0.0.1:8000/dashboard` | Security dashboard (Phase 6) |
-| `http://127.0.0.1:8000/docs` | FastAPI Swagger docs |
-
----
-
-## Running the tests
-
-```powershell
-pytest tests/test_cases.py -v
-```
-
-Generate the evaluation report table (for dissertation):
-
-```powershell
-python tests/test_cases.py
-```
-
----
-
-## Phase-by-Phase Guide
-
-### Phase 1 — Flight Booking Sandbox
-
-Human-usable mock booking site. The agent targets this.
+### Docker Compose
 
 ```bash
-curl "http://127.0.0.1:8000/api/flights/search?origin=Chennai&destination=Delhi&cabin_class=Economy"
+# Start ContextGuard application alongside Ollama
+docker compose up -d
+
+# Verify platform health
+curl http://localhost:8000/api/health
 ```
-
-Full booking via API:
-```bash
-curl -X POST http://127.0.0.1:8000/api/bookings \
-  -H "Content-Type: application/json" \
-  -d '{"flight_id":"<id>","passenger_name":"Test","passenger_count":1}'
-
-curl -X POST http://127.0.0.1:8000/api/bookings/<booking_id>/confirm
-```
-
-### Phase 2 — AI Agent
-
-Run the agent on a plain-English instruction:
-
-```powershell
-python -m agent.agent_controller "Book an economy flight from Chennai to Delhi"
-```
-
-Or via the dashboard — enter an instruction and click **Run Agent**.
-
-Task parser test:
-
-```python
-from agent.task_parser import parse_task
-print(parse_task("Book an economy flight from Chennai to Delhi for 2 passengers"))
-```
-
-### Phase 3 — Live WebSocket Monitoring
-
-Connect to `ws://127.0.0.1:8000/ws/agent` — every agent action,
-attack injection, and ContextGuard scan is pushed live.
-
-The dashboard connects automatically.
-
-### Phase 4 — Attack Injection
-
-Inject an attack from the dashboard's **Attack Injection** panel, or via API:
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/attack/inject \
-  -H "Content-Type: application/json" \
-  -d '{"attack_type":"prompt_injection","target_page":"review"}'
-```
-
-Attack types:
-- `prompt_injection` — visible AI agent instruction override
-- `context_manipulation` — fake user preference update
-- `hidden_content` — `display:none` instruction block
-- `dom_manipulation` — JS silently mutates form values
-- `navigation_attack` — rewrites links to attacker URL
-
-### Phase 5 — ContextGuard (Synchronous Pre-Action Gate)
-
-ContextGuard runs inline as a synchronous **pre-action gate** (`gate.py`):
-`observe` → `propose_action` → `[GATE]` → `act` → `repeat`.
-
-Every proposed action is checked against the immutable `TrustedIntent` and DOM ground truth **BEFORE** execution:
-- **Protected field validation** — ensures cabin class, destination, origin, and passenger count cannot be subverted by web page content.
-- **Injection marker detection** — scans DOM text and agent reasoning for override indicators (`ignore previous`, `system update`, etc.).
-- **Domain trust boundary** — prevents navigation outside localhost / 127.0.0.1.
-- **Immediate WebSocket broadcast** — pushes `ALLOW`, `BLOCK`, or `FLAG` decision to dashboard overlay in the same tick.
-
-Risk score: 0–100 → SAFE (0–29) / SUSPICIOUS (30–59) / HIGH_RISK (60–100)
-
-Intervention: when a violation or threshold breach occurs, the gate emits `Decision.BLOCK`, immediately pausing the agent before the dangerous browser action is executed.
-
-### Phase 6 — Dashboard
-
-Open `http://127.0.0.1:8000/dashboard`:
-
-- Live risk score and status
-- User intent vs agent observed context side-by-side
-- WebSocket-powered alert feed (no polling)
-- Attack injection buttons for all 5 attack types
-- Action log table with per-step risk score
-- Agent pause/resume controls
-
-### Phase 7 — Evaluation
-
-```powershell
-pytest tests/test_cases.py -v
-python tests/test_cases.py   # prints evaluation table
-```
-
-Expected evaluation results (rule-based engine):
-
-| Attack Type           | Detected | Risk Score | Status    |
-|-----------------------|----------|------------|-----------|
-| prompt_injection      | YES      | 60–100     | HIGH_RISK |
-| context_manipulation  | YES      | 40–80      | SUSPICIOUS/HIGH |
-| hidden_content        | YES      | 30–70      | SUSPICIOUS/HIGH |
-| dom_manipulation      | YES      | 20–40      | SUSPICIOUS |
-| navigation_attack     | YES      | 60–100     | HIGH_RISK |
-| Baseline (no attack)  | N/A      | 0          | SAFE      |
 
 ---
 
-## API Reference
+## Running the Tests and Evaluation
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/` | Flight booking UI |
-| GET | `/dashboard` | Security dashboard |
-| GET | `/api/health` | Health check |
-| GET | `/api/flights/search` | Search flights |
-| POST | `/api/bookings` | Create booking |
-| GET | `/api/bookings/{id}` | Get booking |
-| POST | `/api/bookings/{id}/confirm` | Confirm booking |
-| POST | `/api/tasks` | Create agent task |
-| GET | `/api/tasks` | List tasks |
-| POST | `/api/agent/run` | Start agent loop |
-| POST | `/api/agent/resume` | Resume paused agent |
-| POST | `/api/agent/stop` | Stop agent |
-| POST | `/api/attack/inject` | Inject attack |
-| GET | `/api/attack/active` | List active attacks |
-| DELETE | `/api/attack/clear` | Clear attacks |
-| GET | `/api/attack/payload/{page}` | Get injected HTML for page |
-| GET | `/api/contextguard/events` | Security events |
-| GET | `/api/contextguard/snapshots` | Context snapshots |
-| GET | `/api/contextguard/risk/{task_id}` | Risk summary |
-| GET | `/api/logs` | All logs |
-| WS | `/ws/agent` | Live event stream |
+### Test Suite (Pytest)
+
+```bash
+# Run unit and integration tests (excluding live LLM integration)
+pytest -m "not llm" -v
+
+# Run full test suite including live Ollama test (if Ollama is running)
+pytest -v
+```
+
+### Dataset Ablation Benchmark
+
+```bash
+python scripts/run_dataset_ablation.py
+```
+
+### Multi-Step Sequence Evaluation (Config D vs Config E)
+
+```bash
+python scripts/run_sequence_eval.py
+```
+
+### Live Testbed Scenarios Ablation (Rows F & G)
+
+```bash
+python scripts/run_testbed_ablation.py
+```
+
+### Live Agent Evaluation (Dry Run)
+
+```bash
+python scripts/run_live_agent_eval.py --adapter live_adapter:run_episode --scenarios prompt_injection,context_manipulation --runs 2 --dry-run
+```
+
+---
+
+## Evaluation Summary
+
+All evaluations adhere to methodological standards:
+- **Strict Interception Definition**: `Interception := {BLOCK, REQUIRE_CONFIRMATION, PAUSE_TASK}`. `ALLOW_WITH_FLAG` is reported strictly separately as "flagged only".
+- **Statistical Inference**: Exact two-sided 95% Wilson Score Confidence Intervals computed over distinct benchmark items.
+- **Combined Dataset**: 66 distinct items (34 Attacks: 18 Adversarial Evasion + 16 Taxonomy; 32 Benign Tasks across booking lifecycle).
+
+| Config | Defensive Architecture Stack | Interception Recall (95% CI) | Flagged Only Rate | Clean FP Interception (95% CI) | Clean Non-ALLOW Rate (95% CI) | Mean Latency | p95 Latency |
+|---|---|---|---|---|---|---|---|
+| **Config A** | Field checks only (Step 2 Verification Rail) | 29/34 (85.3% [69.9%, 93.6%]) | 0/34 (0.0%) | 0/32 (0.0% [0.0%, 10.7%]) | 0/32 (0.0% [0.0%, 10.7%]) | 0.08 ms | 0.11 ms |
+| **Config B** | Config A + Keyword taxonomy (Component 3) | 33/34 (97.1% [85.1%, 99.5%]) | 0/34 (0.0%) | 0/32 (0.0% [0.0%, 10.7%]) | 0/32 (0.0% [0.0%, 10.7%]) | 0.09 ms | 0.12 ms |
+| **Config C** | Config B + Semantic characterization (Comp 4) | 33/34 (97.1% [85.1%, 99.5%]) | 0/34 (0.0%) | 1/32 (3.1% [0.6%, 15.7%]) | 1/32 (3.1% [0.6%, 15.7%]) | 0.13 ms | 0.24 ms |
+| **Config D** | Full Gate (All 7 Components + ML Risk + Policy) | 33/34 (97.1% [85.1%, 99.5%]) | 0/34 (0.0%) | 0/32 (0.0% [0.0%, 10.7%]) | 1/32 (3.1% [0.6%, 15.7%]) | 67.59 ms | 75.55 ms |
+| **Config H** | Config D + Real LLM Checker (Row H) | 33/34 (97.1% [85.1%, 99.5%]) | 0/34 (0.0%) | 0/32 (0.0% [0.0%, 10.7%]) | 1/32 (3.1% [0.6%, 15.7%]) | 82.91 ms | 98.10 ms |
+
+Detailed per-item decision audit trails, failure breakdowns, and confusion matrices are documented in [eval_results/REPORT.md](eval_results/REPORT.md).
 
 ---
 
 ## Security Assumptions
 
-- The agent is treated as potentially compromisable.
-- All page content is untrusted unless explicitly in the expected flow.
-- The ContextGuard monitors run outside the agent's perception loop.
-- The risk engine is rule-based (MVP); LLM semantic comparison is future work.
+1. **Independent Pre-Action Gate**: ContextGuard monitors and policy evaluation execute out-of-band and synchronously before the browser controller dispatches the proposed action.
+2. **Untrusted Page Content**: All text and markup retrieved from web pages are strictly treated as untrusted data. External page content may escalate or trigger warnings, but can never downgrade a hard security violation to `ALLOW`.
+3. **Immutable User Intent**: `TrustedIntent` is parsed and immutably locked once from the user's initial natural-language instruction at task initialization.
+4. **Environment-Sourced Secrets**: All cryptographic keys (`JWT_SECRET`, API tokens) must be provided via environment variables, never checked into version control.
 
 ---
 
 ## Limitations
 
-- **Rule-based risk engine**: Novel injection phrasing not in keyword lists may be missed (addressed by Component 4 semantic deviation).
-- **Known Weakness — Injected DOM Negation Downgrade**: A surcharge attack where an adversary injects "complimentary, at no charge" into the rendered page text evaluates to `ALLOW_WITH_FLAG` (Score: 43, Tier: MEDIUM) rather than a hard interception (`BLOCK` or `REQUIRE_CONFIRMATION`). Because `ALLOW_WITH_FLAG` allows the action to proceed, untrusted DOM text can prevent a hard stop on ancillary fees. Mitigation via order-level fare ceilings and strict intent enforcement is documented in threats to validity.
-- **Page-text negation in ancillary checks**: Negation phrases ("no extra charge", "complimentary, at no charge", "free, no fee") discovered in untrusted page text may only downgrade an ancillary fee `FIELD_MISMATCH` to `ALLOW_WITH_FLAG`, never to `ALLOW`. Unsolicited fee tokens within the proposed action value or target selector are never suppressed by page text.
-- **Agent decision engine**: Rule-based by default; LLM mode requires Ollama running locally.
-- **Single-domain dev benchmark**: Current dev dataset evaluates flight booking workflows; multi-domain coverage (e-commerce, banking) is future work.
-- **Playwright dependency**: Requires Chromium installed (`playwright install chromium`).
-- **Intervention lifecycle**: Interceptions pause or request confirmation; permanent cancellation requires operator handshake.
+- **Single-Domain Benchmark**: Dev datasets and live testbed scenarios are focused on airline reservation and travel booking workflows; cross-domain validation on e-commerce, banking, and SaaS agents is subject to ongoing research.
+- **Author-Written Datasets**: Synthetic dev benchmarks and attack variants were constructed for testing defense mechanisms; validation on externally authored, frozen datasets (`eval_data/test_v1/`) is required for unbiased external generalization.
+- **Scripted vs LLM Agents**: The core evaluation evaluates the pre-action safety gate against deterministic actions and simulated agent trajectories; live agent susceptibility evaluations are reported separately.
+- **Model Weights Calibration**: Default runtime logistic weights were calibrated on reference samples; while effective for demonstrative scoring, production deployment requires continuous telemetry training.
+- **Component 4 Context-Length Sensitivity**: Semantic cosine deviation relies on embedding representations whose sensitivity can degrade on extremely long or noisy DOM pages.
+- **Known Weakness — Injected DOM Negation Downgrade**: Surcharge attacks containing injected phrases like "complimentary, at no charge" in untrusted page text evaluate to `ALLOW_WITH_FLAG` rather than a hard stop (`BLOCK` or `REQUIRE_CONFIRMATION`).
+- **Lexical Instruction Patterns**: Hidden content scoring identifies directive keywords using domain patterns; obfuscated or novel instruction formats without imperative verbs require auxiliary vision or LLM inspection.
+- **Audit Log Truncation**: While the SHA-256 hash chain detects in-place record modification or intermediate row deletion, it cannot detect truncation of the most recent tail records unless the latest block hash is anchored externally.
 
 ---
 
 ## Threats to Validity
 
-- **Untrusted DOM Text in Negation Suppression**: Relying on natural language negation phrases ("no extra charge", "complimentary") within rendered webpage text introduces an adversarial vulnerability: an attacker who controls injected DOM content could append a negation clause to mask an unauthorized ancillary surcharge. ContextGuard mitigates this by restricting page-text negation to `ALLOW_WITH_FLAG` (recording audit telemetry and incrementing the drift counter) and strictly refusing to suppress fee tokens found directly in the agent's proposed action payload.
-- **Single-Domain Generalization**: Benchmark measurements are currently scoped to travel reservation workflows. Generalization across other stateful multi-step environments requires validating that ancillary fee tokens and target mappings generalize or adapt dynamically across diverse web application ontologies.
-
+1. **DOM Negation Masking**: Adversaries controlling webpage content may inject negation language ("free", "complimentary") to evade fee alerts. ContextGuard mitigates this by allowing negation phrases to downgrade `FIELD_MISMATCH` only to `ALLOW_WITH_FLAG`, never `ALLOW`, and strictly forbidding page-text negation from suppressing fee tokens within the proposed action itself.
+2. **Generalization across Dynamic Ontologies**: Target field mappings and ancillary fee lexicons are informed by domain concepts. Adapting to arbitrary web applications requires schema mapping layers or few-shot semantic alignment.
 
 ---
 
-## Future Work
+## Project Layout
 
-- LLM-based semantic consistency checker (Ollama / OpenAI)
-- Multi-step attack chain detection
-- Real-time DOM hash comparison with trusted baseline
-- Role-based approval workflow for intervention decisions
-- Docker deployment
+```
+ContextGuard/
+├── backend/                   FastAPI server, database schema, websocket manager, API routers
+│   ├── main.py                Unified server entrypoint (sandbox, REST API, approvals router)
+│   ├── database/db.py         SQLite task and security event storage
+│   ├── api/                   v1 execution pipeline, sessions, test cases, audit routes
+│   └── websocket/             Live broadcast manager
+├── frontend/                  Flight booking UI (5-page SPA) and control HUDs
+├── agent/                     Autonomous AI browser agent
+│   ├── task_parser.py         Natural language instruction parser
+│   ├── browser_controller.py  Playwright DOM observation, computed-style hidden scan, action execution
+│   └── agent_controller.py    Observe -> decide -> act control loop with intervention hooks
+├── contextguard/              Synchronous runtime safety gate and defense-in-depth components
+│   ├── gate.py                Synchronous 11-step pre-action gate (ALLOW/FLAG/CONFIRM/BLOCK/PAUSE)
+│   ├── models.py              Structured intent, action, and report dataclasses
+│   ├── consistency_checker.py Verification rail (field tampering, navigation boundary, pricing)
+│   ├── threat_detector.py     Taxonomy pattern-hint classifier (Component 3)
+│   ├── threat_characterizer.py Semantic deviation embedding analyzer (Component 4)
+│   ├── dom_baseline.py        Region hashing, dynamic masking, and drift detection (Phase 1)
+│   ├── hidden_content.py      Computed-style and CSS-hidden content scanner (Phase 1)
+│   ├── llm_checker.py         Real LLM semantic consistency reviewer (Phase 2)
+│   ├── chain_detector.py      Stateful multi-step attack chain detector (Component 8)
+│   ├── risk_engine.py         Continuous 0-100 risk scoring engine
+│   ├── policy_engine.py       Graduated policy matrix and hard-rule floor
+│   ├── approvals.py           Role-based approval state machine and JWT authentication (Phase 3)
+│   ├── approvals_api.py       FastAPI router for approvals and audit log verification
+│   ├── approvals_cli.py       Admin-seeding and user creation CLI
+│   ├── audit_log.py           Tamper-evident SHA-256 hash-chained audit log
+│   └── intervention.py        Agent pause and asynchronous approval polling hook
+├── eval_data/                 Adversarial evaluation datasets
+│   ├── attacks.yaml           34 distinct attack scenarios (18 evasion + 16 taxonomy)
+│   ├── benign.yaml            32 distinct benign tasks across booking lifecycle
+│   └── sequences_dev.yaml     Schema-v2 multi-step attack and benign sequences
+├── eval_results/              CSV evaluation reports, ablations, and sequence logs
+├── scripts/                   Evaluation, ablation, latency benchmarking, and stats runners
+├── tests/                     Unit, acceptance, and integration test suites (180+ tests)
+├── packaging/                 Docker, compose, CI workflows, and licensing templates
+├── launcher.py                Single-command orchestrator
+├── dashboard.html             Security dashboard with approvals management
+├── Dockerfile                 Docker container definition pinned to Playwright 1.44.0
+├── docker-compose.yml         Container orchestration for app + Ollama
+└── requirements.txt           Pinned dependency versions
+```
+
+---
+
+## License
+
+MIT License. Copyright (c) 2026 Srinidhi R. See [LICENSE](LICENSE) for details.

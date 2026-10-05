@@ -1,0 +1,9 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.git/
+.env
+*.db
+eval_results/
+eval_data/test_v1/

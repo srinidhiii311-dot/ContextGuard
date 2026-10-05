@@ -42,6 +42,9 @@ def fmt_ci(k: int, n: int) -> str:
     return f"{k}/{n} = {pct:.1f}% [{100*lo:.1f}%, {100*hi:.1f}%]"
 
 
+format_ci = fmt_ci
+
+
 def mcnemar_exact(b: int, c: int) -> float:
     """Two-sided exact McNemar p-value from discordant counts b and c."""
     n = b + c
