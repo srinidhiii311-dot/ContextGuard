@@ -349,6 +349,21 @@ def _get_action_sensitivity(target: str, protected_fields: Dict) -> tuple[float,
     )
 
 
+def _page_name_from_url(url: str) -> str:
+    if not url:
+        return "search"
+    u = url.lower()
+    if "confirm" in u:
+        return "confirmed"
+    if "review" in u:
+        return "review"
+    if "passenger" in u:
+        return "passenger"
+    if "result" in u:
+        return "results"
+    return "search"
+
+
 # ---------------------------------------------------------------------------
 # ContextGuardGate — the synchronous pre-action security gate
 # ---------------------------------------------------------------------------
@@ -381,6 +396,9 @@ class ContextGuardGate:
         audit_log:         Optional[List[Dict[str, Any]]] = None,
         enable_chain_detector: bool = False,
         chain_detector:    Optional[Any] = None,
+        baseline_store:    Optional[Any] = None,
+        enable_llm_checker: bool = False,
+        llm_checker:       Optional[Any] = None,
     ) -> None:
         self.trusted_intent  = trusted_intent
         self.task_id         = task_id or str(uuid.uuid4())
@@ -408,6 +426,17 @@ class ContextGuardGate:
         else:
             self._chain_detector = None
 
+        # Phase 1 & 2: BaselineStore and LLMChecker
+        self._baseline_store = baseline_store
+        self.enable_llm_checker = enable_llm_checker
+        if llm_checker is not None:
+            self._llm_checker = llm_checker
+        elif enable_llm_checker:
+            from contextguard.llm_checker import LLMChecker, provider_from_env
+            self._llm_checker = LLMChecker(provider_from_env())
+        else:
+            self._llm_checker = None
+
         # Public component aliases
         self.policy_engine   = self._policy_engine
         self.verifier        = self._verifier
@@ -415,6 +444,8 @@ class ContextGuardGate:
         self.characterizer   = self._characterizer
         self.risk_engine     = self._risk_engine
         self.chain_detector  = self._chain_detector
+        self.llm_checker     = self._llm_checker
+        self.baseline_store  = self._baseline_store
 
         # Metrics
         self._allow_count    = 0
@@ -431,6 +462,7 @@ class ContextGuardGate:
         action:           ProposedAction,
         current_dom_text: str,
         snapshot:         Any = None,
+        browser_page:     Any = None,
     ) -> GateResult:
         """
         Main gate entry point — Step 3 through Step 10 of the spec.
@@ -469,6 +501,58 @@ class ContextGuardGate:
             booking_critical     = booking_critical,
         )
         timing["risk_assessment_ms"] = (time.monotonic() - t0) * 1000
+
+        # Phase 1 & 2: Extra signals (DOM baseline + hidden content + LLM checker) - Raise Only
+        extra_sigs = []
+        raw_html = getattr(action, "raw_html", "") or getattr(snapshot, "raw_html", "") or ""
+        page_name = getattr(action, "page", "") or getattr(snapshot, "page_name", "") or _page_name_from_url(getattr(action, "page_url", ""))
+
+        if self._baseline_store and raw_html:
+            rep = self._baseline_store.compare_to_latest(page_name, raw_html)
+            if rep:
+                extra_sigs.append(rep.to_signal())
+
+        b_page = browser_page or getattr(snapshot, "page", None)
+        if b_page is not None:
+            from contextguard.hidden_content import scan_page, score_findings
+            extra_sigs.append(score_findings(scan_page(b_page)).to_signal())
+        elif raw_html:
+            from contextguard.hidden_content import scan_html, score_findings
+            extra_sigs.append(score_findings(scan_html(raw_html)).to_signal())
+
+        if extra_sigs:
+            from contextguard.signals import combine
+            fused_score = combine(risk_result.risk_score, extra_sigs)
+            if fused_score > risk_result.risk_score:
+                tier = self._risk_engine._map_to_tier(fused_score)
+                risk_result = RiskAssessmentResult(
+                    risk_score=fused_score,
+                    risk_tier=tier,
+                    factors=risk_result.factors,
+                    action_sensitivity=risk_result.action_sensitivity,
+                    booking_critical=risk_result.booking_critical,
+                    inconsistencies=risk_result.inconsistencies,
+                )
+
+        # Phase 2: LLM semantic consistency check (invoked in grey zone 30-59, never over BLOCK)
+        if self.enable_llm_checker and self._llm_checker:
+            from contextguard.llm_checker import should_invoke, apply_verdict
+            if should_invoke(risk_result.risk_score, ""):
+                intent_d = self.trusted_intent.to_dict() if hasattr(self.trusted_intent, "to_dict") else self.trusted_intent.__dict__
+                action_d = {"type": action.action_type, "target": action.target, "value": action.value}
+                v = self._llm_checker.check(intent_d, action_d, current_dom_text)
+                applied = apply_verdict(risk_result.risk_score, v)
+                if applied["escalated"]:
+                    new_score = applied["score"]
+                    new_tier = self._risk_engine._map_to_tier(new_score)
+                    risk_result = RiskAssessmentResult(
+                        risk_score=new_score,
+                        risk_tier=new_tier,
+                        factors=risk_result.factors,
+                        action_sensitivity=risk_result.action_sensitivity,
+                        booking_critical=risk_result.booking_critical,
+                        inconsistencies=risk_result.inconsistencies,
+                    )
 
         # --- Step 8: Policy Evaluation (FR17–FR20) ---
         t0 = time.monotonic()
