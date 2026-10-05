@@ -23,7 +23,9 @@ Pass `intervention_hook=contextguard_hook` when constructing AgentController:
 
 from __future__ import annotations
 
+import asyncio
 import json
+import time
 from typing import Any, Callable, Dict, Optional
 
 from backend.database.db import insert_security_event
@@ -36,11 +38,22 @@ from contextguard.risk_engine import RiskEngine, risk_engine
 INTERVENTION_THRESHOLD = 60   # HIGH_RISK zone
 
 
+class ActionStopped(Exception):
+    """Raised when an approval request is DENIED or EXPIRED."""
+    def __init__(self, approval_id: int, outcome: str = "STOPPED"):
+        self.approval_id = approval_id
+        self.outcome = outcome
+        super().__init__(f"Action stopped: approval {approval_id} outcome was {outcome}")
+
+
 def build_intervention_hook(
-    task_id:    str,
-    user_intent: Dict[str, Any],
-    threshold:  int = INTERVENTION_THRESHOLD,
-    enabled:    bool = True,
+    task_id:       str,
+    user_intent:   Dict[str, Any],
+    threshold:     int = INTERVENTION_THRESHOLD,
+    enabled:       bool = True,
+    approval_svc:  Optional[Any] = None,
+    ttl_seconds:   int = 300,
+    poll_interval: float = 0.5,
 ) -> Callable:
     """
     Factory that returns an async callable compatible with AgentController's
@@ -116,7 +129,42 @@ def build_intervention_hook(
         })
 
         # --- Intervention decision ---
-        if result.risk_score >= threshold:
+        if result.risk_score >= threshold or result.status in ("REQUIRE_CONFIRMATION", "PAUSE_TASK"):
+            if approval_svc is not None:
+                aid = approval_svc.request(task_id, state.step, action, result.risk_score, ttl_seconds=ttl_seconds)
+                ws_manager.broadcast_sync({
+                    "type":        "require_confirmation",
+                    "task_id":     task_id,
+                    "step":        state.step,
+                    "action":      action,
+                    "risk_score":  result.risk_score,
+                    "approval_id": aid,
+                    "reason":      result.top_finding or "Approval required",
+                    "timeout_sec": ttl_seconds,
+                })
+                while (o := approval_svc.outcome(aid)) == "PENDING":
+                    await asyncio.sleep(poll_interval)
+                if o != "ALLOWED":  # DENIED or EXPIRED
+                    ws_manager.broadcast_sync({
+                        "type":           "agent_paused",
+                        "task_id":        task_id,
+                        "step":           state.step,
+                        "risk_score":     result.risk_score,
+                        "status":         result.status,
+                        "reason":         f"Approval #{aid} {o}",
+                        "action_blocked": action,
+                    })
+                    raise ActionStopped(aid, o)
+
+                # Approved and resumed
+                ws_manager.broadcast_sync({
+                    "type":    "agent_resumed",
+                    "task_id": task_id,
+                    "step":    state.step,
+                    "reason":  f"Approval #{aid} ALLOWED by authorized approver",
+                })
+                return True
+
             # Broadcast PAUSE event to dashboard
             ws_manager.broadcast_sync({
                 "type":       "agent_paused",

@@ -88,6 +88,21 @@ app.include_router(audit_router)
 app.include_router(report_router)
 app.include_router(mock_site_router)
 
+import os
+from contextguard.approvals import connect as connect_approvals, ApprovalService, secret_from_env
+from contextguard.approvals_api import create_router as create_approvals_router
+
+approval_db_path = os.getenv("DB_PATH", "contextguard.db")
+approval_conn = connect_approvals(approval_db_path)
+approval_svc = ApprovalService(approval_conn)
+try:
+    approvals_jwt_secret = secret_from_env()
+except Exception:
+    approvals_jwt_secret = os.getenv("JWT_SECRET") or "default-secret-key-16-chars-min"
+app.include_router(create_approvals_router(approval_svc, approvals_jwt_secret))
+app.state.approval_svc = approval_svc
+
+
 
 # ===========================================================================
 # Frontend Page Serving & Server-Side Token Gating

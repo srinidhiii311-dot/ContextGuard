@@ -1,0 +1,42 @@
+<!-- Paste into dashboard.html. Buttons render only for roles allowed to decide. -->
+<section id="approvals-panel">
+  <h3>Pending approvals</h3>
+  <div id="login-box">
+    <input id="u" placeholder="username"><input id="p" type="password" placeholder="password">
+    <button onclick="cgLogin()">Sign in</button>
+  </div>
+  <div id="approvals-list"></div>
+</section>
+<script>
+let CG_TOKEN = null, CG_ROLE = null;
+async function cgLogin() {
+  const r = await fetch('/api/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({username: u.value, password: p.value})});
+  if (!r.ok) { alert('Login failed'); return; }
+  const j = await r.json(); CG_TOKEN = j.access_token; CG_ROLE = j.role; cgLoad();
+}
+const cgAuth = () => ({'Authorization': 'Bearer ' + CG_TOKEN, 'Content-Type': 'application/json'});
+async function cgLoad() {
+  const r = await fetch('/api/approvals?status=PENDING', {headers: cgAuth()});
+  const items = await r.json(), box = document.getElementById('approvals-list'); box.textContent = '';
+  for (const a of items) {
+    const d = document.createElement('div');
+    d.textContent = `#${a.id} task ${a.task_id} step ${a.step} risk ${a.risk_score} needs ${a.required} approval(s): ` +
+                    JSON.stringify(a.action);
+    if (['approver', 'admin'].includes(CG_ROLE)) {
+      for (const dec of ['APPROVE', 'DENY']) {
+        const b = document.createElement('button'); b.textContent = dec;
+        b.onclick = async () => {
+          const reason = prompt('Reason (required):'); if (!reason) return;
+          const x = await fetch(`/api/approvals/${a.id}/decision`, {method: 'POST', headers: cgAuth(),
+            body: JSON.stringify({decision: dec, reason})});
+          if (!x.ok) alert((await x.json()).detail); cgLoad();
+        };
+        d.appendChild(b);
+      }
+    }
+    box.appendChild(d);
+  }
+}
+setInterval(() => CG_TOKEN && cgLoad(), 5000);
+</script>
