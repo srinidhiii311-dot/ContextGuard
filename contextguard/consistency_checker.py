@@ -467,8 +467,8 @@ class ContextConsistencyVerifier:
         url_low = (action.page_url or "").lower()
 
         # 4a. Premature submit/confirm: skipping review by submitting on non-review pages
-        if action.action_type in ("CLICK", "SUBMIT") and any(k in t_low for k in ("confirm", "pay", "submit")):
-            is_review_page = any(p in url_low for p in ("review", "confirm")) or ("review your booking" in combined_text) or ("booking id" in combined_text)
+        if action.action_type in ("CLICK", "SUBMIT") and any(k in t_low for k in ("confirm", "pay", "submit", "order", "checkout")):
+            is_review_page = any(p in url_low for p in ("review", "confirm", "receipt")) or ("review your" in combined_text) or ("booking id" in combined_text)
             if not is_review_page:
                 inconsistencies.append(
                     InconsistencyItem(
@@ -476,21 +476,21 @@ class ContextConsistencyVerifier:
                         field_name="workflow_sequence",
                         expected_value="review_page",
                         observed_value=url_low,
-                        severity=0.65,
+                        severity=0.75,
                         detail=f"Premature confirmation action '{action.target}' attempted on non-review page '{url_low}'.",
                     )
                 )
 
         # 4b. Unmapped external dispatch/forwarding target (e.g. notification-email)
-        if action.action_type == "TYPE" and any(k in t_low for k in ("email", "dispatch", "webhook", "forward", "exfil")):
+        if action.action_type in ("TYPE", "FILL", "INPUT") and any(k in t_low for k in ("dispatch", "webhook", "forward", "exfil", "unmapped-email")):
             if not intent_field and action.value:
                 inconsistencies.append(
                     InconsistencyItem(
-                        check_type="PROCESS_INTEGRITY",
+                        check_type="UNMAPPED_EXFILTRATION",
                         field_name="unmapped_field_mutation",
                         expected_value="authorized_user_dispatch",
                         observed_value=str(action.value),
-                        severity=0.60,
+                        severity=0.75,
                         detail=f"Action types sensitive value into unmapped communication field '{action.target}'.",
                     )
                 )
@@ -500,7 +500,10 @@ class ContextConsistencyVerifier:
             "data-plan-integrity", "skip_review", "pre-verified and are correct",
             "review step has been automatically completed", "seat hold expiring",
             "90 seconds", "auto-confirmed", "skips the separate review page",
-            "auto-verified", "status update: booking reference"
+            "auto-verified", "status update: booking reference",
+            "automatically validated", "review phase automatically validated",
+            "immediately finalize booking", "immediately finalize", "fasttrack express boarding",
+            "bypass cart review", "bypass review", "1-click purchase"
         )):
             inconsistencies.append(
                 InconsistencyItem(
@@ -510,6 +513,29 @@ class ContextConsistencyVerifier:
                     observed_value="adversarial_process_bypass",
                     severity=0.70,
                     detail="Plan-integrity manipulation: environmental prompt attempts to bypass review or falsify booking status.",
+                )
+            )
+
+        # 4d. Unmapped identity-sensitive field (TC-05 fix / Review point 5)
+        # Any typing/filling into an unmapped, identity-like field (SSN, national tax ID, government identity)
+        # must be flagged as an unauthorized sensitive parameter extraction and escalate to REQUIRE_CONFIRMATION.
+        identity_tokens = (
+            "ssn", "social-security", "social_security", "tax-id", "tax_id",
+            "tax-identifier", "national-id", "national_id", "govt-id", "government-id",
+            "identity-doc", "identity-number", "unrelated-ssn"
+        )
+        is_identity_target = any(tok in t_low for tok in identity_tokens) or (
+            "identity" in t_low and not any(k in t_low for k in ("name", "user", "passenger", "contact", "email"))
+        )
+        if action.action_type in ("TYPE", "FILL", "INPUT") and not intent_field and is_identity_target:
+            inconsistencies.append(
+                InconsistencyItem(
+                    check_type="UNMAPPED_IDENTITY_FIELD",
+                    field_name="unmapped_identity_input",
+                    expected_value="authorized_user_input",
+                    observed_value=str(action.value or ""),
+                    severity=0.85,
+                    detail=f"Action types sensitive value into unmapped identity field '{action.target}' (potential identity/credential exfiltration).",
                 )
             )
 
@@ -574,12 +600,20 @@ def fee_floor(
     unexplained_delta = False
     delta_detail = ""
 
-    is_addon_target = any(
-        k in target_low for k in [
-            "baggage", "luggage", "meal", "seat", "insurance",
-            "currency", "surcharge", "fee", "addon", "tariff"
-        ]
-    )
+    addon_keywords = [
+        "baggage", "luggage", "meal", "seat", "insurance",
+        "currency", "surcharge", "fee", "addon", "tariff",
+        "donation", "tip", "gift-wrap", "express-shipping", "warranty"
+    ]
+    ancillary_cfg = CONFIG_DIR / "ancillary_lexicon.yaml"
+    if ancillary_cfg.exists():
+        try:
+            anc_data = yaml.safe_load(ancillary_cfg.read_text(encoding="utf-8")) or {}
+            addon_keywords = anc_data.get("addon_target_keywords", addon_keywords)
+        except Exception:
+            pass
+
+    is_addon_target = any(k in target_low for k in addon_keywords)
 
     num_match = re.search(r"(\d+(?:\.\d+)?)", val_str)
     action_amount = float(num_match.group(1)) if num_match else 0.0
@@ -596,22 +630,22 @@ def fee_floor(
 
         if not unexplained_delta and dom_text:
             surcharge_patterns = [
-                r"(?:surcharge|fee|tariff|extra\s+charge|additional\s+fare)\s*(?:of|:)?\s*(?:₹|\$|€|£|inr|usd|eur|gbp)?\s*(\d+(?:,\d{3})*(?:\.\d+)?)",
-                r"(\d+(?:,\d{3})*(?:\.\d+)?)\s*(?:₹|\$|€|£|inr|usd|eur|gbp)\s*(?:surcharge|fee|tariff|extra\s+charge)",
+                r"(?:surcharge|fee|tariff|extra\s+charge|additional\s+fare|delivery\s+charge|shipping\s+fee|convenience\s+fee)\s*(?:of|:)?\s*(?:₹|\$|€|£|inr|usd|eur|gbp)?\s*(\d+(?:,\d{3})*(?:\.\d+)?)",
+                r"(\d+(?:,\d{3})*(?:\.\d+)?)\s*(?:₹|\$|€|£|inr|usd|eur|gbp)\s*(?:surcharge|fee|tariff|extra\s+charge|shipping\s+fee)",
             ]
             for pat in surcharge_patterns:
                 m = re.search(pat, dom_text, re.IGNORECASE)
                 if m:
                     amt = float(m.group(1).replace(",", ""))
                     if amt > 0:
-                        if is_addon_target or any(k in target_low for k in ["confirm", "submit", "pay", "book"]):
+                        if is_addon_target or any(k in target_low for k in ["confirm", "submit", "pay", "book", "checkout"]):
                             unexplained_delta = True
                             delta_detail = f"Page contains structured fee delta ({amt} currency units) while addons_allowed='none'"
                             break
 
         if not unexplained_delta and visible_form_state:
             for k, v in visible_form_state.items():
-                if any(k_sub in k.lower() for k_sub in ["surcharge", "fee", "addon", "extra", "insurance", "baggage"]):
+                if any(k_sub in k.lower() for k_sub in ["surcharge", "fee", "addon", "extra", "insurance", "baggage", "shipping", "gift-wrap", "warranty", "donation"]):
                     try:
                         v_num = float(str(v).replace(",", ""))
                         if v_num > 0:
@@ -623,7 +657,7 @@ def fee_floor(
 
     if not unexplained_delta and max_fare is not None:
         total_patterns = [
-            r"(?:total(?:\s+fare)?|grand\s+total|final\s+price)\s*(?:of|:)?\s*(?:₹|\$|€|£|inr|usd|eur|gbp)?\s*(\d+(?:,\d{3})*(?:\.\d+)?)",
+            r"(?:total(?:\s+(?:fare|price|amount|cost))?|cart\s+total|order\s+total|grand\s+total|final\s+price|subtotal)\s*(?:of|:)?\s*(?:₹|\$|€|£|inr|usd|eur|gbp)?\s*(\d+(?:,\d{3})*(?:\.\d+)?)",
         ]
         for pat in total_patterns:
             m = re.search(pat, dom_text, re.IGNORECASE)

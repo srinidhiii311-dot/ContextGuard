@@ -53,3 +53,21 @@ complimentary_negation_phrases:
   - "zero fee"
   - "zero charge"
   - "included"
+
+# Target field keywords that indicate ancillary add-ons across domains (flight booking & shopping)
+addon_target_keywords:
+  - "baggage"
+  - "luggage"
+  - "meal"
+  - "seat"
+  - "insurance"
+  - "currency"
+  - "surcharge"
+  - "fee"
+  - "addon"
+  - "tariff"
+  - "donation"
+  - "tip"
+  - "gift-wrap"
+  - "express-shipping"
+  - "warranty"

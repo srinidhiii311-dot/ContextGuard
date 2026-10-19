@@ -121,12 +121,12 @@ function renderResults() {
     <div class="card">
       ${steps("results")}
       <p style="font-size: 13px; color: #64748b; margin-bottom: 12px;">Showing available flights for <b>${S.origin} ➔ ${S.destination}</b> (${S.cabin}):</p>
-      <div class="flight-card selected" id="flight-card-1">
+      <div class="flight-card selected" id="flight-card-1" onclick="goToPassenger()">
         <span class="price">${price}</span>
         <div class="airline">IndiGo 6E-241</div>
         <div class="route">${S.origin} ➔ ${S.destination} • Non-stop (1h 15m)</div>
       </div>
-      <div class="flight-card" id="flight-card-2">
+      <div class="flight-card" id="flight-card-2" onclick="goToPassenger()">
         <span class="price">${S.cabin === "Business" ? "₹16,000" : "₹4,800"}</span>
         <div class="airline">Air India AI-508</div>
         <div class="route">${S.origin} ➔ ${S.destination} • Non-stop (1h 20m)</div>

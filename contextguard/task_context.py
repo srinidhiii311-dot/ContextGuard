@@ -74,7 +74,7 @@ class TrustedTaskContext:
             if self.origin and self.origin.lower() not in val_str.lower():
                 return f"Origin mismatch: Expected '{self.origin}', observed '{val_str}'"
 
-        elif "dest" in fname or "to" in fname:
+        elif "dest" in fname or fname in ("to", "destination", "#to", "input_to"):
             if self.destination and self.destination.lower() not in val_str.lower():
                 return f"Destination mismatch: Expected '{self.destination}', observed '{val_str}'"
 

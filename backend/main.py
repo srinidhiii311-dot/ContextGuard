@@ -91,14 +91,16 @@ app.include_router(mock_site_router)
 import os
 from contextguard.approvals import connect as connect_approvals, ApprovalService, secret_from_env
 from contextguard.approvals_api import create_router as create_approvals_router
+from contextguard.audit_log import hmac_secret_from_env
 
 approval_db_path = os.getenv("DB_PATH", "contextguard.db")
 approval_conn = connect_approvals(approval_db_path)
 approval_svc = ApprovalService(approval_conn)
-try:
-    approvals_jwt_secret = secret_from_env()
-except Exception:
-    approvals_jwt_secret = os.getenv("JWT_SECRET") or "default-secret-key-16-chars-min"
+
+# Refuse startup without both required cryptographic secrets configured (min 16 chars)
+approvals_jwt_secret = secret_from_env()
+audit_hmac_secret = hmac_secret_from_env()
+
 app.include_router(create_approvals_router(approval_svc, approvals_jwt_secret))
 app.state.approval_svc = approval_svc
 

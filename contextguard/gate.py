@@ -157,6 +157,7 @@ class ProposedAction:
     value:        Optional[str] = None
     source_text:  Optional[str] = None
     page_url:     str           = ""
+    raw_html:     Optional[str] = None
 
     @classmethod
     def from_action(cls, action: Dict[str, Any], snapshot: Any) -> "ProposedAction":
@@ -167,12 +168,14 @@ class ProposedAction:
         vis_text = getattr(snapshot, "visible_text", "")
         page_url = getattr(snapshot, "url",          url)
         target   = _selector_to_target(selector, atype, url)
+        raw_html = getattr(snapshot, "raw_html", "") or action.get("raw_html", "")
         return cls(
             action_type = atype,
             target      = target,
             value       = str(value) if value is not None else None,
             source_text = vis_text[:500],
             page_url    = page_url,
+            raw_html    = raw_html or None,
         )
 
     @classmethod
@@ -186,12 +189,14 @@ class ProposedAction:
         selector = action.get("selector", "")
         value    = action.get("value", None)
         target   = selector or action.get("target", "")
+        raw_html = action.get("raw_html", "")
         return cls(
             action_type = atype,
             target      = target,
             value       = str(value) if value is not None else None,
             source_text = source_text[:500] if source_text else None,
             page_url    = page_url,
+            raw_html    = raw_html or None,
         )
 
     def to_model(self) -> ModelProposedAction:
@@ -250,6 +255,8 @@ class GateResult:
     audit_id:              str             = field(default_factory=lambda: str(uuid.uuid4()))
     step_number:           int             = 0
     audit_record:          Optional[Any]   = None
+    llm_source:            Optional[str]   = None
+    llm_verdict:           Optional[Dict[str, Any]] = None
 
     @property
     def blocked(self) -> bool:
@@ -506,6 +513,8 @@ class ContextGuardGate:
         # Phase 1 & 2: Extra signals (DOM baseline + hidden content + LLM checker) - Raise Only
         extra_sigs = []
         raw_html = getattr(action, "raw_html", "") or getattr(snapshot, "raw_html", "") or ""
+        if not raw_html and current_dom_text and ("<" in current_dom_text and ">" in current_dom_text):
+            raw_html = current_dom_text
         page_name = getattr(action, "page", "") or getattr(snapshot, "page_name", "") or _page_name_from_url(getattr(action, "page_url", ""))
 
         if self._baseline_store and raw_html:
@@ -537,6 +546,8 @@ class ContextGuardGate:
 
         # Phase 2: LLM semantic consistency check (invoked in grey zone 30-59, never over BLOCK)
         llm_flags = []
+        llm_source = None
+        llm_verdict = None
         if self.enable_llm_checker and self._llm_checker:
             from contextguard.llm_checker import should_invoke, apply_verdict
             if should_invoke(risk_result.risk_score, ""):
@@ -544,6 +555,15 @@ class ContextGuardGate:
                 action_d = {"type": action.action_type, "target": action.target, "value": action.value}
                 dh = hashlib.sha256((raw_html or current_dom_text).encode()).hexdigest()
                 v = self._llm_checker.check(intent_d, action_d, current_dom_text, dom_hash=dh)
+                llm_source = v.source
+                llm_verdict = {
+                    "consistent": v.consistent,
+                    "confidence": v.confidence,
+                    "reason": v.reason,
+                    "source": v.source,
+                    "latency_ms": v.latency_ms,
+                    "error": v.error,
+                }
                 applied = apply_verdict(risk_result.risk_score, v)
                 llm_flags.extend(applied.get("flags", []))
                 if applied["escalated"]:
@@ -659,6 +679,8 @@ class ContextGuardGate:
             requires_confirmation  = policy_result.requires_human_confirmation,
             processing_ms          = timing,
             step_number            = self._step,
+            llm_source             = llm_source,
+            llm_verdict            = llm_verdict,
         )
 
         # --- Step 10: Audit record + live push (FR21–FR23, NFR3, NFR5) ---
@@ -782,7 +804,7 @@ class ContextGuardGate:
             Decision.BLOCK: 4,
         }
         has_hard_rule = any(
-            inc.check_type in ("NAVIGATION_BOUNDARY", "FIELD_MISMATCH")
+            inc.check_type in ("NAVIGATION_BOUNDARY", "FIELD_MISMATCH", "UNMAPPED_IDENTITY_FIELD", "UNMAPPED_EXFILTRATION", "PROCESS_INTEGRITY")
             for inc in consistency.inconsistencies
         )
         if has_hard_rule and enforce_severity.get(decision, 0) < enforce_severity[Decision.REQUIRE_CONFIRMATION]:
@@ -806,14 +828,18 @@ class ContextGuardGate:
             dom_text=dom_text,
             visible_form_state=visible_form_state,
         )
+        fee_floor_triggered = False
         if ff_decision_str:
             ff_decision = Decision[ff_decision_str]
             if enforce_severity.get(decision, 0) < enforce_severity[ff_decision]:
                 decision = ff_decision
-
+                fee_floor_triggered = True
 
         # Build reason chain
-        parts = [policy.reason]
+        parts = []
+        if fee_floor_triggered and ff_reason:
+            parts.append(ff_reason)
+        parts.append(policy.reason)
         if threat.attack_type:
             parts.append(f"Known attack: {threat.attack_type} (confidence={threat.confidence:.2f})")
         elif threat.characterization_label:

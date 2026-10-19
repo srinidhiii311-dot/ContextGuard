@@ -106,6 +106,51 @@ class TestPhaseHHardening(unittest.TestCase):
         self.assertGreaterEqual(applied["score"], rule_score)
         self.assertEqual(applied["score"], rule_score)
 
+    # -------------------------------------------------------------------------
+    # 3. Environment Secrets Enforcement (Shortfall S15)
+    # -------------------------------------------------------------------------
+    def test_jwt_secret_refuses_empty_or_short(self):
+        import os
+        from contextguard.approvals import secret_from_env
+        old_val = os.environ.get("JWT_SECRET")
+        try:
+            os.environ["JWT_SECRET"] = ""
+            with self.assertRaises(RuntimeError):
+                secret_from_env()
+
+            os.environ["JWT_SECRET"] = "too-short"
+            with self.assertRaises(RuntimeError):
+                secret_from_env()
+
+            os.environ["JWT_SECRET"] = "valid-secret-key-at-least-16-chars"
+            self.assertEqual(secret_from_env(), "valid-secret-key-at-least-16-chars")
+        finally:
+            if old_val is not None:
+                os.environ["JWT_SECRET"] = old_val
+            else:
+                os.environ.pop("JWT_SECRET", None)
+
+    def test_audit_hmac_secret_refuses_empty_or_short(self):
+        import os
+        from contextguard.audit_log import hmac_secret_from_env
+        old_val = os.environ.get("AUDIT_HMAC_SECRET")
+        try:
+            os.environ["AUDIT_HMAC_SECRET"] = ""
+            with self.assertRaises(RuntimeError):
+                hmac_secret_from_env()
+
+            os.environ["AUDIT_HMAC_SECRET"] = "short"
+            with self.assertRaises(RuntimeError):
+                hmac_secret_from_env()
+
+            os.environ["AUDIT_HMAC_SECRET"] = "valid-hmac-secret-at-least-16-chars"
+            self.assertEqual(hmac_secret_from_env(), b"valid-hmac-secret-at-least-16-chars")
+        finally:
+            if old_val is not None:
+                os.environ["AUDIT_HMAC_SECRET"] = old_val
+            else:
+                os.environ.pop("AUDIT_HMAC_SECRET", None)
+
 
 if __name__ == "__main__":
     unittest.main()

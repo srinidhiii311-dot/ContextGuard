@@ -81,3 +81,17 @@ known_attacks:
       - "continue without approval"
       - "skip this step"
       - "proceed directly to payment"
+
+  PLAN_INTEGRITY:
+    severity_weight: 0.85
+    description: "Adversarial instructions claiming review is completed, bypassing verification, or ordering immediate finalization"
+    pattern_hints:
+      - "automatically validated"
+      - "review phase automatically validated"
+      - "review is already done"
+      - "immediately finalize"
+      - "immediately finalize booking"
+      - "skip review"
+      - "skip verification"
+      - "fasttrack auto-verification"
+      - "review phase validated"

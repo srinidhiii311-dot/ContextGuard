@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import os
 import sqlite3
 import uuid
 from pathlib import Path
@@ -29,8 +30,17 @@ DB_PATH = Path(__file__).parent / "platform.db"
 # Connection helper
 # ---------------------------------------------------------------------------
 
+def get_db_path() -> Path:
+    env_path = os.environ.get("CONTEXTGUARD_DB_PATH")
+    if env_path:
+        p = Path(env_path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        return p
+    return DB_PATH
+
+
 def get_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(get_db_path()))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
@@ -208,11 +218,18 @@ CREATE TABLE IF NOT EXISTS audit_log (
 -- ===========================================================================
 
 CREATE TABLE IF NOT EXISTS sessions (
-    session_id      TEXT PRIMARY KEY,
-    task_id         TEXT NOT NULL,
+    id              TEXT PRIMARY KEY,
+    session_id      TEXT,
+    task_id         TEXT NOT NULL DEFAULT '',
     status          TEXT NOT NULL DEFAULT 'INITIALIZED', -- INITIALIZED | RUNNING | PAUSED | COMPLETED | BLOCKED
     created_at      TEXT NOT NULL,
-    updated_at      TEXT NOT NULL
+    updated_at      TEXT NOT NULL DEFAULT '',
+    raw_instruction TEXT NOT NULL DEFAULT '',
+    trusted_intent  TEXT NOT NULL DEFAULT '{}',
+    test_case_id    TEXT DEFAULT '',
+    session_token   TEXT NOT NULL DEFAULT '',
+    viewer_token    TEXT NOT NULL DEFAULT '',
+    final_decision  TEXT NOT NULL DEFAULT 'ALLOW'
 );
 
 -- ISOLATED TESTBED TABLE: Testbed ground truth metadata (Ground truth ONLY)
@@ -290,6 +307,28 @@ def init_db() -> None:
     """Create all tables and seed flight data if empty."""
     conn = get_conn()
     conn.executescript(_SCHEMA)
+
+    # Ensure all columns exist on sessions table
+    cur = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'")
+    if cur.fetchone():
+        cols = {c[1] for c in conn.execute("PRAGMA table_info(sessions)").fetchall()}
+        for col_name, col_def in [
+            ("id", "TEXT"),
+            ("session_id", "TEXT"),
+            ("task_id", "TEXT NOT NULL DEFAULT ''"),
+            ("status", "TEXT NOT NULL DEFAULT 'INITIALIZED'"),
+            ("created_at", "TEXT NOT NULL DEFAULT ''"),
+            ("updated_at", "TEXT NOT NULL DEFAULT ''"),
+            ("raw_instruction", "TEXT NOT NULL DEFAULT ''"),
+            ("trusted_intent", "TEXT NOT NULL DEFAULT '{}'"),
+            ("test_case_id", "TEXT DEFAULT ''"),
+            ("session_token", "TEXT NOT NULL DEFAULT ''"),
+            ("viewer_token", "TEXT NOT NULL DEFAULT ''"),
+            ("final_decision", "TEXT NOT NULL DEFAULT 'ALLOW'"),
+        ]:
+            if col_name not in cols:
+                conn.execute(f"ALTER TABLE sessions ADD COLUMN {col_name} {col_def}")
+
     conn.commit()
 
     cur = conn.execute("SELECT COUNT(*) FROM flights")
@@ -776,12 +815,14 @@ class ContextGuardRuntimeDAO:
     @staticmethod
     def create_session(task_id: str) -> str:
         session_id = str(uuid.uuid4())
+        session_token = f"tok_agent_{uuid.uuid4().hex[:16]}"
+        viewer_token = f"tok_view_{uuid.uuid4().hex[:16]}"
         ts = now_iso()
         conn = get_conn()
         conn.execute(
-            """INSERT INTO sessions (session_id, task_id, status, created_at, updated_at)
-               VALUES (?, ?, 'INITIALIZED', ?, ?)""",
-            (session_id, task_id, ts, ts),
+            """INSERT INTO sessions (id, session_id, task_id, status, created_at, updated_at, session_token, viewer_token, raw_instruction, trusted_intent)
+               VALUES (?, ?, ?, 'running', ?, ?, ?, ?, '', '{}')""",
+            (session_id, session_id, task_id, ts, ts, session_token, viewer_token),
         )
         conn.commit()
         conn.close()
@@ -791,8 +832,8 @@ class ContextGuardRuntimeDAO:
     def update_session_status(session_id: str, status: str) -> None:
         conn = get_conn()
         conn.execute(
-            "UPDATE sessions SET status=?, updated_at=? WHERE session_id=?",
-            (status, now_iso(), session_id),
+            "UPDATE sessions SET status=?, updated_at=? WHERE session_id=? OR id=?",
+            (status, now_iso(), session_id, session_id),
         )
         conn.commit()
         conn.close()
@@ -800,7 +841,7 @@ class ContextGuardRuntimeDAO:
     @staticmethod
     def get_session(session_id: str) -> Optional[Dict[str, Any]]:
         conn = get_conn()
-        row = conn.execute("SELECT * FROM sessions WHERE session_id=?", (session_id,)).fetchone()
+        row = conn.execute("SELECT * FROM sessions WHERE session_id=? OR id=?", (session_id, session_id)).fetchone()
         conn.close()
         return dict(row) if row else None
 

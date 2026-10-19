@@ -9,6 +9,12 @@
 # Global threshold for task-level context drift escalation
 prior_flag_escalation_threshold: 3
 
+# Hard-Rule Floor Invariants (Unconditional, cannot be weakened by statistical/ML layers):
+# - NAVIGATION_BOUNDARY: Unapproved external navigation -> >= REQUIRE_CONFIRMATION
+# - FIELD_MISMATCH: Protected intent attribute tampering -> >= REQUIRE_CONFIRMATION
+# - UNMAPPED_IDENTITY_FIELD: Typing into unmapped identity/SSN fields -> >= REQUIRE_CONFIRMATION
+# - FEE_FLOOR: Unexplained structured fee delta -> >= REQUIRE_CONFIRMATION
+
 # Base policy rules mapping (Risk Tier, Booking Critical) -> Response
 # Evaluated when prior_flags < prior_flag_escalation_threshold
 base_policy_matrix:

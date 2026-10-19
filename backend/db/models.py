@@ -58,14 +58,17 @@ _SCHEMA_SQL = """
 -- 1. Locked trusted intent and execution session
 CREATE TABLE IF NOT EXISTS sessions (
     id              TEXT PRIMARY KEY,
+    session_id      TEXT,
+    task_id         TEXT NOT NULL DEFAULT '',
     created_at      TEXT NOT NULL,
-    raw_instruction TEXT NOT NULL,
-    trusted_intent  TEXT NOT NULL,          -- JSON: {origin, destination, cabin_class, passenger_count, date}
-    test_case_id    TEXT,                   -- ground truth only. NEVER sent to contextguard/*
-    session_token   TEXT NOT NULL,          -- agent read/write token gating for mock_site access
+    updated_at      TEXT NOT NULL DEFAULT '',
+    raw_instruction TEXT NOT NULL DEFAULT '',
+    trusted_intent  TEXT NOT NULL DEFAULT '{}',          -- JSON: {origin, destination, cabin_class, passenger_count, date}
+    test_case_id    TEXT DEFAULT '',                   -- ground truth only. NEVER sent to contextguard/*
+    session_token   TEXT NOT NULL DEFAULT '',          -- agent read/write token gating for mock_site access
     viewer_token    TEXT NOT NULL DEFAULT '', -- viewer read-only token safe for live monitor iframe
-    status          TEXT NOT NULL,          -- running | completed | blocked | paused | error
-    final_decision  TEXT                    -- ALLOW | WARN | PAUSE | BLOCK
+    status          TEXT NOT NULL DEFAULT 'running',          -- running | completed | blocked | paused | error
+    final_decision  TEXT NOT NULL DEFAULT 'ALLOW'                    -- ALLOW | WARN | PAUSE | BLOCK
 );
 
 -- 2. Test case catalog (testbed config, read by session_controller + attack_injector only)
@@ -121,11 +124,23 @@ def init_db() -> None:
     # Verify if sessions table has required columns
     cur = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'")
     if cur.fetchone():
-        cols = [c[1] for c in conn.execute("PRAGMA table_info(sessions)").fetchall()]
-        if "id" not in cols or "session_token" not in cols:
-            conn.execute("DROP TABLE sessions")
-        elif "viewer_token" not in cols:
-            conn.execute("ALTER TABLE sessions ADD COLUMN viewer_token TEXT NOT NULL DEFAULT ''")
+        cols = {c[1] for c in conn.execute("PRAGMA table_info(sessions)").fetchall()}
+        for col_name, col_def in [
+            ("id", "TEXT"),
+            ("session_id", "TEXT"),
+            ("task_id", "TEXT NOT NULL DEFAULT ''"),
+            ("status", "TEXT NOT NULL DEFAULT 'INITIALIZED'"),
+            ("created_at", "TEXT NOT NULL DEFAULT ''"),
+            ("updated_at", "TEXT NOT NULL DEFAULT ''"),
+            ("raw_instruction", "TEXT NOT NULL DEFAULT ''"),
+            ("trusted_intent", "TEXT NOT NULL DEFAULT '{}'"),
+            ("test_case_id", "TEXT DEFAULT ''"),
+            ("session_token", "TEXT NOT NULL DEFAULT ''"),
+            ("viewer_token", "TEXT NOT NULL DEFAULT ''"),
+            ("final_decision", "TEXT NOT NULL DEFAULT 'ALLOW'"),
+        ]:
+            if col_name not in cols:
+                conn.execute(f"ALTER TABLE sessions ADD COLUMN {col_name} {col_def}")
 
     conn.executescript(_SCHEMA_SQL)
     conn.commit()
@@ -462,10 +477,10 @@ class SessionControllerDAO:
         conn = get_db_conn()
         conn.execute(
             """INSERT INTO sessions
-               (id, created_at, raw_instruction, trusted_intent, test_case_id, session_token, viewer_token, status, final_decision)
-               VALUES (?, ?, ?, ?, ?, ?, ?, 'running', 'ALLOW')""",
+               (id, session_id, task_id, created_at, updated_at, raw_instruction, trusted_intent, test_case_id, session_token, viewer_token, status, final_decision)
+               VALUES (?, ?, '', ?, ?, ?, ?, ?, ?, ?, 'running', 'ALLOW')""",
             (
-                session_id, ts, raw_instruction,
+                session_id, session_id, ts, ts, raw_instruction,
                 json.dumps(trusted_intent), test_case_id, session_token, viewer_token,
             ),
         )
@@ -476,7 +491,7 @@ class SessionControllerDAO:
     @staticmethod
     def get_session(session_id: str) -> Optional[Dict[str, Any]]:
         conn = get_db_conn()
-        row = conn.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
+        row = conn.execute("SELECT * FROM sessions WHERE id = ? OR session_id = ?", (session_id, session_id)).fetchone()
         conn.close()
         if not row:
             return None
@@ -490,15 +505,16 @@ class SessionControllerDAO:
     @staticmethod
     def update_session_status(session_id: str, status: str, final_decision: Optional[str] = None) -> None:
         conn = get_db_conn()
+        ts = now_utc_iso()
         if final_decision:
             conn.execute(
-                "UPDATE sessions SET status = ?, final_decision = ? WHERE id = ?",
-                (status, final_decision, session_id),
+                "UPDATE sessions SET status = ?, final_decision = ?, updated_at = ? WHERE id = ? OR session_id = ?",
+                (status, final_decision, ts, session_id, session_id),
             )
         else:
             conn.execute(
-                "UPDATE sessions SET status = ? WHERE id = ?",
-                (status, session_id),
+                "UPDATE sessions SET status = ?, updated_at = ? WHERE id = ? OR session_id = ?",
+                (status, ts, session_id, session_id),
             )
         conn.commit()
         conn.close()

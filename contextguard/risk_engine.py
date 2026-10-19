@@ -69,6 +69,8 @@ _THREAT_MAP: Dict[str, str] = {
     "url_regression":           "NAVIGATION_ATTACK",
     "page_order_violation":     "PLAN_INJECTION",
     "unexpected_domain":        "NAVIGATION_ATTACK",
+    "unmapped_identity_input":  "PARAMETER_TAMPERING",
+    "unmapped_identity_field":  "PARAMETER_TAMPERING",
 }
 
 # Critical finding types that always push score to HIGH_RISK
@@ -79,6 +81,8 @@ _CRITICAL_FINDINGS = {
     "action_on_injected_page",
     "destination_mismatch",
     "origin_mismatch",
+    "unmapped_identity_input",
+    "unmapped_identity_field",
 }
 
 

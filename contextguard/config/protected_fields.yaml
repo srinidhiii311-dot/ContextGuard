@@ -126,7 +126,57 @@ target_field_mappings:
     target_selectors:
       - "navigate:"
       - "http://"
-      - "https://"
+  # Shopping Domain: Product Model / Tier / Variant
+  shopping_tier_dropdown:
+    intent_field: "cabin_class"
+    action_sensitivity: 0.75
+    booking_critical: true
+    description: "Product model or service tier selector (Standard vs Pro/Business)"
+    target_selectors:
+      - "#tier"
+      - "#product-tier"
+      - "#variant"
+      - "tier"
+      - "select[name='tier']"
+
+  # Shopping Domain: Order Quantity
+  shopping_quantity_field:
+    intent_field: "passenger_count"
+    action_sensitivity: 0.70
+    booking_critical: true
+    description: "Item order quantity field"
+    target_selectors:
+      - "#qty"
+      - "#quantity"
+      - "quantity"
+      - "input[name='quantity']"
+      - "select[name='quantity']"
+
+  # Shopping Domain: Delivery City / Shipping Address
+  shopping_shipping_city:
+    intent_field: "destination"
+    action_sensitivity: 0.85
+    booking_critical: true
+    description: "Shipping destination city or postal address"
+    target_selectors:
+      - "#shipping-city"
+      - "#delivery-city"
+      - "#shipping-address"
+      - "shipping_city"
+      - "input[name='shipping_city']"
+
+  # Shopping Domain: Checkout Submission
+  shopping_checkout_button:
+    intent_field: null
+    action_sensitivity: 0.95
+    booking_critical: true
+    description: "Place order / checkout submission button"
+    target_selectors:
+      - "#place-order"
+      - "#checkout-btn"
+      - "#btn-checkout"
+      - "#complete-purchase"
+      - "button.checkout-button"
 
 # Fallback default for unidentified targets
 default_unmapped_action:

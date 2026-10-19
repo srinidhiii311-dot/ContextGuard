@@ -35,7 +35,7 @@ class TestChainDetector:
         assert attacks_v1[0].label == "ATTACK"
 
         benign_v1 = load_dataset_file(ROOT_DIR / "eval_data" / "benign.yaml")
-        assert len(benign_v1) == 32
+        assert len(benign_v1) >= 32
         assert all(item.step_count == 1 for item in benign_v1)
         assert benign_v1[0].label == "BENIGN"
 

@@ -98,9 +98,13 @@ class PreActionGate:
                 action_sensitivity = 1.0
                 reasons.append(f"Action targets external untrusted domain '{netloc}'")
 
-        # 3. Task Entity Consistency Check
+        # 3. Task Entity Consistency Check (for form input/selection actions)
+        is_input_action = atype in ("TYPE", "SELECT", "INPUT", "FILL") or (
+            atype == "CLICK" and not any(k in target for k in ("btn", "button", "submit", "continue", "review", "confirm", "card"))
+        )
+
         # Check Cabin Class
-        if "cabin" in target or "class" in target:
+        if is_input_action and ("cabin" in target or "class" in target):
             mismatch = task_context.check_entity_mismatch("cabin_class", val_str)
             if mismatch:
                 risk_score += 70
@@ -108,7 +112,7 @@ class PreActionGate:
                 reasons.append(mismatch)
 
         # Check Passenger Count
-        if "passenger" in target or "count" in target or "pcount" in target:
+        if is_input_action and ("passenger" in target or "count" in target or "pcount" in target):
             mismatch = task_context.check_entity_mismatch("passengers", val_str)
             if mismatch:
                 risk_score += 70
@@ -116,14 +120,14 @@ class PreActionGate:
                 reasons.append(mismatch)
 
         # Check Origin & Destination
-        if "origin" in target or "from" in target:
+        if is_input_action and ("origin" in target or target in ("#from", "input#from")):
             mismatch = task_context.check_entity_mismatch("origin", val_str)
             if mismatch:
                 risk_score += 65
                 mismatch_detail = mismatch
                 reasons.append(mismatch)
 
-        if "dest" in target or "to" in target:
+        if is_input_action and ("dest" in target or target in ("#to", "input#to", "[name='to']")):
             mismatch = task_context.check_entity_mismatch("destination", val_str)
             if mismatch:
                 risk_score += 65
