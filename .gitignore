@@ -17,6 +17,8 @@ ENV/
 
 # Database
 contextguard.db
+platform.db
+audit_anchor.jsonl
 *.db
 *.db-shm
 *.db-wal

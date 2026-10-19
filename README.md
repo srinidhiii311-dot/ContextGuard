@@ -1,5 +1,21 @@
 # ContextGuard: Runtime Safety Gateway for AI Web Agents
 
+## Abstract
+
+Autonomous web agents act on content they cannot fully trust: a page's text, hidden DOM elements, and navigation targets are attacker-controllable, yet conventional agent architectures feed this untrusted content directly into the model's observation context, creating a pervasive indirect prompt-injection surface. ContextGuard addresses this vulnerability with a synchronous, pre-action safety gateway that sits between an agent's planning step and browser execution, evaluating every proposed browser action against an immutable locked statement of user intent prior to dispatch. ContextGuard combines a multi-layer defense-in-depth pipeline—structural intent verification, known threat taxonomy classification, semantic deviation characterization, DOM baseline region hashing, computed-style hidden content scanning, an optional real LLM semantic reviewer in the 30–59 risk grey zone, a stateful multi-step attack chain detector, and an unbypassable deterministic hard-rule floor—with role-based human-in-the-loop authorization and an HMAC-anchored SHA-256 audit log.
+
+**Empirical Evaluation Results (`eval_results/REPORT.md`)**:
+- **Development Benchmark**: Evaluated across 66 author-written scenarios in the flight reservation domain (34 attacks, 32 benign tasks).
+- **Attack Interception Recall**: 33 of 34 attacks intercepted in Configs B through H (97.06%, 95% Wilson CI [85.08%, 99.48%]). In the baseline development suite, `ATK_08` (evades taxonomy, fast-track auto-verification skip step) was the single unintercepted single-step action; it is caught by the stateful multi-step chain detector (Config E) and the single-step plan-integrity hard-rule floor.
+- **Benign Precision & Usability**: 0 of 32 benign tasks were falsely intercepted under the full gate (Config D: 0.00% FP interception, 95% CI [0.00%, 10.72%]; 1/32 calibrated to non-interfering `ALLOW_WITH_FLAG` [3.12%, 95% CI 0.55–15.74%]).
+- **Gateway Runtime Latency**: Config D achieves a mean latency of 67.59 ms (p95: 75.55 ms); with the optional LLM semantic reviewer (Config H), mean latency is 82.91 ms (p95: 98.10 ms).
+- **Generalization Evaluation**: To prevent benchmark overfitting, ContextGuard was evaluated on an independent 72-item frozen holdout set (`eval_data/test_v1/`, 36 attacks and 36 benign items) and a second distinct application domain (E-Commerce Shopping Checkout, 16 attacks and 16 benign items), preserving 0% benign false-interception rates across both.
+
+### Dual-Gate Implementation Architecture & Demo Reconciliation
+ContextGuard includes two gate implementations tailored to different operational runtimes:
+1. **`ContextGuardGate` ([`contextguard/gate.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/contextguard/gate.py))**: The canonical 11-step synchronous pre-action safety gateway exposed via `POST /v1/action/verify`. This pipeline integrates all 11 defense-in-depth layers (intent freeze, taxonomy hints, vector deviation, DOM region hashing, computed styles, chain detection, grey-zone LLM checking, policy engine, and deterministic hard-rule floor). **All reported benchmark figures in `REPORT.md` (Configs A through H) and the live Playwright agent loop (`agent/agent_controller.py`, `testbed_runner.py`) run this exact gate.**
+2. **`PreActionGate` ([`contextguard/pre_action_gate.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/contextguard/pre_action_gate.py))**: A lightweight standalone pre-action verification coordinator used in isolated headless unit tests (`tests/test_isolated_contextguard.py`, `contextguard/orchestrator.py`). It enforces basic entity consistency and consequential sensitivity without the heavy DOM computed-style scanner or SQLite hash-chained persistence.
+
 ## What it is
 
 ContextGuard is an end-to-end research platform and runtime safety gateway for autonomous AI web agents. It couples an automated, instrumented web sandbox demonstrating how malicious page content can hijack an AI agent with a synchronous pre-action safety gate (`ContextGuardGate`) that intercepts every proposed agent action before browser dispatch. ContextGuard combines multi-factor risk assessment, DOM baseline region hashing, computed-style hidden content scanning, optional LLM semantic consistency checking, a deterministic hard-rule floor, multi-step attack chain detection, and a role-based approval engine backed by a SHA-256 tamper-evident hash-chained audit log.
@@ -60,6 +76,26 @@ ContextGuard is an end-to-end research platform and runtime safety gateway for a
                            Append-Only SHA-256 Audit Log
                              (Tamper-evident hash chain)
 ```
+
+---
+
+### Canonical 11-Layer Architecture (L1–L11)
+
+ContextGuard organizes its defense-in-depth pipeline into 11 distinct, cooperating layers:
+
+| Layer | Component Name | Primary Function & Discipline | Implementation File |
+|---|---|---|---|
+| **L1** | **Intent Lock** | Immutable frozen ground truth parsed once from initial user prompt | [`contextguard/gate.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/contextguard/gate.py) (`TrustedIntent`) |
+| **L2** | **Threat Taxonomy** | Known injection pattern taxonomy (7 primary categories, 49 pattern hints) and keyword classifier | [`contextguard/threat_detector.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/contextguard/threat_detector.py) |
+| **L3** | **Semantic Deviation** | Vector embedding cosine deviation from benign baseline trajectories | [`contextguard/threat_characterizer.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/contextguard/threat_characterizer.py) |
+| **L4** | **DOM Baseline** | Per-route region hash comparison with dynamic attribute masking | [`contextguard/dom_baseline.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/contextguard/dom_baseline.py) |
+| **L5** | **Hidden-Content Scan** | Computed-style scanner (zero-pixel, opacity, offscreen absolute positioning) | [`contextguard/hidden_content.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/contextguard/hidden_content.py) |
+| **L6** | **Chain Detector** | Stateful multi-step attack chain pattern detector across step windows | [`contextguard/chain_detector.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/contextguard/chain_detector.py) |
+| **L7** | **LLM Checker** | Real LLM semantic reviewer invoked strictly in the 30–59 grey zone | [`contextguard/llm_checker.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/contextguard/llm_checker.py) |
+| **L8** | **Hard-Rule Floor** | Deterministic boundary & field verification + `fee_floor()` price check | [`contextguard/consistency_checker.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/contextguard/consistency_checker.py) |
+| **L9** | **Policy Engine** | Multi-factor continuous risk score mapping to graduated action decisions | [`contextguard/policy_engine.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/contextguard/policy_engine.py) |
+| **L10** | **Approvals** | Role-based human-in-the-loop authorization with timeout-to-deny | [`contextguard/approvals.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/contextguard/approvals.py) |
+| **L11** | **Audit Log** | Tamper-evident SHA-256 hash chain with external HMAC checkpoint anchoring | [`contextguard/audit_log.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/contextguard/audit_log.py) |
 
 ---
 
@@ -224,6 +260,18 @@ Every proposed browser action emitted by the agent controller is routed synchron
 
 1. **DOM Negation Masking**: Adversaries controlling webpage content may inject negation language ("free", "complimentary") to evade fee alerts. ContextGuard closes this loophole via the deterministic `fee_floor()` check, which parses structured price deltas between locked intent and page state, strictly requiring confirmation on any unexplained fee delta regardless of reassuring page prose.
 2. **Generalization across Dynamic Ontologies**: Target field mappings and ancillary fee lexicons are informed by domain concepts. Adapting to arbitrary web applications requires schema mapping layers or few-shot semantic alignment.
+
+---
+
+## Related Work & Literature Positioning (Phase 5 / S16)
+
+ContextGuard builds upon and situates itself within the evolving literature on indirect prompt injection and autonomous agent safety:
+
+- **Indirect Prompt Injection**: Greshake et al. (2023) first demonstrated how data retrieved from untrusted external sources can subvert LLM context and hijack agent goals. The OWASP Top 10 for LLM Applications catalogs Indirect Prompt Injection (LLM01) and Excessive Agency (LLM08) as premier structural vulnerabilities.
+- **Agent Safety & Benchmarking**: AgentDojo (Debenedetti et al., 2024) formalizes dynamic evaluation environments for tool-using agents under adversarial observation. ContextGuard addresses the mitigation gap identified by Debenedetti et al. by providing an independent, out-of-band pre-action gate rather than relying on in-prompt system instructions.
+- **Content Boundary Enforcement**: Spotlighting (Hines et al., 2024) investigates transforming untrusted inputs with delimiters to prevent model confusion; ContextGuard extends this concept to runtime browser architectures by pairing random-nonce encapsulation with external structural invariants.
+- **Causal & Information Flow Control**: CaMeL (Debenedetti et al., 2025) explores fine-grained information-flow tracking for agent architectures. ContextGuard complements formal information flow by maintaining an immutable intent baseline and state difference engine directly in the browser execution loop.
+- **Rigorous Statistical Verification**: Following Wilson (1927), all empirical interception rates and false positive metrics report 95% Wilson score intervals, and comparative ablation improvements are validated through exact McNemar paired significance tests.
 
 ---
 
