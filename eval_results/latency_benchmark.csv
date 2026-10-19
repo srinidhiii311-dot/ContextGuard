@@ -1,0 +1,7 @@
+Configuration,Description,Count,Min_ms,Mean_ms,Median_ms,p90_ms,p95_ms,p99_ms,Max_ms,StdDev_ms
+Config A,Field checks only (Step 2 Verification Rail),10,0.0169,0.0315,0.0234,0.0516,0.071,0.071,0.071,0.0179
+Config B,Config A + Keyword taxonomy (Component 3),10,0.0199,0.0343,0.0333,0.0507,0.058,0.058,0.058,0.0139
+Config C,Config B + Semantic characterization (Comp 4),10,0.0193,0.0797,0.0343,0.1527,0.3022,0.3022,0.3022,0.0918
+Config D (In-Memory),"Full Gate Pipeline (In-Memory, no DB commit)",10,0.0432,0.0932,0.058,0.1816,0.1991,0.1991,0.1991,0.0654
+Config D (End-to-End),Full Gate (All 7 Components + SQLite Audit Log),10,64.2344,72.4183,72.2264,78.1619,81.5998,81.5998,81.5998,5.3446
+Config E (Stateful),Full Gate + Component 8 Attack Chain Detector,10,67.4138,74.1818,75.0428,78.0493,81.1664,81.1664,81.1664,4.7938

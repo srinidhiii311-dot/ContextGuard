@@ -298,9 +298,44 @@ def run_benchmark(runs_per_scenario: int = 3) -> Dict[str, Any]:
     return benchmark_summary
 
 
+def run_master_evaluation():
+    print("=" * 100)
+    print("ContextGuard One-Command Master Evaluation Suite")
+    print("Executing Benchmark, Sequences, Baselines, Borderline LLM, and Report Generation")
+    print("=" * 100)
+
+    # 1. Dataset Ablation (A to H) on combined dataset
+    print("\n>>> [1/5] Running Dataset Benchmark & Ablation (Configs A to H)...")
+    subprocess.run([PYTHON_EXE, str(ROOT_DIR / "scripts" / "run_dataset_ablation.py")], check=True)
+
+    # 2. Sequence Evaluation (Config D vs E)
+    print("\n>>> [2/5] Running Multi-Step Sequence Evaluation (Config D vs E)...")
+    subprocess.run([PYTHON_EXE, str(ROOT_DIR / "scripts" / "run_sequence_eval.py")], check=True)
+
+    # 3. Baselines Evaluation (Baselines 0-3 vs A-H on Dev + Holdout)
+    print("\n>>> [3/5] Running Baseline Comparison Matrix (Dev + Holdout Suite)...")
+    subprocess.run([PYTHON_EXE, str(ROOT_DIR / "scripts" / "evaluate_baselines.py")], check=True)
+
+    # 4. Borderline LLM Checker Evaluation
+    print("\n>>> [4/5] Running Borderline Grey-Zone LLM Checker Evaluation...")
+    subprocess.run([PYTHON_EXE, str(ROOT_DIR / "scripts" / "evaluate_borderline.py")], check=True)
+
+    # 5. Build Final Report and Compute Per-Category Metrics
+    print("\n>>> [5/5] Re-compiling Master REPORT.md and Per-Category Metrics...")
+    subprocess.run([PYTHON_EXE, str(ROOT_DIR / "scripts" / "build_report.py")], check=True)
+
+    print("\n" + "=" * 100)
+    print("MASTER EVALUATION COMPLETE — ALL REPORTS REGENERATED SUCCESSFULLY")
+    print("=" * 100)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ContextGuard Benchmark Harness")
     parser.add_argument("--runs", type=int, default=3, help="Number of repetitions per test case scenario")
+    parser.add_argument("--all", action="store_true", help="Execute complete master evaluation (benchmark, sequences, baselines, borderline)")
     args = parser.parse_args()
 
-    run_benchmark(runs_per_scenario=args.runs)
+    if args.all:
+        run_master_evaluation()
+    else:
+        run_benchmark(runs_per_scenario=args.runs)

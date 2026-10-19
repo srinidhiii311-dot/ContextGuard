@@ -72,11 +72,13 @@ def load_datasets(benign_path: Optional[str] = None) -> Tuple[List[Dict[str, Any
 
 def make_proposed_action(item: Dict[str, Any]) -> ProposedAction:
     act_data = item["action"]
+    raw_html = item.get("raw_html") or act_data.get("raw_html")
     return ProposedAction(
         action_type=act_data["action_type"],
         target=act_data["target"],
         value=act_data.get("value"),
         page_url=act_data.get("page_url", f"http://127.0.0.1:8000/{item.get('page', 'search')}"),
+        raw_html=raw_html,
     )
 
 
