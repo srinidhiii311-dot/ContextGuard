@@ -290,6 +290,17 @@ def run_full_dataset_baselines():
         mean_lat = statistics.mean(latencies) if latencies else 0.0
         p95_lat = statistics.quantiles(latencies, n=20)[18] if len(latencies) >= 20 else mean_lat
 
+        tot_eval_actions = tot_atk + tot_ben
+        if cfg_code == "H":
+            llm_invoked_ratio = f"{h_llm_tracking['invoked']}/{tot_eval_actions} ({h_llm_tracking['invoked']/tot_eval_actions*100:.1f}%)"
+            llm_active_lats = h_llm_tracking["latencies"]
+            cond_llm_mean = round(statistics.mean(llm_active_lats), 3) if llm_active_lats else 0.0
+            cond_llm_p95 = round(statistics.quantiles(llm_active_lats, n=20)[18], 3) if len(llm_active_lats) >= 20 else cond_llm_mean
+        else:
+            llm_invoked_ratio = f"0/{tot_eval_actions} (0.0%)"
+            cond_llm_mean = 0.0
+            cond_llm_p95 = 0.0
+
         summary_rows.append({
             "name": name,
             "cfg": cfg_code,
@@ -317,8 +328,11 @@ def run_full_dataset_baselines():
             "tot_ben_tot": tot_ben,
             "tot_ben_pct": tot_ben_fp / tot_ben * 100,
             "tot_ben_ci": fmt_ci(tot_ben_fp, tot_ben),
-            "mean_lat": mean_lat,
-            "p95_lat": p95_lat,
+            "mean_gate_lat_ms": round(mean_lat, 2),
+            "p95_gate_lat_ms": round(p95_lat, 2),
+            "llm_invoked_ratio": llm_invoked_ratio,
+            "cond_llm_mean_ms": cond_llm_mean,
+            "cond_llm_p95_ms": cond_llm_p95,
             "mcnemar_vs_prev_p": "N/A",
             "mcnemar_vs_prev_gain": "0",
         })
@@ -332,10 +346,10 @@ def run_full_dataset_baselines():
         summary_rows[i]["mcnemar_vs_prev_gain"] = f"+{pair_res['gained']}/-{pair_res['lost']}"
 
     # Print Formatted Markdown / ASCII Table with Wilson CIs
-    print("\n" + "=" * 175)
-    print("COMPREHENSIVE BASELINES VS CONFIGS A-H BENCHMARK (WITH 95% WILSON CONFIDENCE INTERVALS & MCNEMAR TESTS)")
-    print("=" * 175)
-    header_fmt = "{:<32} | {:<22} | {:<20} | {:<22} | {:<20} | {:<26} | {:<10} | {:<12}"
+    print("\n" + "=" * 200)
+    print("COMPREHENSIVE BASELINES VS CONFIGS A-H BENCHMARK (WITH 95% WILSON CIs, CONDITIONAL LLM LATENCY & MCNEMAR TESTS)")
+    print("=" * 200)
+    header_fmt = "{:<32} | {:<22} | {:<20} | {:<22} | {:<20} | {:<26} | {:<12} | {:<16} | {:<16} | {:<10}"
     print(header_fmt.format(
         "Defense Paradigm / Config",
         "Dev Atk Recall [95% CI]",
@@ -343,10 +357,12 @@ def run_full_dataset_baselines():
         "Holdout Atk [95% CI]",
         "Holdout FP [CI]",
         "Total Atk Recall [95% CI]",
-        "Mean Lat",
+        "Gate Latency",
+        "LLM Invocations",
+        "Cond LLM Latency",
         "McNemar p",
     ))
-    print("-" * 175)
+    print("-" * 200)
 
     for r in summary_rows:
         dev_atk_str = r["dev_atk_ci"].split(" = ")[1] if " = " in r["dev_atk_ci"] else r["dev_atk_ci"]
@@ -354,7 +370,9 @@ def run_full_dataset_baselines():
         hld_atk_str = r["hld_atk_ci"].split(" = ")[1] if " = " in r["hld_atk_ci"] else r["hld_atk_ci"]
         hld_fp_str = r["hld_ben_ci"].split(" = ")[1] if " = " in r["hld_ben_ci"] else r["hld_ben_ci"]
         tot_atk_str = r["tot_atk_ci"]
-        lat_str = f"{r['mean_lat']:.2f} ms"
+        lat_str = f"{r['mean_gate_lat_ms']:.2f} ms"
+        llm_inv_str = r["llm_invoked_ratio"]
+        cond_llm_str = f"{r['cond_llm_mean_ms']:.3f} ms" if r["cfg"] == "H" else "0 ms (N/A)"
         mcnemar_str = r["mcnemar_vs_prev_p"]
 
         print(header_fmt.format(
@@ -365,9 +383,11 @@ def run_full_dataset_baselines():
             hld_fp_str,
             tot_atk_str,
             lat_str,
+            llm_inv_str,
+            cond_llm_str,
             mcnemar_str,
         ))
-    print("=" * 175)
+    print("=" * 200)
 
     # Statistical Deep-Dive: Config C vs Config D (Finding #3 Verification)
     cd_pair = paired_counts(attack_decisions["C"], attack_decisions["D"])

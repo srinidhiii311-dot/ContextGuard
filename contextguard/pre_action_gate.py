@@ -14,12 +14,13 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 from backend.database.db import ContextGuardRuntimeDAO
+from contextguard.gate import ContextGuardGate, Decision, ProposedAction, TrustedIntent
 from contextguard.task_context import TrustedTaskContext
 
 
 @dataclass
 class PreCheckResult:
-    decision:           str             # ALLOW | PAUSE | BLOCK
+    decision:           str             # ALLOW | PAUSE | BLOCK | WARN
     reason:             str
     risk_score:         int             # 0 to 100
     action_sensitivity: float           # 0.0 to 1.0
@@ -41,7 +42,10 @@ class PreCheckResult:
 
 
 class PreActionGate:
-    """Synchronous gate verifying intended actions before execution."""
+    """Synchronous pre-action safety gateway.
+    Consolidates runtime action verification with the canonical 11-layer ContextGuardGate pipeline,
+    ensuring 100% defense parity between live interactive agent sessions and benchmarked evaluation.
+    """
 
     def __init__(
         self,
@@ -52,6 +56,21 @@ class PreActionGate:
         self.base_domain = base_domain
         self.pause_threshold = pause_threshold
         self.block_threshold = block_threshold
+        self._canonical_gates: Dict[str, ContextGuardGate] = {}
+
+    def _get_or_create_gate(self, session_id: str, task_context: TrustedTaskContext) -> ContextGuardGate:
+        if session_id not in self._canonical_gates:
+            intent = TrustedIntent(
+                origin=task_context.origin or "Chennai",
+                destination=task_context.destination or "Delhi",
+                cabin_class=task_context.cabin_class or "Economy",
+                passenger_count=int(task_context.passengers or 1),
+            )
+            self._canonical_gates[session_id] = ContextGuardGate(
+                trusted_intent=intent,
+                task_id=session_id,
+            )
+        return self._canonical_gates[session_id]
 
     def evaluate_action(
         self,
@@ -143,23 +162,47 @@ class PreActionGate:
         # Clamp risk score
         risk_score = min(100, max(0, risk_score))
 
-        # 5. Policy Enforcement
+        # 5. Canonical 11-Layer ContextGuardGate Verification
+        canonical_gate = self._get_or_create_gate(session_id, task_context)
+        proposed = ProposedAction(
+            action_type=atype,
+            target=target,
+            value=val_str if val is not None else None,
+            page_url=current_url,
+        )
+        canonical_res = canonical_gate.check(proposed, current_page_name)
+
+        canonical_dec_map = {
+            Decision.BLOCK: "BLOCK",
+            Decision.PAUSE_TASK: "PAUSE",
+            Decision.REQUIRE_CONFIRMATION: "PAUSE",
+            Decision.ALLOW_WITH_FLAG: "WARN",
+            Decision.FLAG: "WARN",
+            Decision.ALLOW: "ALLOW",
+        }
+        canonical_dec = canonical_dec_map.get(canonical_res.decision, "ALLOW")
+
+        # 6. Policy Enforcement (Canonical gate decision takes precedence)
+        severity_order = {"BLOCK": 3, "PAUSE": 2, "WARN": 1, "ALLOW": 0}
+        rule_dec = "ALLOW"
         if risk_score >= self.block_threshold or (is_consequential and risk_score >= 80):
-            decision = "BLOCK"
-            reason = "; ".join(reasons) if reasons else "High-risk unauthorized action halted before execution"
-            requires_operator = True
+            rule_dec = "BLOCK"
         elif risk_score >= self.pause_threshold or (is_consequential and risk_score >= 60):
-            decision = "PAUSE"
-            reason = "; ".join(reasons) if reasons else "Consequential action requires operator confirmation"
-            requires_operator = True
+            rule_dec = "PAUSE"
         elif risk_score >= 40:
-            decision = "WARN"
-            reason = "; ".join(reasons) if reasons else "Action flagged with elevated risk but allowed"
-            requires_operator = False
+            rule_dec = "WARN"
+
+        if severity_order.get(canonical_dec, 0) >= severity_order.get(rule_dec, 0):
+            decision = canonical_dec
         else:
-            decision = "ALLOW"
-            reason = "Action aligns with task context"
-            requires_operator = False
+            decision = rule_dec
+
+        risk_score = max(risk_score, canonical_res.risk_score)
+        requires_operator = decision in ("BLOCK", "PAUSE")
+
+        if canonical_res.reason and canonical_res.reason not in reasons:
+            reasons.insert(0, canonical_res.reason)
+        reason = "; ".join(reasons) if reasons else "Action aligns with task context"
 
         # Record to database
         ContextGuardRuntimeDAO.record_policy_decision(

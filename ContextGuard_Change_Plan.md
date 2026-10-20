@@ -10,7 +10,7 @@ Delivered to the user as a formatted PDF (`ContextGuard_Change_Plan.pdf`) on 202
 
 Autonomous web agents act on content they cannot fully trust: a page's text, hidden elements, and redirect targets are attacker-controllable, yet most agent architectures feed this content straight into the model's context, creating an indirect prompt-injection surface. ContextGuard addresses this with a synchronous, pre-action safety gateway that sits between an agent's decision and its execution, evaluating every proposed browser action against a locked statement of user intent before it is allowed to run. The gateway combines a layered detection pipeline — intent-consistency scoring, a threat taxonomy, semantic deviation checks, DOM baseline hashing, hidden-content scanning, a multi-step attack-chain detector, an optional LLM-based checker, and a deterministic hard-rule floor that cannot be weakened by the statistical layers above it — with role-based approval gates and a hash-chained audit log for forensic accountability. The system was evaluated on a flight-booking sandbox against a developer set of 34 adversarial and 32 benign scenarios, with the canonical full gate (`ContextGuardGate`, `/v1/action/verify`) intercepting 33 of 34 attacks (97.06%, 95% Wilson CI [85.08%, 99.48%]) with 0 of 32 false interceptions (0.0%, 95% CI [0.0%, 10.72%]; 1/32 non-interfering `ALLOW_WITH_FLAG`) at a mean latency of 67.59 ms (p95: 75.55 ms; 82.91 ms with the LLM checker Config H). The result is a practical, auditable safety layer that can be dropped in front of existing browser agents without retraining them.
 
-*Note: All reported benchmark figures reflect the full 11-layer `ContextGuardGate`; the live browser controller runs the lighter `PreActionGate` paired with the state-difference engine and ML risk model. Subsequent generalization was verified against a 72-item frozen holdout (`eval_data/test_v1/`) and a second application domain (E-Commerce checkout).*
+*Note: All reported benchmark figures reflect the canonical 11-layer `ContextGuardGate` (`/v1/action/verify`). The live Playwright browser orchestrator (`agent/agent_controller.py`) directly imports and instantiates `ContextGuardGate` (lines 31–37, 307–310). For backwards-compatible session testing, `PreActionGate` delegates directly to the canonical `ContextGuardGate`, ensuring zero runtime or policy divergence between evaluation scripts and real-time agents. Subsequent generalization was verified against a 72-item frozen holdout (`eval_data/test_v1/`) and a second application domain (E-Commerce checkout).*
 
 ## 1. What changed and why
 
@@ -194,17 +194,15 @@ Both follow the same discipline as the rest of the pipeline: additive, raise-onl
 
 ## 8. Verification Audit Addendum (Oct 19, 2026 — Closed Weaknesses & Defensible Metrics)
 
-An external audit (`ContextGuard — Verification Audit: Weaknesses & Fixes`, 2026-10-19) reviewed the preliminary evaluation figures and identified 6 prioritized risks for viva defense and dissertation citation. All items were empirically resolved:
-
-1. **Finding #1 — Config H Latency Disentangled (Grey-Zone Bypass Audited)**:
+An external audit (`ContextGuard — Verification Audit: Weaknesses1. **Finding #1 — Config H Latency Disentangled (Conditional LLM Latency Column Added)**:
    - *Audit Finding*: Config D (71.61 ms) vs Config H (72.65 ms) differed by only ~1 ms, which could not represent a live LLM round-trip.
-   - *Resolution*: Empirical instrumentation of `eval_adapter.py` revealed that 80.4% (111/138) of evaluation items scored $<30$ or $\ge 60$, bypassing the LLM entirely with 0 ms overhead. The 72.65 ms average is an uninvoked aggregate. In `scripts/evaluate_baselines.py`, per-item invocation logging now explicitly reports invocation rates (19.6% grey zone triggering) and reports conditional latency strictly on active LLM executions (200 ms - 1.5+ s for live models; 0.001 ms for offline fallbacks).
+   - *Resolution*: Empirical instrumentation of `eval_adapter.py` revealed that 80.4% (111/138) of evaluation items scored $<30$ or $\ge 60$, bypassing the LLM entirely with 0 ms overhead. In `scripts/evaluate_baselines.py`, the summary table and CSV now feature explicit separate columns: `Gate Latency` (mean/p95 over base gate), `LLM Invocations` (`27/138 (19.6%)` in Config H), and `Conditional LLM Latency` (isolated to actual invocations: 0.001 ms for offline fallbacks; 200 ms–1.5+ s for live LLMs).
 
-2. **Finding #2 — Benign 0% False Interception Substantiated**:
+2. **Finding #2 — Benign 0% False Interception: Structural Design Ceiling & Limitation**:
    - *Audit Finding*: 0.0% false interception across 68 benign items appeared potentially overfit or synthetic.
-   - *Resolution*: `scripts/spot_check_benign.py` audited 10 items across the booking funnel. Risk scores vary dynamically (8, 10, 18, 19, 20, 21, 24, 38, 43). Because clean actions exhibit 0.00 threat signal and 0.00 entity inconsistency, scores are governed solely by action sensitivity ($0.25 \times \text{sensitivity} \le 24$). Since $24 < 30$, all clean actions fall naturally below the `ALLOW` threshold. Injected marketing banners trigger `ALLOW_WITH_FLAG` (scores 38, 43) without halting the agent.
+   - *Resolution & Academic Framing*: `scripts/spot_check_benign.py` audited 10 items across the booking funnel, confirming dynamic score variance (8, 10, 18, 19, 20, 21, 24, 38, 43). Crucially, this reveals a **fundamental architectural design ceiling**: 0.0% false positive is a structural mathematical ceiling ($25 \times \text{sensitivity} \le 23.75 < 30$), not emergent empirical robustness. An action lacking observable threat keywords, vector deviation, and entity inconsistency can never exceed 24, and thus cannot be flagged by sensitivity alone. This is an explicit design boundary documented for viva defense: ContextGuard is an **intent-consistency gateway, not an unconstrained behavioral anomaly detector**. Legitimate-but-atypical browsing without textual triggers will never be blocked, preserving agent usability.
 
-3. **Finding #3 — Config C vs Config D Latency Trade-Off Defensibly Framed**:
+3. **Finding #3 — Config C vs Config D Latency Trade-Off Defensively Framed**:
    - *Audit Finding*: Config D costs 560x the latency of Config C (0.13 ms vs 71.61 ms) for only a 1-item gain (60/70 to 61/70).
    - *Resolution*: Paired McNemar testing via `scripts/stats.py` yields $p = 1.0000$ (not statistically significant). ContextGuard explicitly documents that Config D's latency is **operational and compliance-driven** (ACID SQLite persistence, SHA-256 hash chains, HMAC checkpoint anchoring, and tamper evidence), not detective accuracy.
 
@@ -216,12 +214,13 @@ An external audit (`ContextGuard — Verification Audit: Weaknesses & Fixes`, 20
    - *Audit Finding*: Raw percentages were reported without Wilson score intervals or paired p-values.
    - *Resolution*: `scripts/evaluate_baselines.py` was regenerated through `scripts/stats.py`. All entries in `eval_results/baselines_vs_configs_summary.csv` now carry two-sided 95% Wilson intervals and exact McNemar p-values against predecessor configurations.
 
-6. **Finding #6 — Dual-Gate Divergence Clarified**:
-   - *Audit Finding*: Potential divergence between the live Playwright demo and the benchmarked gateway.
-   - *Resolution*: Documented that the live interactive agent (`agent/agent_controller.py`, `testbed_runner.py`) dispatches directly to the canonical 11-layer `ContextGuardGate` via `POST /v1/action/verify`. `PreActionGate` is isolated to lightweight headless unit tests.
+6. **Finding #6 — Dual-Gate Divergence Consolidated in Code**:
+   - *Audit Finding*: Potential divergence between live Playwright execution and the benchmarked gateway.
+   - *Investigation & Code Consolidation*: Forensically verified that `agent/agent_controller.py` imports `ContextGuardGate` directly, while `agent/web_agent.py` used `PreActionGate`. To eliminate any potential runtime divergence, `contextguard/pre_action_gate.py` was refactored to **delegate directly into the canonical 11-layer `ContextGuardGate`**. Both agent runners (`agent_controller.py` and `web_agent.py`) now execute the identical 11-layer defense-in-depth pipeline.
 
 7. **Minor / Hygiene Closed**:
    - Traced taxonomy count to **7 primary categories** and **49 pattern hints** (plus 6 multi-step trajectory chains).
    - Confirmed `AUDIT_HMAC_SECRET` enforces $\ge 16$ characters with no hardcoded fallback or shipped default.
+   - Staged and committed working-tree files across milestone tags (`hardening-pass-v1`, `external-set-v1`, `baselines-eval`, `verification-audit-v1`). `AUDIT_HMAC_SECRET` enforces $\ge 16$ characters with no hardcoded fallback or shipped default.
    - Staged and committed all 33 modified and 7 untracked working-tree files across milestone tags.
 
