@@ -15,6 +15,7 @@ Supported Configs and Baselines:
 """
 from __future__ import annotations
 
+from pathlib import Path
 import re
 import time
 from typing import Any, Dict, List, Optional, Tuple
@@ -105,11 +106,23 @@ def _build_intent(item: Dict[str, Any]) -> TrustedIntent:
         return intent_data
     if isinstance(intent_data, dict):
         return TrustedIntent.from_dict(intent_data)
+    
+    default_intent_path = Path(__file__).resolve().parent / "eval_data" / "default_intent.yaml"
+    if default_intent_path.exists():
+        try:
+            import yaml
+            d = yaml.safe_load(default_intent_path.read_text(encoding="utf-8"))
+            if isinstance(d, dict):
+                return TrustedIntent.from_dict(d)
+        except Exception:
+            pass
+
     return TrustedIntent(
         origin="Chennai",
         destination="Delhi",
         cabin_class="Economy",
         passenger_count=1,
+        addons_allowed="none",
     )
 
 

@@ -14,9 +14,9 @@ Autonomous web agents powered by Large Language Models (LLMs) operate under an i
 
 We present **ContextGuard**, an in-line, synchronous, pre-action security gateway that intercepts and verifies every proposed browser action before execution. ContextGuard enforces a declarative **Trusted Intent Lock** using an 11-layer defense-in-depth pipeline combining deterministic field rails, lexical deviation metrics, computed-style DOM hidden-content detection, multi-step trajectory chain state machines, a selective grey-zone LLM reviewer, and an ACID-compliant, SHA-256 HMAC hash-chained SQLite audit logger.
 
-ContextGuard was comprehensively evaluated across **138 benchmark scenarios** comprising a Developer Suite (34 adversarial, 32 benign) and an independent frozen Holdout Suite (36 adversarial, 36 benign), alongside a second application domain (E-Commerce checkout). The canonical gateway (`ContextGuardGate`, `/v1/action/verify`) achieves **87.14% total attack recall** (61/70 attacks intercepted, 95% Wilson Score CI [77.3%, 93.1%]) with **0.0% false interceptions on clean actions** (0/68, 95% CI [0.0%, 5.3%]), compared to 11.4% recall for keyword filtering ($p=0.0078$), 32.9% for naive field rules ($p=0.0003$), and 42.9% for an LLM-Judge-Only baseline ($p=0.0156$). 
+ContextGuard was comprehensively evaluated across **138 benchmark scenarios** comprising a Developer Suite (34 adversarial, 32 benign) and an independent frozen Holdout Suite (36 adversarial, 36 benign), alongside a second application domain (E-Commerce checkout). The canonical gateway (`ContextGuardGate`, `/v1/action/verify`) achieves **95.71% total attack recall** (67/70 attacks intercepted, 95% Wilson Score CI [88.1%, 98.5%]) across pooled benchmarks (34/34 on Dev, 33/36 on Holdout; 33/34 on Dev in earlier baselines without fee floor) with **0.0% false interceptions on clean actions** (0/68, 95% CI [0.0%, 5.3%]), compared to 11.4% recall for keyword filtering ($p=0.0078$), 32.9% for naive field rules ($p=0.0003$), and 42.9% for an emulated zero-shot prompt judge ($p=0.0156$). 
 
-We prove mathematically that ContextGuard's 0% false positive rate is an intentional **structural design ceiling** ($25 \times \text{sensitivity} \le 23.75 < 30$), guaranteeing uninterrupted user experience for conforming tasks. Furthermore, by gating the heavy LLM semantic reviewer strictly to a 30–59 risk grey zone, **80.4% (111/138) of actions completely bypass LLM inference** with 0 ms added overhead, maintaining a predictable base gateway latency of 71.6 ms.
+We prove mathematically that ContextGuard's 0% false positive rate on clean conforming actions is an intentional **structural design ceiling** ($25 \times \text{sensitivity} \le 23.75 < 30$). On commercial pages with aggressive urgency marketing banners, however, live testbed evaluation reveals an operational trade-off, intercepting 2 of 4 urgency scenarios. Furthermore, by gating the heavy LLM semantic reviewer strictly to a 30–59 risk grey zone, **76.1% (105/138) of actions completely bypass LLM inference** with 0 ms added overhead, maintaining a predictable base gateway latency of ~75–85 ms.
 
 ---
 
@@ -104,38 +104,39 @@ ContextGuard is architected as an 11-layer pipeline within [`contextguard/gate.p
 +-------------------------------------------------------------------+
                                   |
 +===================================================================+
-| 4. DETERMINISTIC POLICY FLOOR (HARD-RULE INTERCEPT)               |
-|    Enforces fee floors, budget caps; cannot be diluted by scores  |
-+-------------------------------------------------------------------+
-                                  |
-+===================================================================+
-| 5. TAXONOMY MATCHING ENGINE                                       |
+| 4. TAXONOMY MATCHING ENGINE                                       |
 |    Scans 49 pattern hints across 7 threat categories              |
 +-------------------------------------------------------------------+
                                   |
 +===================================================================+
-| 6. LEXICAL & VECTOR DEVIATION ENGINE                              |
+| 5. LEXICAL & VECTOR DEVIATION ENGINE                              |
 |    C4-calibrated Jaccard & token deviation against instruction     |
 +-------------------------------------------------------------------+
                                   |
 +===================================================================+
-| 7. DOM STRUCTURAL BASELINE HASH VERIFIER                          |
+| 6. DOM STRUCTURAL BASELINE HASH VERIFIER                          |
 |    Detects dynamic structural DOM drift and unexpected forms      |
 +-------------------------------------------------------------------+
                                   |
 +===================================================================+
-| 8. COMPUTED-STYLE HIDDEN CONTENT SCANNER                          |
+| 7. COMPUTED-STYLE HIDDEN CONTENT SCANNER                          |
 |    Detects invisible prompt injection text (Playwright scanner)   |
 +-------------------------------------------------------------------+
                                   |
 +===================================================================+
-| 9. MULTI-STEP TRAJECTORY CHAIN TRACKER                            |
+| 8. MULTI-STEP TRAJECTORY CHAIN TRACKER                            |
 |    Stateful tracker identifying staged attack patterns (6 chains)  |
 +-------------------------------------------------------------------+
                                   |
 +===================================================================+
-| 10. SELECTIVE GREY-ZONE LLM CONSISTENCY REVIEWER                  |
-|     Invoked ONLY when Risk Score is in [30, 59] grey zone         |
+| 9. SELECTIVE GREY-ZONE LLM CONSISTENCY REVIEWER                   |
+|    Invoked ONLY when Risk Score is in [30, 59] grey zone          |
++-------------------------------------------------------------------+
+                                  |
++===================================================================+
+| 10. DETERMINISTIC FINAL POLICY FLOOR (HARD-RULE INTERCEPT)        |
+|     Enforces fee_floor(), budget caps in _enforce(); cannot be    |
+|     diluted or downgraded by statistical or LLM scores            |
 +-------------------------------------------------------------------+
                                   |
 +===================================================================+
@@ -151,13 +152,14 @@ ContextGuard is architected as an 11-layer pipeline within [`contextguard/gate.p
 1. **Intent Anchor & Schema Enforcement**: Ingests user input via `parse_task()` and locks it into an immutable `TrustedIntent` dataclass.
 2. **Action Sensitivity**: Maps the target DOM element and action type to an empirical impact score $S_{\text{sensitivity}} \in [0.0, 1.0]$.
 3. **Entity Consistency (Negation-Aware)**: Reconciles airport codes, city aliases (e.g., "Madras" $\to$ "MAA" $\to$ "Chennai"), and validates that input values match intended slot assignments.
-4. **Deterministic Hard-Rule Policy Floor (`fee_floor`, `budget_ceiling`)**: If an action attempts to commit an unapproved fee, change flight class, or exceed budget, the floor immediately raises the decision to `REQUIRE_CONFIRMATION` or `BLOCK`, regardless of whether the statistical layers generated a low score.
-5. **Attack Taxonomy Engine**: Regex scanning against the 49 pattern catalog.
-6. **Lexical Deviation**: Calibrates token deviation using a baseline distribution derived from the C4 corpus.
-7. **DOM Baseline Hash Verifier**: Maintains SHA-256 structural hashes of baseline site templates to catch rogue injected iframes or form fields.
-8. **Computed-Style Scanner**: Headless Playwright script that inspects CSS properties (`getComputedStyle`) to detect text rendered invisible to the user but ingested by the agent.
-9. **Multi-Step Chain Tracker**: A state machine that models multi-action transitions (e.g., `SEARCH_MUTATION` followed by `PREMATURE_PAYMENT`).
-10. **Selective Grey-Zone LLM Checker**: An LLM reviewer triggered *only* when the deterministic score falls into the ambiguous grey zone (30–59), ensuring high throughput for obvious safe/harmful actions.
+4. **Attack Taxonomy Engine**: Regex scanning against the 49 pattern catalog across 7 categories.
+5. **Lexical Deviation**: Calibrates token deviation using a baseline distribution derived from the C4 corpus.
+6. **DOM Baseline Hash Verifier**: Maintains SHA-256 structural hashes of baseline site templates to catch rogue injected iframes or form fields.
+7. **Computed-Style Scanner**: Headless Playwright script that inspects CSS properties (`getComputedStyle`) to detect text rendered invisible to the user but ingested by the agent.
+8. **Multi-Step Chain Tracker**: A state machine that models multi-action transitions (e.g., `SEARCH_MUTATION` followed by `PREMATURE_PAYMENT`).
+9. **Selective Grey-Zone LLM Checker**: An LLM reviewer triggered *only* when the deterministic score falls into the ambiguous grey zone (30–59), ensuring high throughput for obvious safe/harmful actions.
+10. **Deterministic Final Policy Floor (`fee_floor()`, `budget_ceiling`)**: Sits inside `_enforce()` at Step 9, running *after* statistical risk assessment and LLM review to guarantee strict raise-only discipline: if an action attempts an unapproved fee delta or unauthorized commit, the floor unconditionally forces `REQUIRE_CONFIRMATION` or `BLOCK`, which cannot be downgraded by statistical scores.
+11. **Tamper-Evident Audit Logging**: Every evaluation is persisted to SQLite with backward-linked SHA-256 hashes (`row_hash = SHA256(prev_hash + payload)`) and HMAC signatures enforcing $\ge 16$-character secret keys.
 11. **Tamper-Evident Audit Logging**: Every evaluation is persisted to SQLite with backward-linked SHA-256 hashes (`row_hash = SHA256(prev_hash + payload)`) and HMAC signatures enforcing $\ge 16$-character secret keys.
 
 ### 3.2 Dual-Gate Reconciliation & Codebase Unification
@@ -212,18 +214,20 @@ The 0% false positive rate across all 68 benign scenarios is an **architectural 
 ## 5. Empirical Evaluation & Experimental Results
 
 ### 5.1 Datasets & Experimental Setup
-1. **Developer Benchmark Suite (Dev)**: 66 curated scenarios (34 adversarial attacks spanning all 7 categories; 32 benign navigation items).
+1. **Developer Benchmark Suite (Dev)**: 66 curated scenarios (34 adversarial attacks spanning all 7 categories; 32 benign navigation items) defined in [`eval_data/attacks.yaml`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/eval_data/attacks.yaml) and [`eval_data/benign.yaml`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/eval_data/benign.yaml).
 2. **Frozen Independent Holdout Suite (Holdout)**: 72 previously unseen scenarios (36 adversarial, 36 benign) located in [`eval_data/test_v1/`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/eval_data/test_v1).
-3. **Second Application Domain**: E-Commerce shopping and checkout validation suite ([`eval_data/ecommerce_actions.yaml`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/eval_data/ecommerce_actions.yaml)).
+3. **Multi-Step Workflows (Schema v2)**: 19 multi-step sequences in [`eval_data/sequences_dev.yaml`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/eval_data/sequences_dev.yaml) (9 attacks, 10 benign non-linear lifecycles).
+4. **Live Playwright Testbed**: 18 dynamic browser testbed scenarios (`TC-01`..`TC-08` and held-out variants `TC-01H`..`TC-10H`) including commercial dark-pattern urgency banners.
+5. **Second Application Domain**: E-Commerce shopping and checkout validation suite ([`eval_data/second_domain/`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/eval_data/second_domain)).
 
-All experiments were executed using Python 3.12, Pytest 8.2, and Playwright under Windows. Confidence intervals are reported using two-sided 95% Wilson Score intervals. Statistical significance is assessed via exact two-sided McNemar paired tests against predecessor configurations.
+> **Holdout Dataset Integrity Statement**: The 72-item Holdout Suite (`eval_data/test_v1/`) was strictly frozen prior to evaluation. No regex taxonomy patterns, risk weights, or policy decision thresholds were tuned or modified after viewing holdout results, ensuring genuine out-of-sample generalization.
 
 ### 5.2 Comparative Baselines vs. ContextGuard Configurations
 We benchmark ContextGuard against 4 alternative defense paradigms:
 * **Baseline 0 (Unprotected)**: Autonomous agent executing directly without safety validation.
 * **Baseline 1 (Keyword Filter)**: Traditional regex-based injection filter searching for known prompt attack keywords.
 * **Baseline 2 (Naive Field Rule)**: Simple slot-matching rules without semantic tolerance or negation awareness.
-* **Baseline 3 (LLM-Judge-Only)**: Zero-shot prompt evaluation using a secondary LLM judge.
+* **Baseline 3 (Zero-Shot Prompt Classifier - Offline Emulation)**: Prompt-based classification heuristic emulating zero-shot LLM evaluation without network roundtrips.
 * **Configs A–H**: Incremental ContextGuard architectural ablations up to the full gate with compliance logging (Config D) and LLM checker (Config H).
 
 #### Comprehensive Experimental Benchmark Table
@@ -233,27 +237,42 @@ We benchmark ContextGuard against 4 alternative defense paradigms:
 | **Baseline 0: Unprotected** | 0.0% [0.0%, 10.2%] | 0.0% [0.0%, 10.7%] | 0.0% [0.0%, 9.6%] | 0.0% [0.0%, 9.6%] | 0/70 = 0.0% [0.0%, 5.2%] | 0.00 ms | 0/138 (0.0%) | 0 ms (N/A) | N/A |
 | **Baseline 1: Keyword Filter** | 17.6% [8.3%, 33.5%] | 0.0% [0.0%, 10.7%] | 5.6% [1.5%, 18.1%] | 0.0% [0.0%, 9.6%] | 8/70 = 11.4% [5.9%, 21.0%] | 0.01 ms | 0/138 (0.0%) | 0 ms (N/A) | 0.0078 |
 | **Baseline 2: Naive Field Rule** | 41.2% [26.4%, 57.8%] | 6.2% [1.7%, 20.1%] | 25.0% [13.8%, 41.1%] | 0.0% [0.0%, 9.6%] | 23/70 = 32.9% [23.0%, 44.5%] | 0.00 ms | 0/138 (0.0%) | 0 ms (N/A) | 0.0003 |
-| **Baseline 3: LLM-Judge-Only** | 52.9% [36.7%, 68.5%] | 9.4% [3.2%, 24.2%] | 33.3% [20.2%, 49.7%] | 2.8% [0.5%, 14.2%] | 30/70 = 42.9% [31.9%, 54.5%] | 0.00 ms | 0/138 (0.0%) | 0 ms (N/A) | 0.0156 |
-| **Config A (Field Rails)** | 64.7% [47.9%, 78.5%] | 0.0% [0.0%, 10.7%] | 69.4% [53.1%, 82.0%] | 0.0% [0.0%, 9.6%] | 47/70 = 67.1% [55.5%, 77.0%] | 0.10 ms | 0/138 (0.0%) | 0 ms (N/A) | 0.0001 |
-| **Config B (+ Taxonomy)** | 79.4% [63.2%, 89.7%] | 0.0% [0.0%, 10.7%] | 75.0% [58.9%, 86.2%] | 0.0% [0.0%, 9.6%] | 54/70 = 77.1% [66.0%, 85.4%] | 0.12 ms | 0/138 (0.0%) | 0 ms (N/A) | 0.0156 |
-| **Config C (+ Lexical C4)** | 82.4% [66.5%, 91.7%] | 0.0% [0.0%, 10.7%] | 88.9% [74.7%, 95.6%] | 0.0% [0.0%, 9.6%] | 60/70 = 85.7% [75.7%, 92.1%] | 0.15 ms | 0/138 (0.0%) | 0 ms (N/A) | 0.0312 |
-| **Config D (Full Gate)** | 82.4% [66.5%, 91.7%] | 0.0% [0.0%, 10.7%] | 91.7% [78.2%, 97.1%] | 0.0% [0.0%, 9.6%] | 61/70 = 87.1% [77.3%, 93.1%] | 73.00 ms | 0/138 (0.0%) | 0 ms (N/A) | 1.0000 |
-| **Config H (+ LLM Checker)** | 82.4% [66.5%, 91.7%] | 0.0% [0.0%, 10.7%] | 91.7% [78.2%, 97.1%] | 0.0% [0.0%, 9.6%] | 61/70 = 87.1% [77.3%, 93.1%] | 70.99 ms | **27/138 (19.6%)** | **0.001 ms / 0.001 ms** *(Offline)*<br>**0.30 ms / 16.9 ms** *(Mock)*<br>**740 ms / 1450 ms** *(Ollama 8B)* | 1.0000 |
+| **Baseline 3: Prompt Classifier** | 52.9% [36.7%, 68.5%] | 9.4% [3.2%, 24.2%] | 33.3% [20.2%, 49.7%] | 2.8% [0.5%, 14.2%] | 30/70 = 42.9% [31.9%, 54.5%] | 0.00 ms | 0/138 (0.0%) | 0 ms (N/A) | 0.0156 |
+| **Config A (Field Rails)** | 85.3% [69.9%, 93.6%] | 0.0% [0.0%, 10.7%] | 69.4% [53.1%, 82.0%] | 0.0% [0.0%, 9.6%] | 54/70 = 77.1% [66.0%, 85.4%] | 0.08 ms | 0/138 (0.0%) | 0 ms (N/A) | 0.0000 |
+| **Config B (+ Taxonomy)** | 100.0% [89.8%, 100.0%] | 0.0% [0.0%, 10.7%] | 75.0% [58.9%, 86.2%] | 0.0% [0.0%, 9.6%] | 61/70 = 87.1% [77.3%, 93.1%] | 0.09 ms | 0/138 (0.0%) | 0 ms (N/A) | 0.0156 |
+| **Config C (+ Lexical C4)** | 100.0% [89.8%, 100.0%] | 0.0% [0.0%, 10.7%] | 88.9% [74.7%, 95.6%] | 0.0% [0.0%, 9.6%] | 66/70 = 94.3% [86.2%, 97.8%] | 0.12 ms | 0/138 (0.0%) | 0 ms (N/A) | 0.0625 |
+| **Config D (Full Gate)** | 100.0% [89.8%, 100.0%] | 0.0% [0.0%, 10.7%] | 91.7% [78.2%, 97.1%] | 0.0% [0.0%, 9.6%] | 67/70 = 95.7% [88.1%, 98.5%] | 87.85 ms | 0/138 (0.0%) | 0 ms (N/A) | 1.0000 |
+| **Config H (+ LLM Checker)** | 100.0% [89.8%, 100.0%] | 0.0% [0.0%, 10.7%] | 91.7% [78.2%, 97.1%] | 0.0% [0.0%, 9.6%] | 67/70 = 95.7% [88.1%, 98.5%] | 79.59 ms | **33/138 (23.9%)** | **0.001 ms** *(Offline)* | 1.0000 |
 
-### 5.3 Key Empirical Findings
+*Note on Headline Alignment*: On the Dev set, Config A intercepts 29/34 (85.3%), Config B intercepts 34/34 (100.0%), and Config D intercepts 34/34 (100.0% with the Phase 0.5 fee floor; 33/34 in earlier pre-floor runs where `ATK_08` required review). Across the pooled benchmark (Dev + Holdout), Config D intercepts 67/70 attacks (95.71%).
+
+### 5.3 Multi-Step Workflows & Live Browser Testbed Results
+
+#### Multi-Step Sequence Benchmark (Schema v2)
+Evaluated via [`scripts/run_sequence_eval.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/scripts/run_sequence_eval.py) across 19 multi-step trajectories (`eval_data/sequences_dev.yaml`):
+* **Config D (Stateless Full Gate)**: Intercepts **8/9 attacks (88.9% [56.5%, 98.0%])**.
+* **Config E (Stateful Attack Chain Detector)**: Intercepts **9/9 attacks (100.0% [70.1%, 100.0%])**, uniquely trapping evasive multi-step sequence `SEQ_ATK_01` (premature commit skipping the review stage) at Step 2.
+* **Non-Linear Benign Flows**: 10/10 non-linear benign workflows (back/forward navigation, review-edit cycles, refresh, search filter updates) completed with **0 false stops (0/10 = 0.0% [0.0%, 27.8%])**.
+
+#### Live Playwright Testbed Benchmark
+Evaluated via [`scripts/run_testbed_ablation.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/scripts/run_testbed_ablation.py) across 18 live scenarios (`TC-01`..`TC-08` and held-out variants `TC-01H`..`TC-10H`):
+* **Attack Coverage**: Config D intercepts **12/14 attacks (85.7%)**. Row F (DOM Baseline Hashing) intercepts **14/14 attacks (100.0%)**.
+* **Operational False Positives on Marketing Urgency Banners**: On clean baseline booking pages (`TC-01`, `TC-01H`), false positive rate is 0/2 (0.0%). On commercial pages containing aggressive urgency marketing banners (`TC-09H`, `TC-10H`: *"Hurry! Only 2 seats left! Prices jumping!"*), ContextGuard's taxonomy and DOM scanner trigger **2/4 benign interceptions**. This empirical finding highlights an authentic security-usability trade-off: aggressive commercial dark patterns resemble adversarial urgency injection and require operator confirmation.
+
+### 5.4 Key Empirical Insights
 
 #### 1. Detective Superiority over Alternative Paradigms
-ContextGuard Config D achieves **87.14% attack recall**, outperforming Keyword Filters (11.4%, $p=0.0078$), Naive Field Rules (32.9%, $p=0.0003$), and LLM-Judge-Only (42.9%, $p=0.0156$) with high statistical significance.
+ContextGuard Config D achieves **95.71% attack recall**, outperforming Keyword Filters (11.4%, $p=0.0078$), Naive Field Rules (32.9%, $p=0.0003$), and Zero-Shot Classification (42.9%, $p=0.0156$) with high statistical significance.
 
 #### 2. Disentangling the Config C vs Config D Latency Trade-Off
-A naive observation might question why Config D exhibits 73.0 ms latency compared to Config C's 0.15 ms for a modest 1-item gain (60/70 vs 61/70, McNemar $p=1.0000$).
+Config D exhibits 87.85 ms latency compared to Config C's 0.12 ms for a 1-item gain (66/70 vs 67/70, McNemar $p=1.0000$).
 * **Statistical Interrogation**: The 1-item difference is not statistically significant.
-* **Architectural Justification**: Config D’s latency is **operational and forensic**, not algorithmic. It accounts for SQLite ACID transaction commits, SHA-256 backward hash-chaining across table rows, and HMAC signature computation for legal auditability. In memory-constrained or real-time gaming environments, Config C provides 85.7% recall in 0.15 ms.
+* **Architectural Justification**: Config D’s latency is **operational and forensic**, not algorithmic. It accounts for SQLite ACID transaction commits, SHA-256 backward hash-chaining across table rows, and HMAC signature computation for legal auditability. In memory-constrained or real-time gaming environments, Config C provides 94.3% recall in 0.12 ms.
 
 #### 3. LLM Checker Latency & Selective Grey-Zone Bypass
-In Config H, the LLM semantic checker is triggered **only for the 27 actions (19.6%) that fall in the 30–59 score band**.
-* **80.4% of actions completely bypass LLM inference**, incurring 0 ms latency overhead.
-* When active LLM review is invoked, per-invocation latency is cleanly separated from the base deterministic gate.
+In Config H, the LLM semantic checker is triggered **only for actions in the 30–59 score band (33/138 = 23.9%)**.
+* **76.1% of actions completely bypass LLM inference**, incurring 0 ms latency overhead.
+* Offline fallback evaluates deterministically in 0.001 ms, ensuring fail-closed robustness without ungrounded latency estimates.
 
 ---
 
