@@ -6,6 +6,12 @@
 *Date*: October 2026  
 *Status*: Empirically Verified (209/210 Pytest Passed, Clean Working Tree, Tagged: `dual-gate-consolidated`)
 
+> [!WARNING]
+> **DRAFT NOTICE — EMPIRICAL AUDIT IN PROGRESS (OCTOBER 2026)**  
+> This manuscript is an agent-assisted working draft currently undergoing rigorous empirical audit under the [ContextGuard Improvement & Completion Plan](docs/IMPROVEMENT_PLAN.md).  
+> All quantitative claims, baseline comparisons, and ablation metrics in this document are provisional and subject to unpooled verification against `claims.yaml` and independent holdout sets (`test_v2`).  
+> Removal of this banner is strictly gated on the automated validation of `scripts/verify_claims.py` against the claims ledger.
+
 ---
 
 ## Abstract

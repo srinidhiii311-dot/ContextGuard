@@ -1,0 +1,51 @@
+# ContextGuard Claims Ledger (Section 7)
+# Every quantitative claim reported in README.md, REPORT.md, or paper drafts must map to a verified CSV source cell.
+
+claims:
+  - id: dev_interception_config_a
+    text: "85.3%"
+    target_value: 85.29
+    unit: "%"
+    source:
+      file: eval_results/baselines_vs_configs_summary.csv
+      where:
+        cfg: "A"
+      column: "dev_atk_pct"
+    tolerance: 0.1
+    notes: "Dev field checks only"
+
+  - id: dev_interception_config_b
+    text: "100.0%"
+    target_value: 100.00
+    unit: "%"
+    source:
+      file: eval_results/baselines_vs_configs_summary.csv
+      where:
+        cfg: "B"
+      column: "dev_atk_pct"
+    tolerance: 0.1
+    notes: "Dev taxonomy addition"
+
+  - id: dev_interception_config_d
+    text: "100.0%"
+    target_value: 100.00
+    unit: "%"
+    source:
+      file: eval_results/baselines_vs_configs_summary.csv
+      where:
+        cfg: "D"
+      column: "dev_atk_pct"
+    tolerance: 0.1
+    notes: "Dev full gate with fee floor"
+
+  - id: holdout_interception_config_d
+    text: "91.7%"
+    target_value: 91.67
+    unit: "%"
+    source:
+      file: eval_results/baselines_vs_configs_summary.csv
+      where:
+        cfg: "D"
+      column: "hld_atk_pct"
+    tolerance: 0.1
+    notes: "Holdout v1 full gate recall"
