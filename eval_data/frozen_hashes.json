@@ -1,0 +1,13 @@
+{
+  "description": "Cryptographic SHA-256 baseline hashes for all frozen and holdout datasets. Any modification to these files indicates benchmark contamination and fails CI.",
+  "algorithm": "SHA-256",
+  "frozen_at": "2026-10-27T00:00:00Z",
+  "files": {
+    "eval_data/test_v1/attacks.yaml": "eb396c6ec5f6e857ac456d0fa64e7eafb1d4d1243cae304d2e477f065e7898e8",
+    "eval_data/test_v1/benign.yaml": "b62a573106077c508a905b8d8061f2a535da4307db6ec54ff15f3b7371c98622",
+    "eval_data/holdout_attacks.yaml": "eb396c6ec5f6e857ac456d0fa64e7eafb1d4d1243cae304d2e477f065e7898e8",
+    "eval_data/holdout_benign.yaml": "b62a573106077c508a905b8d8061f2a535da4307db6ec54ff15f3b7371c98622",
+    "eval_data/second_domain/attacks.yaml": "4805919b97485bfbebefc2a976e56f5fafded6d81ab8c85b2b99b2191bd60d89",
+    "eval_data/second_domain/benign.yaml": "fcba6c4cc5c056722657d43641c4f6e793467b9c3285e2b3b8591d5e4422bdd2"
+  }
+}

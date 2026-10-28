@@ -38,6 +38,11 @@ def task_test() -> int:
     return run_cmd([sys.executable, "-m", "pytest", "-m", "not llm", "-q"])
 
 
+def task_record_test() -> int:
+    """Run test suite and record output anchored to git commit hash and tag."""
+    return run_cmd([sys.executable, str(ROOT / "scripts" / "record_test_run.py")])
+
+
 def task_test_all() -> int:
     """Run entire test suite including live Ollama tests."""
     return run_cmd([sys.executable, "-m", "pytest", "-v"])
@@ -80,9 +85,24 @@ def task_verify() -> int:
     return run_cmd([sys.executable, str(ROOT / "scripts" / "verify_claims.py")])
 
 
+def task_reproduce() -> int:
+    """Run baseline evaluations, sequences, and verify claims ledger in one command."""
+    print("--- Reproducing Evaluation Benchmarks ---")
+    c1 = run_cmd([sys.executable, str(ROOT / "scripts" / "evaluate_baselines.py")])
+    if c1 != 0:
+        return c1
+    c2 = run_cmd([sys.executable, str(ROOT / "scripts" / "run_sequence_eval.py")])
+    if c2 != 0:
+        return c2
+    return run_cmd([sys.executable, str(ROOT / "scripts" / "verify_claims.py")])
+
+
 def task_release() -> int:
     """Build clean release archive in dist/."""
-    return run_cmd([sys.executable, str(ROOT / "scripts" / "create_zip.py")])
+    c1 = run_cmd([sys.executable, str(ROOT / "scripts" / "create_zip.py")])
+    if c1 != 0:
+        return c1
+    return run_cmd([sys.executable, str(ROOT / "scripts" / "create_eval_bundle.py")])
 
 
 def task_clean() -> int:
@@ -104,9 +124,11 @@ def task_clean() -> int:
 
 TASKS = {
     "test": task_test,
+    "record-test": task_record_test,
     "test-all": task_test_all,
     "lint": task_lint,
     "verify": task_verify,
+    "reproduce": task_reproduce,
     "release": task_release,
     "clean": task_clean,
 }

@@ -4,6 +4,21 @@ This document records the origin, authorship, creation date, generative tools, a
 
 ---
 
+## Cryptographic Baseline Hashes (Tamper-Proof Ledger — Gap 5)
+
+Any change to these frozen datasets will cause CI to fail immediately via [`tests/test_frozen_datasets_integrity.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/tests/test_frozen_datasets_integrity.py):
+
+| Dataset Path | Role / Status | SHA-256 Digest |
+|---|:---:|---|
+| `eval_data/test_v1/attacks.yaml` | Holdout v1 (Burned) | `eb396c6ec5f6e857ac456d0fa64e7eafb1d4d1243cae304d2e477f065e7898e8` |
+| `eval_data/test_v1/benign.yaml` | Holdout v1 (Burned) | `b62a573106077c508a905b8d8061f2a535da4307db6ec54ff15f3b7371c98622` |
+| `eval_data/holdout_attacks.yaml` | Holdout v1 (Burned) | `eb396c6ec5f6e857ac456d0fa64e7eafb1d4d1243cae304d2e477f065e7898e8` |
+| `eval_data/holdout_benign.yaml` | Holdout v1 (Burned) | `b62a573106077c508a905b8d8061f2a535da4307db6ec54ff15f3b7371c98622` |
+| `eval_data/second_domain/attacks.yaml` | E-Commerce Adaptation | `4805919b97485bfbebefc2a976e56f5fafded6d81ab8c85b2b99b2191bd60d89` |
+| `eval_data/second_domain/benign.yaml` | E-Commerce Adaptation | `fcba6c4cc5c056722657d43641c4f6e793467b9c3285e2b3b8591d5e4422bdd2` |
+
+---
+
 ## 1. Developer Suite: `eval_data/attacks.yaml` & `eval_data/benign.yaml`
 
 - **Domain**: Flight Reservation & Airline Booking.
