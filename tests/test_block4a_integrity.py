@@ -84,6 +84,7 @@ def test_audit_log_tamper_delete_and_reorder_detection(tmp_path):
             "decision": "ALLOW",
             "reason": "OK",
         })
+    logger.flush()
 
     # 1. Deletion test: delete line at index 3
     with open(log_file, "r", encoding="utf-8") as f:
@@ -104,6 +105,7 @@ def test_audit_log_tamper_delete_and_reorder_detection(tmp_path):
     logger_ro = JsonlAuditLog(log_reorder)
     for i in range(6):
         logger_ro.append({"task_id": f"t_{i}", "step_number": i, "action": {"type": "CLICK", "target": f"#t_{i}"}, "decision": "ALLOW", "reason": "OK"})
+    logger_ro.flush()
 
     with open(log_reorder, "r", encoding="utf-8") as f:
         ro_entries = [json.loads(l) for l in f if l.strip()]
@@ -271,6 +273,10 @@ def test_50_session_race_condition_and_exact_audit_completeness(tmp_path):
             mismatches.append(f"{cid}: expected {exp_dec}, got {actual_dec}")
     assert not mismatches, f"Concurrency decisions diverged: {mismatches}"
 
+    # Flush group commit buffer before inspecting file
+    from contextguard.audit_log import flush_all_audit_loggers
+    flush_all_audit_loggers()
+
     # Assert 2: Exactly one audit entry per check() call
     with open(race_audit, "r", encoding="utf-8") as f:
         audit_lines = [l for l in f if l.strip()]
@@ -316,6 +322,7 @@ def test_audit_log_forged_anchor_hmac_rejected(tmp_path):
     logger = JsonlAuditLog(log_file)
     for i in range(5):
         logger.append({"task_id": f"t_{i}", "action": {"type": "CLICK"}, "decision": "ALLOW", "reason": "OK"})
+    logger.flush()
 
     anchor_file = tmp_path / "audit_forged_anchor.jsonl"
     assert anchor_file.exists()

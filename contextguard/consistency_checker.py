@@ -569,17 +569,137 @@ class ContextConsistencyVerifier:
         )
 
     def _is_trusted_navigation(self, url: str) -> bool:
-        if not url:
-            return True
+        """
+        Determines whether a navigation destination URL is within the trusted boundary.
+        Enforces:
+        1. Scheme must be http or https (case-insensitive).
+        2. Normalized hostname (no userinfo '@', percent-decoded, IDNA/homoglyph decoded, trailing dots stripped)
+           must exactly match an allowlist entry.
+        3. Port must match the allowlist entry (or default 80/443).
+        4. Open-redirect parameters must also point to trusted destinations.
+        """
+        if not url or not isinstance(url, str):
+            return False
+        raw_url = url.strip()
+        if not raw_url:
+            return False
+
+        from urllib.parse import parse_qs, unquote, urlparse
+
+        # 1. Reject protocol-relative '//host' or scheme-less URLs
+        if raw_url.startswith("//"):
+            return False
+
         try:
-            parsed = urlparse(url)
-            if not parsed.netloc:
-                # Relative path on same origin
-                return True
-            target_host = parsed.netloc.lower().split(":")[0]
-            return any(target_host == h.lower().split(":")[0] for h in self.trusted_hosts)
+            parsed = urlparse(raw_url)
         except Exception:
             return False
+
+        # Scheme must be explicitly http or https
+        scheme = (parsed.scheme or "").lower().strip()
+        if scheme not in ("http", "https"):
+            return False
+
+        # 2. Extract and normalize hostname without userinfo
+        # parsed.hostname in urllib.parse strips username:password@
+        raw_hostname = parsed.hostname
+        if not raw_hostname:
+            return False
+
+        # Percent-decode hostname
+        try:
+            unquoted_host = unquote(raw_hostname).lower().strip()
+        except Exception:
+            return False
+
+        # If userinfo delimiter '@' remains after unquoting (e.g. %40 trick), reject
+        if "@" in unquoted_host:
+            return False
+
+        # Strip trailing dot for FQDN normalization
+        norm_host = unquoted_host.rstrip(".")
+
+        # Homoglyphs and Punycode normalization:
+        try:
+            ascii_host = norm_host.encode("idna").decode("ascii")
+        except Exception:
+            return False
+
+        # Effective port (default 80 for http, 443 for https)
+        try:
+            url_port = parsed.port
+        except ValueError:
+            # e.g. invalid port like 8000.
+            return False
+
+        effective_port = url_port if url_port is not None else (443 if scheme == "https" else 80)
+
+        # 3. Match normalized hostname and port against allowlist entries in self.trusted_hosts
+        matched = False
+        for entry in self.trusted_hosts:
+            if not entry:
+                continue
+            e_str = str(entry).strip().lower()
+            if "://" in e_str:
+                try:
+                    ep = urlparse(e_str)
+                    e_host = (ep.hostname or "").rstrip(".")
+                    e_port = ep.port if ep.port is not None else (443 if ep.scheme == "https" else 80)
+                except Exception:
+                    continue
+            elif ":" in e_str:
+                parts = e_str.split(":", 1)
+                e_host = parts[0].strip().rstrip(".")
+                try:
+                    e_port = int(parts[1])
+                except ValueError:
+                    e_port = None
+            else:
+                e_host = e_str.rstrip(".")
+                e_port = None
+
+            # Check hostname match: exact match on ascii_host or norm_host
+            host_matches = (ascii_host == e_host) or (norm_host == e_host)
+            if not host_matches:
+                continue
+
+            # Check port match:
+            if e_port is not None:
+                if effective_port == e_port:
+                    matched = True
+                    break
+            else:
+                # If allowlist entry did not specify a port, matches if URL uses default port or matches bare host
+                if url_port is None or effective_port in (80, 443):
+                    matched = True
+                    break
+
+        if not matched:
+            return False
+
+        # 4. Check for open-redirect query parameters (e.g. ?url=http://evil.com)
+        if parsed.query:
+            try:
+                qs = parse_qs(parsed.query, keep_blank_values=False)
+                redirect_param_keys = {
+                    "url", "redirect", "redirect_to", "redirect_url", "next",
+                    "dest", "destination", "target", "out", "return", "return_to",
+                    "link", "r", "goto", "forward"
+                }
+                for k, vals in qs.items():
+                    if k.lower() in redirect_param_keys:
+                        for v in vals:
+                            v_clean = unquote(v).strip()
+                            # If parameter value looks like an external or dangerous target
+                            if "://" in v_clean or v_clean.startswith("//") or any(
+                                v_clean.lower().startswith(s) for s in ("http:", "https:", "javascript:", "data:")
+                            ):
+                                if not self._is_trusted_navigation(v_clean):
+                                    return False
+            except Exception:
+                pass
+
+        return True
 
 
 def fee_floor(

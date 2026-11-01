@@ -580,8 +580,9 @@ class ContextGuardGate:
         action: ProposedAction,
         result: GateResult,
         session: Optional[SessionState] = None,
+        db_callback: Optional[Callable[[], None]] = None,
     ) -> Dict[str, Any]:
-        """Writes every gate decision to the append-only JSONL audit log."""
+        """Writes every gate decision to the append-only JSONL audit log via background group commit."""
         tid = session.task_id if session else self.task_id
         step = session.step if session else self._step
 
@@ -608,7 +609,7 @@ class ContextGuardGate:
             "risk_tier": tier_str,
         }
         logger = get_audit_logger(self.audit_log_path)
-        appended = logger.append(entry)
+        appended = logger.append(entry, db_callback=db_callback)
         if getattr(result, "audit_record", None) is None:
             result.audit_record = appended
         return appended
@@ -1188,90 +1189,91 @@ class ContextGuardGate:
         self.audit_log.append(record)
         result.audit_record = record
 
-        # Block 4a: Append to JSONL audit log
-        appended = self._log_decision_to_audit(action, result, session=session)
+        # Block 6c: Background group commit for database & JSONL audit persistence
+        def db_persist():
+            try:
+                from backend.database.db import (
+                    insert_audit_record,
+                    insert_verification_result,
+                    insert_threat_detection,
+                    insert_risk_assessment,
+                    insert_policy_decision,
+                )
+                v_id = str(uuid.uuid4())
+                t_id = str(uuid.uuid4())
+                r_id = str(uuid.uuid4())
+                p_id = str(uuid.uuid4())
+                insert_verification_result(
+                    verification_id=v_id,
+                    task_id=self.task_id,
+                    step_number=result.step_number,
+                    is_consistent=consistency.is_consistent,
+                    consistency_score=1.0 - consistency.inconsistency_severity,
+                    inconsistency_severity=consistency.inconsistency_severity,
+                    inconsistencies=record["consistency"]["inconsistencies"],
+                    marker_presence=consistency.marker_presence,
+                    marker_hit=consistency.marker_hit,
+                )
+                insert_threat_detection(
+                    detection_id=t_id,
+                    task_id=self.task_id,
+                    step_number=result.step_number,
+                    is_threat=threat.is_threat,
+                    is_known_path=threat.is_known_path,
+                    attack_type=threat.attack_type,
+                    confidence=threat.confidence,
+                    characterization_label=threat.characterization_label,
+                    deviation_signal=threat.deviation_signal,
+                    normalized_deviation=threat.normalized_deviation,
+                )
+                insert_risk_assessment(
+                    assessment_id=r_id,
+                    task_id=self.task_id,
+                    step_number=result.step_number,
+                    risk_score=risk.risk_score,
+                    risk_tier=risk.risk_tier.value,
+                    threat_signal_contrib=risk.factors.threat_signal_contribution,
+                    inconsistency_contrib=risk.factors.inconsistency_contribution,
+                    action_sensitivity_contrib=risk.factors.action_sensitivity_contribution,
+                    marker_contrib=risk.factors.marker_contribution,
+                    action_sensitivity=risk.action_sensitivity,
+                    booking_critical=risk.booking_critical,
+                )
+                insert_policy_decision(
+                    decision_id=p_id,
+                    task_id=self.task_id,
+                    step_number=result.step_number,
+                    decision=policy.decision.value,
+                    reason=policy.reason,
+                    escalated_from_prior_flags=policy.escalated_from_prior_flags,
+                    requires_human_confirmation=policy.requires_human_confirmation,
+                )
+                insert_audit_record(
+                    audit_id=result.audit_id,
+                    task_id=self.task_id,
+                    step_number=result.step_number,
+                    action_type=action.action_type,
+                    action_target=action.target,
+                    action_value=action.value,
+                    page_url=action.page_url,
+                    snapshot_id="",
+                    verification_id=v_id,
+                    detection_id=t_id,
+                    assessment_id=r_id,
+                    decision_id=p_id,
+                    decision=result.decision.value,
+                    enforced_outcome=result.decision.value,
+                    full_chain_json=json.dumps(record),
+                )
+            except Exception:
+                pass
+
+        # Block 4a / 6c: Append to JSONL audit log with group commit
+        appended = self._log_decision_to_audit(action, result, session=session, db_callback=db_persist)
         record["prev_hash"] = appended.get("prev_hash")
         record["entry_hash"] = appended.get("entry_hash")
         record["index"] = appended.get("index")
         result.audit_record = record
-
-        # Persist to database (FR21, FR23, NFR5)
-        try:
-            from backend.database.db import (
-                insert_audit_record,
-                insert_verification_result,
-                insert_threat_detection,
-                insert_risk_assessment,
-                insert_policy_decision,
-            )
-            v_id = str(uuid.uuid4())
-            t_id = str(uuid.uuid4())
-            r_id = str(uuid.uuid4())
-            p_id = str(uuid.uuid4())
-            insert_verification_result(
-                verification_id=v_id,
-                task_id=self.task_id,
-                step_number=result.step_number,
-                is_consistent=consistency.is_consistent,
-                consistency_score=1.0 - consistency.inconsistency_severity,
-                inconsistency_severity=consistency.inconsistency_severity,
-                inconsistencies=record["consistency"]["inconsistencies"],
-                marker_presence=consistency.marker_presence,
-                marker_hit=consistency.marker_hit,
-            )
-            insert_threat_detection(
-                detection_id=t_id,
-                task_id=self.task_id,
-                step_number=result.step_number,
-                is_threat=threat.is_threat,
-                is_known_path=threat.is_known_path,
-                attack_type=threat.attack_type,
-                confidence=threat.confidence,
-                characterization_label=threat.characterization_label,
-                deviation_signal=threat.deviation_signal,
-                normalized_deviation=threat.normalized_deviation,
-            )
-            insert_risk_assessment(
-                assessment_id=r_id,
-                task_id=self.task_id,
-                step_number=result.step_number,
-                risk_score=risk.risk_score,
-                risk_tier=risk.risk_tier.value,
-                threat_signal_contrib=risk.factors.threat_signal_contribution,
-                inconsistency_contrib=risk.factors.inconsistency_contribution,
-                action_sensitivity_contrib=risk.factors.action_sensitivity_contribution,
-                marker_contrib=risk.factors.marker_contribution,
-                action_sensitivity=risk.action_sensitivity,
-                booking_critical=risk.booking_critical,
-            )
-            insert_policy_decision(
-                decision_id=p_id,
-                task_id=self.task_id,
-                step_number=result.step_number,
-                decision=policy.decision.value,
-                reason=policy.reason,
-                escalated_from_prior_flags=policy.escalated_from_prior_flags,
-                requires_human_confirmation=policy.requires_human_confirmation,
-            )
-            insert_audit_record(
-                audit_id=result.audit_id,
-                task_id=self.task_id,
-                step_number=result.step_number,
-                action_type=action.action_type,
-                action_target=action.target,
-                action_value=action.value,
-                page_url=action.page_url,
-                snapshot_id="",
-                verification_id=v_id,
-                detection_id=t_id,
-                assessment_id=r_id,
-                decision_id=p_id,
-                decision=result.decision.value,
-                enforced_outcome=result.decision.value,
-                full_chain_json=json.dumps(record),
-            )
-        except Exception:
-            pass
 
         # WebSocket push in same tick (NFR3, FR22)
         if self.on_decision:

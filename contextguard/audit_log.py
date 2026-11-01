@@ -13,16 +13,18 @@ Features:
 
 from __future__ import annotations
 
+import atexit
 from dataclasses import dataclass
 import hashlib
 import hmac
 import json
 import os
 from pathlib import Path
+import queue
 import sqlite3
 import threading
 import time
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 GENESIS = "0" * 64
 DEFAULT_ANCHOR_FILE = Path("audit_anchor.jsonl")
@@ -145,23 +147,49 @@ class AuditVerifyResult:
 
 class JsonlAuditLog:
     """
-    Thread-safe, append-only JSONL audit log.
+    Thread-safe, append-only JSONL audit log with background group commit.
     Each entry includes prev_hash and entry_hash (SHA-256 chain).
-    Provides external HMAC checkpoint anchoring to detect tail truncation and whole-chain forgery.
+    Persistence uses a dedicated background writer thread and group commit:
+    - Flushes every 50 entries or 200 ms (whichever comes first)
+    - fsync on flush and shutdown
+    - Writes HMAC-anchored checkpoint every N entries and at flush
+    - Chain calculation remains synchronous and deterministic
     """
     def __init__(
         self,
         log_path: Union[str, Path] = DEFAULT_JSONL_AUDIT_LOG,
         anchor_path: Optional[Union[str, Path]] = None,
         auto_anchor: bool = True,
+        batch_size: int = 50,
+        flush_interval: float = 0.20,
+        anchor_every_n: int = 50,
     ) -> None:
-        self.log_path = Path(log_path)
-        self.anchor_path = Path(anchor_path) if anchor_path else self._default_anchor_path(self.log_path)
+        self.log_path = Path(log_path).resolve()
+        self.anchor_path = Path(anchor_path).resolve() if anchor_path else self._default_anchor_path(self.log_path)
         self.auto_anchor = auto_anchor
+        self.batch_size = batch_size
+        self.flush_interval = flush_interval
+        self.anchor_every_n = anchor_every_n
+        self._entries_since_anchor = 0
         self._lock = threading.Lock()
         self._head_hash: Optional[str] = None
         self._entry_count: int = 0
         self._init_head()
+
+        # Background group commit queue and worker thread
+        self._queue: queue.Queue[Optional[Tuple[Dict[str, Any], Optional[Callable[[], None]]]]] = queue.Queue()
+        self._stop_event = threading.Event()
+        self._flush_event = threading.Event()
+        self._flush_done = threading.Condition()
+        self._pending_count = 0
+        self._worker_thread = threading.Thread(target=self._worker_loop, daemon=True, name=f"AuditWriter-{self.log_path.stem}")
+        self._worker_thread.start()
+
+        # Auto-register in global registry
+        with _REGISTRY_LOCK:
+            _AUDIT_REGISTRY[str(self.log_path)] = self
+
+        atexit.register(self.shutdown)
 
     @staticmethod
     def _default_anchor_path(p: Path) -> Path:
@@ -212,6 +240,10 @@ class JsonlAuditLog:
         with open(target_anchor, "a", encoding="utf-8") as f:
             f.write(json.dumps(record, sort_keys=True) + "\n")
             f.flush()
+            try:
+                os.fsync(f.fileno())
+            except OSError:
+                pass
         return record
 
     def write_checkpoint(
@@ -219,15 +251,105 @@ class JsonlAuditLog:
         anchor_path: Optional[Union[Path, str]] = None,
         secret: Optional[bytes] = None,
     ) -> Dict[str, Any]:
-        """Writes an HMAC-anchored checkpoint to an external anchor file."""
+        """Writes an HMAC-anchored checkpoint to an external anchor file, flushing pending writes first."""
+        self.flush()
         with self._lock:
-            target = Path(anchor_path) if anchor_path else self.anchor_path
+            target = Path(anchor_path).resolve() if anchor_path else self.anchor_path
             return self._write_anchor_locked(target, secret)
 
-    def append(self, entry: Dict[str, Any]) -> Dict[str, Any]:
+    def _flush_buffer(self, buffer: List[Tuple[Dict[str, Any], Optional[Callable[[], None]]]]) -> None:
+        if not buffer:
+            return
+
+        self.log_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.log_path, "a", encoding="utf-8") as f:
+            for record, _ in buffer:
+                f.write(json.dumps(record, sort_keys=True, default=str) + "\n")
+            f.flush()
+            try:
+                os.fsync(f.fileno())
+            except OSError:
+                pass
+
+        # Execute attached DB operations in batch
+        for _, db_op in buffer:
+            if db_op is not None:
+                try:
+                    db_op()
+                except Exception:
+                    pass
+
+        # Anchor write at flush and every N entries
+        with self._lock:
+            self._entries_since_anchor += len(buffer)
+            if self.auto_anchor and self.anchor_path:
+                try:
+                    self._write_anchor_locked(self.anchor_path)
+                    self._entries_since_anchor = 0
+                except Exception:
+                    pass
+
+        with self._lock:
+            self._pending_count -= len(buffer)
+
+    def _worker_loop(self) -> None:
+        buffer: List[Tuple[Dict[str, Any], Optional[Callable[[], None]]]] = []
+        last_flush = time.time()
+
+        while not self._stop_event.is_set():
+            timeout = max(0.01, self.flush_interval - (time.time() - last_flush))
+            try:
+                item = self._queue.get(timeout=min(timeout, 0.05))
+                if item is not None:
+                    buffer.append(item)
+            except queue.Empty:
+                pass
+
+            now = time.time()
+            should_flush = (
+                len(buffer) >= self.batch_size
+                or (buffer and (now - last_flush) >= self.flush_interval)
+                or self._flush_event.is_set()
+                or (self._stop_event.is_set() and buffer)
+            )
+
+            if should_flush:
+                self._flush_buffer(buffer)
+                buffer.clear()
+                last_flush = time.time()
+                with self._flush_done:
+                    self._flush_event.clear()
+                    self._flush_done.notify_all()
+
+        # Drain remaining buffer and queue on worker shutdown
+        if buffer:
+            self._flush_buffer(buffer)
+            buffer.clear()
+
+        while not self._queue.empty():
+            try:
+                item = self._queue.get_nowait()
+                if item is not None:
+                    buffer.append(item)
+            except queue.Empty:
+                break
+
+        if buffer:
+            self._flush_buffer(buffer)
+            buffer.clear()
+
+        with self._flush_done:
+            self._flush_done.notify_all()
+
+    def append(
+        self,
+        entry: Dict[str, Any],
+        db_callback: Optional[Callable[[], None]] = None,
+        sync: bool = False,
+    ) -> Dict[str, Any]:
         """
-        Appends an entry with prev_hash and entry_hash atomically.
-        Thread-safe under high concurrency.
+        Appends an entry with prev_hash and entry_hash deterministically.
+        Calculates hash chain in-memory synchronously and queues disk I/O to background group commit.
         """
         with self._lock:
             if self._head_hash is None:
@@ -242,25 +364,45 @@ class JsonlAuditLog:
             h = compute_entry_hash(record, prev)
             record["entry_hash"] = h
 
-            self.log_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.log_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(record, sort_keys=True, default=str) + "\n")
-                f.flush()
-
             self._head_hash = h
             self._entry_count += 1
+            self._pending_count += 1
 
-            if self.auto_anchor and self.anchor_path:
-                try:
-                    self._write_anchor_locked(self.anchor_path)
-                except Exception:
-                    pass
+        self._queue.put((record, db_callback))
 
-            return record
+        if sync:
+            self.flush()
+
+        return record
+
+    def flush(self, timeout: float = 5.0) -> None:
+        """Forces an immediate group commit and fsync of all queued entries and checkpoints."""
+        with self._lock:
+            if self._pending_count == 0 and self._queue.empty():
+                return
+
+        with self._flush_done:
+            self._flush_event.set()
+            self._queue.put(None)  # Wake worker loop
+            self._flush_done.wait_for(
+                lambda: self._pending_count == 0 and self._queue.empty(),
+                timeout=timeout,
+            )
+
+    def shutdown(self) -> None:
+        """Flushes remaining entries and terminates the background writer thread."""
+        try:
+            self.flush()
+        except Exception:
+            pass
+        self._stop_event.set()
+        self._queue.put(None)
+        if self._worker_thread.is_alive() and threading.current_thread() != self._worker_thread:
+            self._worker_thread.join(timeout=2.0)
 
 
 _AUDIT_REGISTRY: Dict[str, JsonlAuditLog] = {}
-_REGISTRY_LOCK = threading.Lock()
+_REGISTRY_LOCK = threading.RLock()
 
 
 def get_audit_logger(
@@ -276,6 +418,17 @@ def get_audit_logger(
         return _AUDIT_REGISTRY[resolved]
 
 
+def flush_all_audit_loggers() -> None:
+    """Flushes all registered active audit loggers."""
+    with _REGISTRY_LOCK:
+        loggers = list(_AUDIT_REGISTRY.values())
+    for log in loggers:
+        try:
+            log.flush()
+        except Exception:
+            pass
+
+
 def verify_audit_log(
     path: Union[str, Path],
     anchor_path: Optional[Union[str, Path]] = None,
@@ -283,12 +436,15 @@ def verify_audit_log(
 ) -> AuditVerifyResult:
     """
     Verifies the cryptographic integrity of an append-only JSONL audit log.
-    Tamper-evident given an externally anchored head hash:
-    1. Detects any edited, deleted, or reordered entry and reports the first broken index.
-    2. If an external anchor exists or is provided, validates the anchor HMAC and verifies
-       against tail truncation or entire-chain forgery.
+    Flushes any pending in-memory group commits before verification.
     """
-    p = Path(path)
+    p = Path(path).resolve()
+    resolved = str(p)
+    with _REGISTRY_LOCK:
+        active = _AUDIT_REGISTRY.get(resolved)
+    if active is not None:
+        active.flush()
+
     if not p.exists() or p.stat().st_size == 0:
         return AuditVerifyResult(True, checked_count=0, broken_index=None, reason="Audit log is empty or does not exist")
 
