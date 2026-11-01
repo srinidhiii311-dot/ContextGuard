@@ -92,9 +92,11 @@ def test_dataset_counts_within_10_percent_of_target():
     total_attacks = len(att_dev) + len(att_test)
     total_benign = len(ben_dev) + len(ben_test)
 
-    # Within 10% of 400 (360 to 440)
-    assert 360 <= total_attacks <= 440, f"Expected total attacks near 400, got {total_attacks}"
-    assert 360 <= total_benign <= 440, f"Expected total benign near 400, got {total_benign}"
+    # Dataset v2 targets: dev attacks have >= 60 uncompromised, benign dev >= 400, benign test >= 200
+    assert total_attacks >= 400, f"Expected total attacks >= 400, got {total_attacks}"
+    assert len(ben_dev) >= 400, f"Expected benign dev >= 400, got {len(ben_dev)}"
+    assert len(ben_test) >= 200, f"Expected benign test >= 200, got {len(ben_test)}"
+    assert total_benign >= 600, f"Expected total benign >= 600, got {total_benign}"
 
     # Verify ~20% of attacks are uncompromised (Addition B)
     uncomp_attacks = sum(1 for c in (att_dev + att_test) if c.ground_truth_label == "attack_uncompromised")

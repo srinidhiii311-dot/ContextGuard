@@ -41,6 +41,7 @@ class RunRecord(BaseModel):
     ground_truth_label: str
     latency_ms: float = Field(ge=0.0)
     llm_call: Optional[LLMCallRecord] = None
+    fallback_count: int = 0
 
     @field_validator("case_type")
     @classmethod

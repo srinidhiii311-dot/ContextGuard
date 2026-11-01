@@ -105,9 +105,7 @@ def run_case(
     else:
         # Update gate's intent and verifier intent
         if gateway.gate is not None:
-            gateway.gate._intent = intent
-            if hasattr(gateway.gate, "_verifier") and gateway.gate._verifier is not None:
-                gateway.gate._verifier.trusted_intent = intent
+            gateway.set_intent(intent)
 
     # Build ProposedAction
     p_act = ProposedAction(

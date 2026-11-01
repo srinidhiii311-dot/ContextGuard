@@ -1,0 +1,6 @@
+{
+  "attacks_dev_sha256": "efd94860ce1feefb7b7f835e3084adabf4c5f025df81bb93fdb3a59412c6fc28",
+  "attacks_test_sha256": "e5847a75185d3eb5e6857e8a3263fd42e0d266a762f8133bc7f25b0bb93383dc",
+  "benign_dev_sha256": "9d82f88fb4ee7bb09782e7499ac5f9c0df4479ee107ce3e6107ce8acd764f4b8",
+  "benign_test_sha256": "54864e6db6d6702ce364db264b01642f24b7eeb697df95893ffbd04132f65989"
+}

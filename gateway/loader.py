@@ -117,16 +117,19 @@ class Gateway:
     Runtime Safety Gateway adapter bridging domain-specific declarative policy packs
     to the real ContextGuardGate execution pipeline.
     """
-    def __init__(self, policy: PolicyPack, gate: Optional[ContextGuardGate] = None):
+    def __init__(self, policy: PolicyPack, gate: Optional[ContextGuardGate] = None, audit_log_path: Optional[Union[str, Path]] = None):
         self.policy = policy
         self.domain = policy.domain
         self.gate = gate
+        self.audit_log_path = audit_log_path
 
     @classmethod
     def from_domain(
         cls,
         domain: str,
         trusted_intent: Optional[TrustedIntent] = None,
+        task_id: str = "",
+        audit_log_path: Optional[Union[str, Path]] = None,
         policies_dir: Union[str, Path] = POLICIES_DIR,
         sandboxes_dir: Union[str, Path] = SANDBOXES_DIR,
     ) -> Gateway:
@@ -189,12 +192,19 @@ class Gateway:
         # 3. Instantiate real ContextGuardGate with adapted verifier and protected fields
         gate = ContextGuardGate(
             trusted_intent=intent,
+            task_id=task_id,
             verifier=verifier,
             protected_fields=protected_mappings,
             policy_pack=policy,
+            audit_log_path=audit_log_path,
         )
 
-        return cls(policy=policy, gate=gate)
+        return cls(policy=policy, gate=gate, audit_log_path=audit_log_path)
+
+    def set_intent(self, intent: TrustedIntent) -> None:
+        """Updates and HMAC-signs intent on the underlying gate."""
+        if self.gate is not None:
+            self.gate.set_intent(intent)
 
     def check(
         self,

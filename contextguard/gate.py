@@ -23,14 +23,23 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import yaml
+
+from contextguard.audit_log import (
+    compute_intent_hmac,
+    get_intent_hmac_secret,
+    verify_intent_hmac,
+    get_audit_logger,
+)
 
 # ---------------------------------------------------------------------------
 # Component imports — all seven components
@@ -170,6 +179,8 @@ class ProposedAction:
     source_text:  Optional[str] = None
     page_url:     str           = ""
     raw_html:     Optional[str] = None
+    task_id:      Optional[str] = None
+    session_id:   Optional[str] = None
 
     @classmethod
     def from_action(cls, action: Dict[str, Any], snapshot: Any) -> "ProposedAction":
@@ -388,6 +399,23 @@ def _page_name_from_url(url: str) -> str:
 # ContextGuardGate — the synchronous pre-action security gate
 # ---------------------------------------------------------------------------
 
+@dataclass
+class SessionState:
+    """Thread-safe per-session runtime state preventing state leakage across parallel sessions (Block 4a)."""
+    task_id: str
+    intent: TrustedIntent
+    secret: bytes
+    locked_hmac: str
+    step: int = 0
+    prior_flags: int = 0
+    previous_page: Optional[str] = None
+    allow_count: int = 0
+    flag_count: int = 0
+    block_count: int = 0
+    history: List[Dict[str, Any]] = field(default_factory=list)
+    lock: threading.Lock = field(default_factory=threading.Lock)
+
+
 class ContextGuardGate:
     """
     The synchronous pre-action gate implementing the 11-step spec workflow.
@@ -422,14 +450,24 @@ class ContextGuardGate:
         verifier:          Optional[Any] = None,
         protected_fields:  Optional[Dict[str, Any]] = None,
         policy_pack:       Optional[Any] = None,
+        audit_log_path:    Optional[Union[str, Path]] = None,
     ) -> None:
         self.trusted_intent  = trusted_intent
+        self._intent         = trusted_intent
         self.task_id         = task_id or str(uuid.uuid4())
         self.on_decision     = on_decision
         self.audit_log:      List[Dict[str, Any]] = audit_log if audit_log is not None else []
         self._step           = 0
         self._prior_flags    = 0
         self._previous_page  = None
+
+        # Block 4a: Append-only JSONL Audit Log & Locked Intent Security
+        self.audit_log_path: Path = Path(audit_log_path or os.getenv("GATEWAY_AUDIT_LOG_PATH", "runs/audit_log.jsonl"))
+        self._intent_secret: bytes = get_intent_hmac_secret()
+        self._locked_intent_hmac: str = compute_intent_hmac(self.trusted_intent, self._intent_secret)
+        self._sessions: Dict[str, SessionState] = {}
+        self._sessions_lock = threading.Lock()
+        self.start_session(self.task_id, self.trusted_intent)
 
         # Instantiate components
         self._verifier       = verifier if verifier is not None else ContextConsistencyVerifier()
@@ -456,8 +494,8 @@ class ContextGuardGate:
         if llm_checker is not None:
             self._llm_checker = llm_checker
         elif enable_llm_checker:
-            from contextguard.llm_checker import LLMChecker, provider_from_env
-            self._llm_checker = LLMChecker(provider_from_env())
+            from contextguard.llm_checker import LLMChecker
+            self._llm_checker = LLMChecker(raise_on_fallback=True)
         else:
             self._llm_checker = None
 
@@ -476,6 +514,83 @@ class ContextGuardGate:
         self._flag_count     = 0
         self._block_count    = 0
 
+    def start_session(self, task_id: str, intent: Optional[TrustedIntent] = None) -> SessionState:
+        """Initializes and registers a new isolated session with its own HMAC-signed intent and step counter."""
+        sess_intent = intent or self.trusted_intent
+        with self._sessions_lock:
+            state = SessionState(
+                task_id=task_id,
+                intent=sess_intent,
+                secret=self._intent_secret,
+                locked_hmac=compute_intent_hmac(sess_intent, self._intent_secret),
+            )
+            self._sessions[task_id] = state
+            return state
+
+    def get_session(self, task_id: Optional[str] = None) -> SessionState:
+        """Retrieves or creates the isolated session state for task_id."""
+        tid = task_id or self.task_id
+        with self._sessions_lock:
+            if tid not in self._sessions:
+                state = SessionState(
+                    task_id=tid,
+                    intent=self.trusted_intent,
+                    secret=self._intent_secret,
+                    locked_hmac=self._locked_intent_hmac,
+                )
+                self._sessions[tid] = state
+            return self._sessions[tid]
+
+    def set_intent(self, intent: TrustedIntent, secret: Optional[bytes] = None) -> None:
+        """Legitimately updates and signs the trusted intent for this gate and its default session."""
+        self.trusted_intent = intent
+        self._intent = intent
+        sec = secret or self._intent_secret
+        self._locked_intent_hmac = compute_intent_hmac(intent, sec)
+        session = self.get_session(self.task_id)
+        with session.lock:
+            session.intent = intent
+            session.locked_hmac = self._locked_intent_hmac
+        if hasattr(self, "_verifier") and self._verifier is not None:
+            self._verifier.trusted_intent = intent
+
+    def _log_decision_to_audit(
+        self,
+        action: ProposedAction,
+        result: GateResult,
+        session: Optional[SessionState] = None,
+    ) -> Dict[str, Any]:
+        """Writes every gate decision to the append-only JSONL audit log."""
+        tid = session.task_id if session else self.task_id
+        step = session.step if session else self._step
+
+        tier_str = "LOW"
+        if hasattr(result, "risk_tier"):
+            tier_str = result.risk_tier.value if hasattr(result.risk_tier, "value") else str(result.risk_tier)
+
+        dec_str = result.decision.value if hasattr(result.decision, "value") else str(result.decision)
+
+        entry = {
+            "audit_id": getattr(result, "audit_id", str(uuid.uuid4())),
+            "task_id": tid,
+            "step_number": step,
+            "timestamp": time.time(),
+            "action": {
+                "type": action.action_type,
+                "target": action.target,
+                "value": action.value,
+                "url": action.page_url,
+            },
+            "decision": dec_str,
+            "reason": result.reason,
+            "risk_score": getattr(result, "risk_score", 0),
+            "risk_tier": tier_str,
+        }
+        logger = get_audit_logger(self.audit_log_path)
+        appended = logger.append(entry)
+        if getattr(result, "audit_record", None) is None:
+            result.audit_record = appended
+        return appended
 
     # ------------------------------------------------------------------
     # Public API
@@ -487,38 +602,69 @@ class ContextGuardGate:
         current_dom_text: str,
         snapshot:         Any = None,
         browser_page:     Any = None,
+        session_id:       Optional[str] = None,
     ) -> GateResult:
         """
         Main gate entry point — Step 3 through Step 10 of the spec.
         Runs synchronously, blocks until complete.
         Returns GateResult; caller must NOT execute if result.blocked.
         """
-        self._step += 1
         t_start = time.monotonic()
         timing:  Dict[str, float] = {}
 
-        # Check 0: Action type allowlist from policy pack (raise-only)
-        if self.policy_pack and hasattr(self.policy_pack, "allowed_action_types") and self.policy_pack.allowed_action_types:
-            allowed = [t.upper() for t in self.policy_pack.allowed_action_types]
-            if action.action_type.upper() not in allowed:
-                return GateResult(
+        # Resolve isolated session state
+        tid = session_id or getattr(action, "task_id", None) or getattr(action, "session_id", None) or self.task_id
+        session = self.get_session(tid)
+
+        with session.lock:
+            # Check -1: Intent Tampering HMAC Check (Block 4a)
+            if not verify_intent_hmac(session.intent, session.locked_hmac, session.secret) or not verify_intent_hmac(self.trusted_intent, self._locked_intent_hmac, self._intent_secret):
+                session.step += 1
+                self._step += 1
+                result = GateResult(
                     decision=Decision.BLOCK,
-                    reason=f"Action type '{action.action_type}' is not permitted under domain policy allowed_action_types: {allowed}",
+                    reason="INTENT_TAMPERED: Locked intent HMAC verification failed. State modification detected.",
                     risk_score=100,
                     risk_tier="CRITICAL",
+                    step_number=session.step,
                 )
+                self._log_decision_to_audit(action, result, session=session)
+                return result
 
-        # --- Step 3: Context capture (FR4, FR5, FR6) ---
-        t0 = time.monotonic()
-        action_sensitivity, booking_critical = _get_action_sensitivity(
-            action.target, self._protected
-        )
-        timing["context_capture_ms"] = (time.monotonic() - t0) * 1000
+            # Check 0: Action type allowlist from policy pack (raise-only)
+            if self.policy_pack and hasattr(self.policy_pack, "allowed_action_types") and self.policy_pack.allowed_action_types:
+                allowed = [t.upper() for t in self.policy_pack.allowed_action_types]
+                if action.action_type.upper() not in allowed:
+                    session.step += 1
+                    self._step += 1
+                    result = GateResult(
+                        decision=Decision.BLOCK,
+                        reason=f"Action type '{action.action_type}' is not permitted under domain policy allowed_action_types: {allowed}",
+                        risk_score=100,
+                        risk_tier="CRITICAL",
+                        step_number=session.step,
+                    )
+                    self._log_decision_to_audit(action, result, session=session)
+                    return result
 
-        # --- Step 4: Consistency Verification (FR7–FR10) ---
-        t0 = time.monotonic()
-        consistency_report = self._run_verification(action, current_dom_text)
-        timing["verification_ms"] = (time.monotonic() - t0) * 1000
+            session.step += 1
+            self._step += 1
+
+            # --- Step 3: Context capture (FR4, FR5, FR6) ---
+            t0 = time.monotonic()
+            action_sensitivity, booking_critical = _get_action_sensitivity(
+                action.target, self._protected
+            )
+            timing["context_capture_ms"] = (time.monotonic() - t0) * 1000
+
+            # --- Step 4: Consistency Verification (FR7–FR10) ---
+            t0 = time.monotonic()
+            saved_verifier_intent = None
+            if hasattr(self, "_verifier") and self._verifier is not None:
+                saved_verifier_intent = getattr(self._verifier, "trusted_intent", None)
+                self._verifier.trusted_intent = session.intent
+            consistency_report = self._run_verification(action, current_dom_text)
+            timing["verification_ms"] = (time.monotonic() - t0) * 1000
 
         # --- Steps 5 & 6: Threat Detection + Characterization ---
         t0 = time.monotonic()
@@ -579,7 +725,12 @@ class ContextGuardGate:
             from contextguard.llm_checker import should_invoke, apply_verdict
             if should_invoke(risk_result.risk_score, ""):
                 intent_d = self.trusted_intent.to_dict() if hasattr(self.trusted_intent, "to_dict") else self.trusted_intent.__dict__
-                action_d = {"type": action.action_type, "target": action.target, "value": action.value}
+                action_d = {
+                    "type": action.action_type,
+                    "target": action.target,
+                    "value": action.value,
+                    "url": getattr(action, "page_url", "") or "",
+                }
                 dh = hashlib.sha256((raw_html or current_dom_text).encode()).hexdigest()
                 v = self._llm_checker.check(intent_d, action_d, current_dom_text, dom_hash=dh)
                 llm_source = v.source
@@ -590,6 +741,10 @@ class ContextGuardGate:
                     "source": v.source,
                     "latency_ms": v.latency_ms,
                     "error": v.error,
+                    "tokens_in": v.tokens_in,
+                    "tokens_out": v.tokens_out,
+                    "model": v.model,
+                    "request_id": v.request_id,
                 }
                 applied = apply_verdict(risk_result.risk_score, v)
                 llm_flags.extend(applied.get("flags", []))
@@ -705,14 +860,14 @@ class ContextGuardGate:
             is_known_threat        = threat_result.is_known_path and threat_result.is_threat,
             requires_confirmation  = policy_result.requires_human_confirmation,
             processing_ms          = timing,
-            step_number            = self._step,
+            step_number            = session.step if session else self._step,
             llm_source             = llm_source,
             llm_verdict            = llm_verdict,
         )
 
         # --- Step 10: Audit record + live push (FR21–FR23, NFR3, NFR5) ---
         self._audit_and_push(result, action, consistency_report,
-                             threat_result, risk_result, policy_result)
+                             threat_result, risk_result, policy_result, session=session)
 
         return result
 
@@ -893,16 +1048,19 @@ class ContextGuardGate:
         threat:      ThreatDetectionResult,
         risk:        RiskAssessmentResult,
         policy:      PolicyDecisionResult,
+        session:     Optional[SessionState] = None,
     ) -> None:
         """
         Append-only audit record (NFR5) + WebSocket push in same tick (NFR3).
         FR21: single traceable record per action.
         FR22: pushed over WebSocket at the moment of decision.
         """
+        tid = session.task_id if session else self.task_id
+        step = session.step if session else result.step_number
         record = {
             "audit_id":               result.audit_id,
-            "task_id":                self.task_id,
-            "step_number":            result.step_number,
+            "task_id":                tid,
+            "step_number":            step,
             "timestamp":              time.time(),
             "action": {
                 "type":   action.action_type,
@@ -951,8 +1109,26 @@ class ContextGuardGate:
             "processing_ms":    result.processing_ms,
         }
 
-        # Append-only — never overwrite (NFR5)
+        # Track session counters
+        if session:
+            if result.decision == Decision.ALLOW:
+                session.allow_count += 1
+            elif result.decision in (Decision.ALLOW_WITH_FLAG, Decision.FLAG):
+                session.flag_count += 1
+            elif result.decision == Decision.BLOCK:
+                session.block_count += 1
+            if policy.requires_human_confirmation:
+                session.prior_flags += 1
+
+        # Append-only in-memory list
         self.audit_log.append(record)
+        result.audit_record = record
+
+        # Block 4a: Append to JSONL audit log
+        appended = self._log_decision_to_audit(action, result, session=session)
+        record["prev_hash"] = appended.get("prev_hash")
+        record["entry_hash"] = appended.get("entry_hash")
+        record["index"] = appended.get("index")
         result.audit_record = record
 
         # Persist to database (FR21, FR23, NFR5)
