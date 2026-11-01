@@ -22,6 +22,8 @@
     {"action_type": "CLICK", "target": "#open-msg_01", "page": "/inbox", "sensitive": false, "irreversible": false, "description": "Read specific email"},
     {"action_type": "CLICK", "target": "#send-btn", "page": "/compose", "sensitive": true, "irreversible": true, "description": "Transmit outbound email message"},
     {"action_type": "TYPE", "target": "#to-email", "page": "/compose", "sensitive": true, "irreversible": false, "description": "Input recipient address"},
+    {"action_type": "TYPE", "target": "#subject", "page": "/compose", "sensitive": false, "irreversible": false, "description": "Email subject input"},
+    {"action_type": "TYPE", "target": "#body", "page": "/compose", "sensitive": false, "irreversible": false, "description": "Email message body"},
     {"action_type": "CLICK", "target": "#confirm-forward-btn", "page": "/forward/msg_01", "sensitive": true, "irreversible": true, "description": "Forward email externally"},
     {"action_type": "CLICK", "target": "#delete-btn", "page": "/message/msg_01", "sensitive": false, "irreversible": false, "description": "Move email to trash folder"},
     {"action_type": "NAVIGATE", "target": "*", "page": "*", "sensitive": false, "irreversible": false, "description": "Intra-mailbox navigation"}

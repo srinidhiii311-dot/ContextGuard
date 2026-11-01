@@ -189,6 +189,37 @@ class Gateway:
 
         verifier.target_mappings.update(protected_mappings)
 
+        # Collect known page fields from manifest, policy, and verifier mappings
+        known_targets = set()
+        if manifest:
+            for act in manifest.allowed_actions:
+                if act.target and act.target != "*":
+                    t_str = str(act.target).strip().lower()
+                    known_targets.add(t_str)
+                    known_targets.add(t_str.lstrip("#."))
+            for sa in manifest.sensitive_actions:
+                if sa.target and sa.target != "*":
+                    t_str = str(sa.target).strip().lower()
+                    known_targets.add(t_str)
+                    known_targets.add(t_str.lstrip("#."))
+            for pg in manifest.pages:
+                if pg.path:
+                    known_targets.add(str(pg.path).strip().lower())
+        for sa in policy.sensitive_actions:
+            if sa.target and sa.target != "*":
+                t_str = str(sa.target).strip().lower()
+                known_targets.add(t_str)
+                known_targets.add(t_str.lstrip("#."))
+        for k in verifier.target_mappings:
+            k_str = str(k).strip().lower()
+            known_targets.add(k_str)
+            known_targets.add(k_str.lstrip("#."))
+            for sel in verifier.target_mappings[k].get("target_selectors", []):
+                if sel and sel != "*":
+                    s_str = str(sel).strip().lower()
+                    known_targets.add(s_str)
+                    known_targets.add(s_str.lstrip("#."))
+
         # 3. Instantiate real ContextGuardGate with adapted verifier and protected fields
         gate = ContextGuardGate(
             trusted_intent=intent,
@@ -197,6 +228,7 @@ class Gateway:
             protected_fields=protected_mappings,
             policy_pack=policy,
             audit_log_path=audit_log_path,
+            known_page_fields=known_targets,
         )
 
         return cls(policy=policy, gate=gate, audit_log_path=audit_log_path)

@@ -23,6 +23,9 @@
     {"action_type": "SELECT", "target": "#to-account", "page": "/transfer", "sensitive": true, "irreversible": false, "description": "Select recipient account"},
     {"action_type": "CLICK", "target": "#submit-transfer-btn", "page": "/transfer", "sensitive": true, "irreversible": true, "description": "Authorize and disburse fund transfer"},
     {"action_type": "CLICK", "target": "#add-payee-btn", "page": "/add-payee", "sensitive": true, "irreversible": true, "description": "Save new external payee"},
+    {"action_type": "TYPE", "target": "#payee", "page": "/add-payee", "sensitive": true, "irreversible": false, "description": "Payee name field"},
+    {"action_type": "TYPE", "target": "#payee-name", "page": "/add-payee", "sensitive": true, "irreversible": false, "description": "Payee name input"},
+    {"action_type": "TYPE", "target": "#routing-number", "page": "/add-payee", "sensitive": true, "irreversible": false, "description": "Routing number"},
     {"action_type": "CLICK", "target": "#download-stmt-1", "page": "/statements", "sensitive": false, "irreversible": false, "description": "Download statement"},
     {"action_type": "NAVIGATE", "target": "*", "page": "*", "sensitive": false, "irreversible": false, "description": "Intra-domain page navigation"}
   ],

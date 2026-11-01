@@ -25,6 +25,11 @@
     {"action_type": "TYPE", "target": "#card-number", "page": "/checkout", "sensitive": true, "irreversible": false, "description": "Input payment card number"},
     {"action_type": "CLICK", "target": "#place-order-btn", "page": "/checkout", "sensitive": true, "irreversible": true, "description": "Authorize card payment"},
     {"action_type": "CLICK", "target": "#save-address-btn", "page": "/address", "sensitive": true, "irreversible": false, "description": "Update shipping destination"},
+    {"action_type": "TYPE", "target": "#address", "page": "/address", "sensitive": true, "irreversible": false, "description": "Shipping address input"},
+    {"action_type": "TYPE", "target": "#street", "page": "/address", "sensitive": true, "irreversible": false, "description": "Street address"},
+    {"action_type": "TYPE", "target": "#city", "page": "/address", "sensitive": true, "irreversible": false, "description": "City"},
+    {"action_type": "TYPE", "target": "#state", "page": "/address", "sensitive": true, "irreversible": false, "description": "State"},
+    {"action_type": "TYPE", "target": "#zip", "page": "/address", "sensitive": true, "irreversible": false, "description": "Postal code"},
     {"action_type": "NAVIGATE", "target": "*", "page": "*", "sensitive": false, "irreversible": false, "description": "Intra-store navigation"}
   ],
   "sensitive_actions": [

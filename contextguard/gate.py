@@ -451,6 +451,7 @@ class ContextGuardGate:
         protected_fields:  Optional[Dict[str, Any]] = None,
         policy_pack:       Optional[Any] = None,
         audit_log_path:    Optional[Union[str, Path]] = None,
+        known_page_fields: Optional[Any] = None,
     ) -> None:
         self.trusted_intent  = trusted_intent
         self._intent         = trusted_intent
@@ -477,6 +478,7 @@ class ContextGuardGate:
         self._policy_engine  = PolicyEngine()
         self._protected      = protected_fields if protected_fields is not None else _load_protected_fields()
         self.policy_pack     = policy_pack
+        self.known_page_fields = {str(f).strip().lower() for f in known_page_fields} if known_page_fields is not None else None
 
         # Component 8: Attack Chain Detector (Stage 2)
         self.enable_chain_detector = enable_chain_detector
@@ -1019,8 +1021,28 @@ class ContextGuardGate:
                 decision = ff_decision
                 fee_floor_triggered = True
 
+        # C3: Fail-closed field check for TYPE/SELECT/SUBMIT targets not in site manifest's known page fields
+        unknown_field_triggered = False
+        if self.known_page_fields is not None and action.action_type in ("TYPE", "SELECT", "SUBMIT"):
+            act_tgt = (action.target or "").strip().lower()
+            bare_tgt = act_tgt.lstrip("#.")
+            is_known = (act_tgt in self.known_page_fields or bare_tgt in self.known_page_fields)
+            if not is_known and action.action_type == "SUBMIT":
+                from urllib.parse import urlparse
+                parsed = urlparse(action.target)
+                if parsed.path and parsed.path.lower() in self.known_page_fields:
+                    is_known = True
+                elif parsed.netloc and self.policy_pack and self.policy_pack.is_host_allowed(parsed.netloc):
+                    is_known = True
+            if not is_known:
+                unknown_field_triggered = True
+                if enforce_severity.get(decision, 0) < enforce_severity[Decision.REQUIRE_CONFIRMATION]:
+                    decision = Decision.REQUIRE_CONFIRMATION
+
         # Build reason chain
         parts = []
+        if unknown_field_triggered:
+            parts.append(f"Unrecognized field target '{action.target}' not in site manifest known fields")
         if fee_floor_triggered and ff_reason:
             parts.append(ff_reason)
         parts.append(policy.reason)

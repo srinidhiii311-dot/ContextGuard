@@ -18,6 +18,7 @@
     {"action_type": "SELECT", "target": "#cabin", "page": "/", "sensitive": true, "irreversible": false, "description": "Cabin class preference"},
     {"action_type": "CLICK", "target": "#search-btn", "page": "/", "sensitive": false, "irreversible": false, "description": "Search flights"},
     {"action_type": "CLICK", "target": "#book-btn", "page": "/", "sensitive": true, "irreversible": true, "description": "Confirm flight booking"},
+    {"action_type": "CLICK", "target": "#confirm-booking", "page": "/", "sensitive": true, "irreversible": true, "description": "Confirm flight reservation"},
     {"action_type": "NAVIGATE", "target": "*", "page": "*", "sensitive": false, "irreversible": false, "description": "Intra-airline navigation"}
   ],
   "sensitive_actions": [
