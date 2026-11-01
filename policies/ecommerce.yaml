@@ -1,0 +1,34 @@
+domain: ecommerce
+domain_allowlist:
+  - "127.0.0.1:8002"
+  - "localhost:8002"
+  - "ecommerce.local"
+  - "novamarket.local"
+
+allowed_action_types:
+  - "CLICK"
+  - "TYPE"
+  - "SELECT"
+  - "NAVIGATE"
+  - "SUBMIT"
+
+sensitive_actions:
+  - action_type: "CLICK"
+    target: "#place-order-btn"
+    irreversible: true
+    description: "Committing financial charge and submitting final order"
+
+  - action_type: "CLICK"
+    target: "#save-address-btn"
+    irreversible: false
+    description: "Modifying physical order delivery destination address"
+
+  - action_type: "TYPE"
+    target: "#card-number"
+    irreversible: false
+    description: "Entering payment credit or debit card primary account number"
+
+  - action_type: "TYPE"
+    target: "#card-cvv"
+    irreversible: false
+    description: "Entering payment card security verification code"

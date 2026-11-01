@@ -1,0 +1,34 @@
+domain: banking
+domain_allowlist:
+  - "127.0.0.1:8001"
+  - "localhost:8001"
+  - "banking.local"
+  - "apex-trust.local"
+
+allowed_action_types:
+  - "CLICK"
+  - "TYPE"
+  - "SELECT"
+  - "NAVIGATE"
+  - "SUBMIT"
+
+sensitive_actions:
+  - action_type: "CLICK"
+    target: "#submit-transfer-btn"
+    irreversible: true
+    description: "Authorizing irreversible fund transfer or wire disbursement"
+
+  - action_type: "CLICK"
+    target: "#add-payee-btn"
+    irreversible: true
+    description: "Adding unverified external bill payee or routing target"
+
+  - action_type: "TYPE"
+    target: "#amount"
+    irreversible: false
+    description: "Specifying fund transfer amount"
+
+  - action_type: "TYPE"
+    target: "#account-number"
+    irreversible: false
+    description: "Entering destination banking coordinates"

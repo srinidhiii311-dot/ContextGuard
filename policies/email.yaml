@@ -1,0 +1,34 @@
+domain: email
+domain_allowlist:
+  - "127.0.0.1:8004"
+  - "localhost:8004"
+  - "email.local"
+  - "cloudmail.local"
+
+allowed_action_types:
+  - "CLICK"
+  - "TYPE"
+  - "SELECT"
+  - "NAVIGATE"
+  - "SUBMIT"
+
+sensitive_actions:
+  - action_type: "CLICK"
+    target: "#send-btn"
+    irreversible: true
+    description: "Transmitting external email message to recipients"
+
+  - action_type: "CLICK"
+    target: "#confirm-forward-btn"
+    irreversible: true
+    description: "Forwarding private email thread to external third party"
+
+  - action_type: "TYPE"
+    target: "#to-email"
+    irreversible: false
+    description: "Specifying outbound recipient email address"
+
+  - action_type: "CLICK"
+    target: "#delete-btn"
+    irreversible: false
+    description: "Moving message to trash folder"

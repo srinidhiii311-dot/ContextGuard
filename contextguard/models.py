@@ -71,10 +71,10 @@ class LockedIntent(BaseModel):
     Parsed once from the user's natural language instruction and frozen.
     No webpage content or runtime event is allowed to modify this.
     """
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="allow")
 
-    origin: str = Field(..., description="Departure city or airport")
-    destination: str = Field(..., description="Arrival city or airport")
+    origin: str = Field(default="", description="Departure city or airport")
+    destination: str = Field(default="", description="Arrival city or airport")
     cabin_class: str = Field(default="Economy", description="Requested cabin class")
     passenger_count: int = Field(default=1, description="Number of passengers")
     max_price: Optional[int] = Field(default=None, description="Max budget constraint")

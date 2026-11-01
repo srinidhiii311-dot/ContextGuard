@@ -33,9 +33,10 @@ screenshots/*.png
 *.zip
 *.log
 
-# Pytest / hypothesis
+# Pytest / hypothesis / cache
 .pytest_cache/
 .hypothesis/
+.cache/
 htmlcov/
 .coverage
 coverage.xml

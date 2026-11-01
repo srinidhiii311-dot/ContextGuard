@@ -82,30 +82,37 @@ class TrustedIntent:
     NEVER modified during the run — that immutability is the whole point.
     FR1, FR2: no component may modify this based on webpage content.
     """
-    origin:          str
-    destination:     str
+    origin:          str             = ""
+    destination:     str             = ""
     cabin_class:     str             = "Economy"
     passenger_count: int             = 1
     travel_date:     Optional[str]   = None
     addons_allowed:  Optional[str]   = None
     max_fare:        Optional[float] = None
     contact_email:   Optional[str]   = None
+    extra_fields:    Dict[str, Any]  = field(default_factory=dict)
+
+    def __getattr__(self, name: str) -> Any:
+        try:
+            extra = object.__getattribute__(self, "extra_fields")
+            if name in extra:
+                return extra[name]
+        except AttributeError:
+            pass
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
     @classmethod
     def from_parsed(cls, parsed: Dict[str, Any]) -> "TrustedIntent":
-        return cls(
-            origin          = str(parsed.get("origin",       "")).strip(),
-            destination     = str(parsed.get("destination",  "")).strip(),
-            cabin_class     = str(parsed.get("cabin_class",  "Economy")).strip(),
-            passenger_count = int(parsed.get("passengers",   parsed.get("passenger_count", 1))),
-            travel_date     = parsed.get("travel_date", parsed.get("date")),
-            addons_allowed  = parsed.get("addons_allowed"),
-            max_fare        = parsed.get("max_fare", parsed.get("max_price")),
-            contact_email   = parsed.get("contact_email", parsed.get("email")),
-        )
+        return cls.from_dict(parsed)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "TrustedIntent":
+        known = {
+            "origin", "destination", "cabin_class", "passenger_count", "passengers",
+            "travel_date", "date", "addons_allowed", "max_fare", "max_price",
+            "contact_email", "email",
+        }
+        extra = {k: v for k, v in data.items() if k not in known}
         return cls(
             origin          = str(data.get("origin",       "")).strip(),
             destination     = str(data.get("destination",  "")).strip(),
@@ -115,22 +122,11 @@ class TrustedIntent:
             addons_allowed  = data.get("addons_allowed"),
             max_fare        = data.get("max_fare", data.get("max_price")),
             contact_email   = data.get("contact_email", data.get("email")),
+            extra_fields    = extra,
         )
 
     def to_locked_intent(self) -> LockedIntent:
-        return LockedIntent(
-            origin          = self.origin,
-            destination     = self.destination,
-            cabin_class     = self.cabin_class,
-            passenger_count = self.passenger_count,
-            travel_date     = self.travel_date,
-            addons_allowed  = self.addons_allowed,
-            max_fare        = self.max_fare,
-            contact_email   = self.contact_email,
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
+        d = {
             "origin":          self.origin,
             "destination":     self.destination,
             "cabin_class":     self.cabin_class,
@@ -140,6 +136,22 @@ class TrustedIntent:
             "max_fare":        self.max_fare,
             "contact_email":   self.contact_email,
         }
+        d.update(self.extra_fields)
+        return LockedIntent(**d)
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = {
+            "origin":          self.origin,
+            "destination":     self.destination,
+            "cabin_class":     self.cabin_class,
+            "passenger_count": self.passenger_count,
+            "travel_date":     self.travel_date,
+            "addons_allowed":  self.addons_allowed,
+            "max_fare":        self.max_fare,
+            "contact_email":   self.contact_email,
+        }
+        d.update(self.extra_fields)
+        return d
 
 
 # ---------------------------------------------------------------------------
@@ -407,6 +419,9 @@ class ContextGuardGate:
         baseline_store:    Optional[Any] = None,
         enable_llm_checker: bool = False,
         llm_checker:       Optional[Any] = None,
+        verifier:          Optional[Any] = None,
+        protected_fields:  Optional[Dict[str, Any]] = None,
+        policy_pack:       Optional[Any] = None,
     ) -> None:
         self.trusted_intent  = trusted_intent
         self.task_id         = task_id or str(uuid.uuid4())
@@ -417,12 +432,13 @@ class ContextGuardGate:
         self._previous_page  = None
 
         # Instantiate components
-        self._verifier       = ContextConsistencyVerifier()
+        self._verifier       = verifier if verifier is not None else ContextConsistencyVerifier()
         self._detector       = ThreatDetector()
         self._characterizer  = ThreatCharacterizer()
         self._risk_engine    = ContextGuardRiskAssessmentEngine()
         self._policy_engine  = PolicyEngine()
-        self._protected      = _load_protected_fields()
+        self._protected      = protected_fields if protected_fields is not None else _load_protected_fields()
+        self.policy_pack     = policy_pack
 
         # Component 8: Attack Chain Detector (Stage 2)
         self.enable_chain_detector = enable_chain_detector
@@ -480,6 +496,17 @@ class ContextGuardGate:
         self._step += 1
         t_start = time.monotonic()
         timing:  Dict[str, float] = {}
+
+        # Check 0: Action type allowlist from policy pack (raise-only)
+        if self.policy_pack and hasattr(self.policy_pack, "allowed_action_types") and self.policy_pack.allowed_action_types:
+            allowed = [t.upper() for t in self.policy_pack.allowed_action_types]
+            if action.action_type.upper() not in allowed:
+                return GateResult(
+                    decision=Decision.BLOCK,
+                    reason=f"Action type '{action.action_type}' is not permitted under domain policy allowed_action_types: {allowed}",
+                    risk_score=100,
+                    risk_tier="CRITICAL",
+                )
 
         # --- Step 3: Context capture (FR4, FR5, FR6) ---
         t0 = time.monotonic()

@@ -1,0 +1,34 @@
+domain: healthcare
+domain_allowlist:
+  - "127.0.0.1:8003"
+  - "localhost:8003"
+  - "healthcare.local"
+  - "carepoint.health"
+
+allowed_action_types:
+  - "CLICK"
+  - "TYPE"
+  - "SELECT"
+  - "NAVIGATE"
+  - "SUBMIT"
+
+sensitive_actions:
+  - action_type: "CLICK"
+    target: "#book-appt-btn"
+    irreversible: true
+    description: "Confirming and locking clinical medical appointment"
+
+  - action_type: "CLICK"
+    target: "#send-msg-btn"
+    irreversible: true
+    description: "Transmitting confidential clinical query to physician"
+
+  - action_type: "CLICK"
+    target: "#update-insurance-btn"
+    irreversible: false
+    description: "Modifying official medical insurance billing coverage"
+
+  - action_type: "TYPE"
+    target: "#policy-no"
+    irreversible: false
+    description: "Inputting private health insurance policy number"

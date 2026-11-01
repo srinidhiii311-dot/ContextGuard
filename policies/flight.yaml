@@ -1,0 +1,29 @@
+domain: flight
+domain_allowlist:
+  - "127.0.0.1:8000"
+  - "localhost:8000"
+  - "flights.example.com"
+  - "pay.flights.example"
+
+allowed_action_types:
+  - "CLICK"
+  - "TYPE"
+  - "SELECT"
+  - "NAVIGATE"
+  - "SUBMIT"
+
+sensitive_actions:
+  - action_type: "CLICK"
+    target: "#book-btn"
+    irreversible: true
+    description: "Finalizing flight purchase and charging credit card"
+
+  - action_type: "TYPE"
+    target: "#to"
+    irreversible: false
+    description: "Modifying flight arrival airport destination"
+
+  - action_type: "SELECT"
+    target: "#cabin"
+    irreversible: false
+    description: "Changing flight cabin class from Economy to Business/First"
