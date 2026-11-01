@@ -228,7 +228,10 @@ class PolicyEngine:
         # the final decision must be at least REQUIRE_CONFIRMATION, whatever the tier or score.
         # Takes the maximum severity rank so it never lowers an existing decision (e.g. BLOCK remains BLOCK).
         triggered_hard_rules = [
-            rule for rule in ("NAVIGATION_BOUNDARY", "FIELD_MISMATCH")
+            rule for rule in (
+                "NAVIGATION_BOUNDARY", "FIELD_MISMATCH", "UNMAPPED_IDENTITY_FIELD",
+                "UNMAPPED_EXFILTRATION", "PROCESS_INTEGRITY", "EGRESS_IN_CONTENT", "UNAUTHORIZED_IRREVERSIBLE_ACTION"
+            )
             if rule in assessment_hard_rules
         ]
         if triggered_hard_rules:

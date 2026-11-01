@@ -1013,7 +1013,7 @@ class ContextGuardGate:
             Decision.BLOCK: 4,
         }
         has_hard_rule = any(
-            inc.check_type in ("NAVIGATION_BOUNDARY", "FIELD_MISMATCH", "UNMAPPED_IDENTITY_FIELD", "UNMAPPED_EXFILTRATION", "PROCESS_INTEGRITY")
+            inc.check_type in ("NAVIGATION_BOUNDARY", "FIELD_MISMATCH", "UNMAPPED_IDENTITY_FIELD", "UNMAPPED_EXFILTRATION", "PROCESS_INTEGRITY", "EGRESS_IN_CONTENT", "UNAUTHORIZED_IRREVERSIBLE_ACTION")
             for inc in consistency.inconsistencies
         )
         if has_hard_rule and enforce_severity.get(decision, 0) < enforce_severity[Decision.REQUIRE_CONFIRMATION]:

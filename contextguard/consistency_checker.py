@@ -555,6 +555,11 @@ class ContextConsistencyVerifier:
                 )
             )
 
+        # Check 4e: Egress-in-content verification (Rule C5)
+        egress_item = self._check_egress_in_content(action, locked_intent)
+        if egress_item:
+            inconsistencies.append(egress_item)
+
         is_consistent = len(inconsistencies) == 0
         max_severity = max((item.severity for item in inconsistencies), default=0.0)
         consistency_score = round(max(0.0, 1.0 - max_severity), 2)
@@ -567,6 +572,97 @@ class ContextConsistencyVerifier:
             marker_presence=marker_presence,
             marker_hit=marker_hit,
         )
+
+    def _check_egress_in_content(self, action: ProposedAction, locked_intent: Any) -> Optional[InconsistencyItem]:
+        """
+        Rule C5: Egress-in-content verification.
+        A value written to any field that contains a URL, hostname, or email address
+        that is neither allowlisted nor part of the locked intent requires confirmation.
+        """
+        val = action.value
+        if not val or not isinstance(val, str) or not val.strip():
+            return None
+
+        # Deobfuscate standard evasion tokens (e.g. http[://] or [.] or [@])
+        cleaned = re.sub(r'\[://\]', '://', val)
+        cleaned = re.sub(r'\[\.\]', '.', cleaned)
+        cleaned = re.sub(r'\[@\]', '@', cleaned)
+
+        # Build set of authorized tokens from locked_intent
+        authorized_tokens = set()
+        if hasattr(locked_intent, "to_dict"):
+            try:
+                intent_dict = locked_intent.to_dict()
+            except Exception:
+                intent_dict = {}
+        elif hasattr(locked_intent, "__dict__"):
+            intent_dict = dict(getattr(locked_intent, "extra_fields", {}))
+            for k in ("origin", "destination", "contact_email", "to_email", "payee", "to_account"):
+                v = getattr(locked_intent, k, None)
+                if v:
+                    intent_dict[k] = v
+        elif isinstance(locked_intent, dict):
+            intent_dict = locked_intent
+        else:
+            intent_dict = {}
+
+        for k, v in intent_dict.items():
+            if v and isinstance(v, (str, int, float)):
+                v_str = str(v).strip().lower()
+                authorized_tokens.add(v_str)
+                if "@" in v_str:
+                    authorized_tokens.add(v_str.split("@")[-1])
+
+        # Normalize trusted hosts allowlist
+        trusted_hosts_lower = {h.lower().strip() for h in getattr(self, "trusted_hosts", [])}
+        bare_trusted = {h.split(":")[0] for h in trusted_hosts_lower}
+        trusted_hosts_lower.update(bare_trusted)
+
+        # 1. URL pattern
+        url_matches = re.findall(r'(?:https?://|//)([a-zA-Z0-9.-]+(?::[0-9]+)?)(?:/[^\s]*)?', cleaned, re.IGNORECASE)
+        for host_match in url_matches:
+            host_clean = host_match.lower().strip()
+            bare_host = host_clean.split(":")[0]
+            if host_clean not in trusted_hosts_lower and bare_host not in trusted_hosts_lower and host_clean not in authorized_tokens:
+                return InconsistencyItem(
+                    check_type="EGRESS_IN_CONTENT",
+                    field_name=action.target,
+                    expected_value="authorized_content_or_allowlist",
+                    observed_value=host_match,
+                    severity=0.85,
+                    detail=f"Action value contains unallowlisted external URL/host '{host_match}' not present in locked intent.",
+                )
+
+        # 2. Email pattern
+        email_matches = re.findall(r'\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b', cleaned)
+        for email_match in email_matches:
+            email_clean = email_match.lower().strip()
+            domain_part = email_clean.split("@")[-1]
+            if email_clean not in authorized_tokens and domain_part not in authorized_tokens and domain_part not in trusted_hosts_lower:
+                return InconsistencyItem(
+                    check_type="EGRESS_IN_CONTENT",
+                    field_name=action.target,
+                    expected_value="authorized_content_or_allowlist",
+                    observed_value=email_match,
+                    severity=0.85,
+                    detail=f"Action value contains unallowlisted email address '{email_match}' not present in locked intent.",
+                )
+
+        # 3. Standalone external hostname / FQDN pattern (e.g. attacker-collector.org, payment-mirror.net)
+        hostname_matches = re.findall(r'\b([a-zA-Z0-9-]+\.(?:com|net|org|io|info|biz|internal|gov|edu|co|xyz|online|site|app|dev|me|us|uk|de|eu))\b', cleaned, re.IGNORECASE)
+        for host_match in hostname_matches:
+            host_clean = host_match.lower().strip()
+            if host_clean not in trusted_hosts_lower and host_clean not in authorized_tokens:
+                return InconsistencyItem(
+                    check_type="EGRESS_IN_CONTENT",
+                    field_name=action.target,
+                    expected_value="authorized_content_or_allowlist",
+                    observed_value=host_match,
+                    severity=0.85,
+                    detail=f"Action value contains unallowlisted external hostname '{host_match}' not present in locked intent.",
+                )
+
+        return None
 
     def _is_trusted_navigation(self, url: str) -> bool:
         """
