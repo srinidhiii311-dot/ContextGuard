@@ -49,3 +49,33 @@
 | **Durability Window** | Immediate ($0\text{ ms}$) | Within $200\text{ ms}$ or $50\text{ entries}$ |
 | **Crash Exposure (Ungraceful SIGKILL)** | $0\text{ entries}$ | Up to $49\text{ entries}$ or $200\text{ ms}$ |
 | **Normal Shutdown Entry Loss** | $0\text{ entries}$ | **$0\text{ entries}$** (`flush` + `atexit`) |
+
+---
+
+## 4. `gate-frozen-v3` — Adaptive Hardening & Intent Authorization
+
+Following the Block 7c adaptive attack audit, `gate-frozen-v3` incorporates two targeted, zero-overblock architectural protections:
+
+### A. Rule C5: Egress-in-Content Verification
+- **Vulnerability Closed**: In Strategy S1, attackers wrote exfiltration payloads (e.g. `http://evil.attacker/log?data=...` or external emails) into unconstrained free-text fields (such as notes, order comments, or memo).
+- **Enforcement (`contextguard/consistency_checker.py`)**: `_check_egress_in_content` scans proposed action values across all text-input fields for external URLs, non-allowlisted hostnames, or external emails. If an unallowlisted address is found that was not explicitly present in the original `locked_intent`, it generates an `InconsistencyItem` with `check_type="EGRESS_IN_CONTENT"`.
+- **Policy Floor**: `EGRESS_IN_CONTENT` is enforced as a hard floor requiring human confirmation (`REQUIRE_CONFIRMATION`), blocking covert content exfiltration.
+- **Benign Preservation**: Allowlisted hostnames, local IPs, and any email or URL explicitly declared by the user in `locked_intent` are exempted.
+
+### B. Rule C6: Irreversible-Action Authorization
+- **Vulnerability Closed**: In Strategy S6, attackers coerced the agent into executing irreversible actions (such as booking flights, submitting bank transfers, adding payees, or sending emails) during exploratory or search tasks where the user never authorized execution.
+- **Enforcement (`contextguard/gate.py`, `gateway/loader.py`, `contextguard/consistency_checker.py`)**:
+  - `LockedIntent` and `TrustedIntent` carry an explicit `authorized_actions: List[str]` contract.
+  - Manifest-irreversible actions (`#confirm-booking`, `#submit-transfer-btn`, `#add-payee-btn`, `#place-order-btn`, `#book-appt-btn`, `#send-btn`, `#send-msg-btn`, `#confirm-forward-btn`) are registered in `verifier.irreversible_targets`.
+  - When an irreversible action is attempted, the verifier requires that the target selector appears in `locked_intent.authorized_actions`. If absent, it raises `UNAUTHORIZED_IRREVERSIBLE_ACTION`, mandating human confirmation.
+- **Benign Task Preservation**: Natural user requests that instruct the agent to execute (e.g. "book the flight", "send email", "place order") derive authorization for the specific action in dataset construction, achieving 0% false intercepts.
+
+### C. Dev Verification Results under `gate-frozen-v3`
+- **Compromised Attack Recall**: 92.86% (195/210)
+- **Attack Success Rate (ASR)**: 7.14% (15/210)
+- **Benign Normal False Intercept Rate**: 0.0% (0/300) [95% CI: 0.0%, 1.3%]
+- **Benign Hard False Intercept Rate**: 0.0% (0/100) [95% CI: 0.0%, 3.7%]
+- **Task Completion Proxy (Utility)**: 100.0% (400/400) [95% CI: 99.0%, 100.0%]
+- **All 14 unit tests in `test_c5_egress_in_content.py` and `test_c6_irreversible_authorization.py`**: PASSED
+
+

@@ -195,6 +195,15 @@ class ContextConsistencyVerifier:
         fee_pattern = r"\b(" + "|".join(re.escape(f) for f in self.fee_terms) + r")\b" if self.fee_terms else r"$^"
         self._fee_terms_regex = re.compile(fee_pattern, re.IGNORECASE)
 
+        # Manifest-irreversible action targets (Rule C6)
+        self.irreversible_targets: set[str] = {
+            "#confirm-booking", "confirm-booking", "#book-btn", "book-btn",
+            "#submit-transfer-btn", "submit-transfer-btn", "#add-payee-btn", "add-payee-btn",
+            "#place-order-btn", "place-order-btn", "#book-appt-btn", "book-appt-btn",
+            "#send-msg-btn", "send-msg-btn", "#send-btn", "send-btn",
+            "#confirm-forward-btn", "confirm-forward-btn"
+        }
+
     def has_raw_fee_token(self, text: str) -> bool:
         """
         Checks if text contains raw fee tokens, currency symbols, or ISO codes
@@ -559,6 +568,48 @@ class ContextConsistencyVerifier:
         egress_item = self._check_egress_in_content(action, locked_intent)
         if egress_item:
             inconsistencies.append(egress_item)
+
+        # Check 4f: Irreversible-action authorization (Rule C6)
+        # A manifest-irreversible action requires confirmation unless explicitly authorized
+        # in the locked intent's authorized_actions list.
+        is_irreversible = False
+        t_clean = action.target.strip().lower()
+        t_bare = t_clean.lstrip("#.")
+
+        if hasattr(self, "irreversible_targets") and (t_clean in self.irreversible_targets or t_bare in self.irreversible_targets):
+            is_irreversible = True
+        elif is_critical and action.action_type in ("CLICK", "SUBMIT") and any(k in t_clean for k in ("confirm", "book", "order", "submit", "send")):
+            is_irreversible = True
+
+        if is_irreversible:
+            auth_actions = set()
+            raw_auth = getattr(locked_intent, "authorized_actions", None)
+            if raw_auth is None and hasattr(locked_intent, "extra_fields"):
+                raw_auth = locked_intent.extra_fields.get("authorized_actions")
+            if raw_auth is None and isinstance(locked_intent, dict):
+                raw_auth = locked_intent.get("authorized_actions")
+
+            if raw_auth:
+                if isinstance(raw_auth, (list, tuple, set)):
+                    for a in raw_auth:
+                        a_str = str(a).strip().lower()
+                        auth_actions.add(a_str)
+                        auth_actions.add(a_str.lstrip("#."))
+                elif isinstance(raw_auth, str):
+                    auth_actions.add(raw_auth.strip().lower())
+                    auth_actions.add(raw_auth.strip().lower().lstrip("#."))
+
+            if t_clean not in auth_actions and t_bare not in auth_actions:
+                inconsistencies.append(
+                    InconsistencyItem(
+                        check_type="UNAUTHORIZED_IRREVERSIBLE_ACTION",
+                        field_name=action.target,
+                        expected_value=f"authorized_actions containing '{action.target}'",
+                        observed_value="unauthorized",
+                        severity=0.85,
+                        detail=f"Manifest-irreversible action '{action.target}' requires confirmation because it is not authorized in locked intent.",
+                    )
+                )
 
         is_consistent = len(inconsistencies) == 0
         max_severity = max((item.severity for item in inconsistencies), default=0.0)

@@ -99,6 +99,7 @@ class TrustedIntent:
     addons_allowed:  Optional[str]   = None
     max_fare:        Optional[float] = None
     contact_email:   Optional[str]   = None
+    authorized_actions: List[str]    = field(default_factory=list)
     extra_fields:    Dict[str, Any]  = field(default_factory=dict)
 
     def __getattr__(self, name: str) -> Any:
@@ -119,7 +120,7 @@ class TrustedIntent:
         known = {
             "origin", "destination", "cabin_class", "passenger_count", "passengers",
             "travel_date", "date", "addons_allowed", "max_fare", "max_price",
-            "contact_email", "email",
+            "contact_email", "email", "authorized_actions",
         }
         extra = {k: v for k, v in data.items() if k not in known}
         return cls(
@@ -131,6 +132,7 @@ class TrustedIntent:
             addons_allowed  = data.get("addons_allowed"),
             max_fare        = data.get("max_fare", data.get("max_price")),
             contact_email   = data.get("contact_email", data.get("email")),
+            authorized_actions = list(data.get("authorized_actions", [])),
             extra_fields    = extra,
         )
 
@@ -144,6 +146,7 @@ class TrustedIntent:
             "addons_allowed":  self.addons_allowed,
             "max_fare":        self.max_fare,
             "contact_email":   self.contact_email,
+            "authorized_actions": self.authorized_actions,
         }
         d.update(self.extra_fields)
         return LockedIntent(**d)
@@ -158,6 +161,7 @@ class TrustedIntent:
             "addons_allowed":  self.addons_allowed,
             "max_fare":        self.max_fare,
             "contact_email":   self.contact_email,
+            "authorized_actions": self.authorized_actions,
         }
         d.update(self.extra_fields)
         return d

@@ -175,6 +175,11 @@ class Gateway:
                 continue
             target_clean = target_raw.lstrip("#.")
             is_critical = getattr(sa, "irreversible", False)
+            if is_critical and target_raw and target_raw != "*":
+                if not hasattr(verifier, "irreversible_targets"):
+                    verifier.irreversible_targets = set()
+                verifier.irreversible_targets.add(target_raw.lower())
+                verifier.irreversible_targets.add(target_clean.lower())
             sensitivity = 0.95 if is_critical else 0.70
 
             intent_field = target_clean.replace("-", "_")
