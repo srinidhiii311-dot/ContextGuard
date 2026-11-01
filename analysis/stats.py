@@ -242,6 +242,93 @@ def run_cluster_bootstrap(
     return results
 
 
+def run_cluster_bootstrap_utility(
+    config_runs: Dict[str, List[Dict[str, Any]]],
+    config_a: str = "dual_gate",
+    config_b: str = "taxonomy_block",
+    n_resamples: int = 10000,
+    seed: int = 42,
+) -> Optional[Dict[str, Any]]:
+    """
+    Performs paired cluster bootstrap hypothesis testing on Utility
+    (share of benign + uncompromised cases executed) clustered by (family, template).
+    """
+    from analysis.metrics import is_allowed
+
+    key_a = next((k for k in config_runs if k == config_a or k.startswith(f"{config_a}_")), None)
+    key_b = next((k for k in config_runs if k == config_b or k.startswith(f"{config_b}_")), None)
+
+    if not key_a or not key_b:
+        return None
+
+    recs_a = config_runs[key_a]
+    recs_b = config_runs[key_b]
+
+    # Filter to eligible utility cases: benign cases + uncompromised attack cases (470 cases)
+    map_a = {
+        r["task_id"]: is_allowed(r.get("decision", ""))
+        for r in recs_a
+        if r.get("case_type") == "benign" or r.get("ground_truth_label") == "attack_uncompromised"
+    }
+    map_b = {
+        r["task_id"]: is_allowed(r.get("decision", ""))
+        for r in recs_b
+        if r.get("case_type") == "benign" or r.get("ground_truth_label") == "attack_uncompromised"
+    }
+
+    clusters = defaultdict(list)
+    for r in recs_a:
+        tid = r["task_id"]
+        if tid in map_a:
+            fam = r.get("family", "unknown")
+            tmpl = tid.split("_")[-1]
+            if tid not in clusters[(fam, tmpl)]:
+                clusters[(fam, tmpl)].append(tid)
+
+    cluster_keys = sorted(clusters.keys())
+    k_clusters = len(cluster_keys)
+    if k_clusters == 0:
+        return None
+
+    all_tids = [tid for cl in cluster_keys for tid in clusters[cl]]
+    tot = len(all_tids)
+    u_a = sum(1 for tid in all_tids if map_a.get(tid, False)) / tot * 100.0 if tot else 0.0
+    u_b = sum(1 for tid in all_tids if map_b.get(tid, False)) / tot * 100.0 if tot else 0.0
+    obs_diff = u_a - u_b
+
+    rng = random.Random(seed)
+    bootstrap_draws = [rng.choices(cluster_keys, k=k_clusters) for _ in range(n_resamples)]
+    deltas = []
+    for draw in bootstrap_draws:
+        tids = [tid for cl in draw for tid in clusters[cl]]
+        n_s = len(tids)
+        d_a = sum(1 for tid in tids if map_a.get(tid, False))
+        d_b = sum(1 for tid in tids if map_b.get(tid, False))
+        deltas.append((d_a - d_b) / n_s * 100.0 if n_s else 0.0)
+
+    deltas.sort()
+    ci_low = deltas[int(0.025 * n_resamples)]
+    ci_high = deltas[int(0.975 * n_resamples)]
+    mean_delta = sum(deltas) / n_resamples
+    p_val = 2.0 * min(sum(1 for d in deltas if d <= 0) / n_resamples, sum(1 for d in deltas if d >= 0) / n_resamples)
+    p_val = min(1.0, max(p_val, 1.0 / n_resamples))
+
+    return {
+        "config_a": key_a,
+        "config_b": key_b,
+        "metric": "Utility (Executed)",
+        "rate_a_pct": round(u_a, 2),
+        "rate_b_pct": round(u_b, 2),
+        "delta_obs_pct": round(obs_diff, 2),
+        "delta_mean_pct": round(mean_delta, 2),
+        "ci_low_pct": round(ci_low, 2),
+        "ci_high_pct": round(ci_high, 2),
+        "p_value_boot": round(p_val, 6),
+        "n_clusters": k_clusters,
+        "n_resamples": n_resamples,
+    }
+
+
 def compute_per_family_breakdown(
     config_runs: Dict[str, List[Dict[str, Any]]]
 ) -> Dict[str, Dict[str, Dict[str, Any]]]:
@@ -341,6 +428,7 @@ def generate_comparative_stats_report(
 
     # 2. Cluster Bootstrap by (family, template) 10,000 resamples
     bootstrap_results = run_cluster_bootstrap(valid_config_runs, n_resamples=10000, seed=seeds[0])
+    utility_bootstrap = run_cluster_bootstrap_utility(valid_config_runs, "dual_gate", "taxonomy_block", n_resamples=10000, seed=seeds[0])
 
     # 3. Per-Family Breakdown (valid runs only)
     family_breakdown = compute_per_family_breakdown(valid_config_runs)
@@ -441,17 +529,27 @@ def generate_comparative_stats_report(
 
         f.write("\n## 4. Cluster Bootstrap Comparisons by (Family, Template) [10,000 Resamples]\n\n")
         f.write("Accounting for correlation within attack family and template clusters on the **DEV** split (seed 42):\n\n")
-        f.write("| Comparison (A vs B) | Rate A | Rate B | Observed Diff (A - B) | Bootstrap Mean Diff | 95% Bootstrap CI | Cluster Boot p | Significant? |\n")
-        f.write("| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n")
+        f.write("| Comparison (A vs B) | Metric | Rate A | Rate B | Observed Diff (A - B) | Bootstrap Mean Diff | 95% Bootstrap CI | Cluster Boot p | Significant? |\n")
+        f.write("| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n")
 
         for bres in bootstrap_results:
             comp_str = f"`{bres['config_a']}` vs `{bres['config_b']}`"
             sig = "**YES** (p < 0.05)" if bres["p_value_boot"] < 0.05 else "No"
             f.write(
-                f"| {comp_str} | {bres['rate_a_pct']:.1f}% | {bres['rate_b_pct']:.1f}% | "
+                f"| {comp_str} | Attack Recall | {bres['rate_a_pct']:.1f}% | {bres['rate_b_pct']:.1f}% | "
                 f"{bres['delta_obs_pct']:+.2f}% | {bres['delta_mean_pct']:+.2f}% | "
                 f"[{bres['ci_low_pct']:+.2f}%, {bres['ci_high_pct']:+.2f}%] | "
                 f"{bres['p_value_boot']:.4f} | {sig} |\n"
+            )
+
+        if utility_bootstrap:
+            ub = utility_bootstrap
+            sig = "**YES** (p < 0.05)" if ub["p_value_boot"] < 0.05 else "No"
+            f.write(
+                f"| `{ub['config_a']}` vs `{ub['config_b']}` | Utility (Executed) | {ub['rate_a_pct']:.1f}% | {ub['rate_b_pct']:.1f}% | "
+                f"{ub['delta_obs_pct']:+.2f}% | {ub['delta_mean_pct']:+.2f}% | "
+                f"[{ub['ci_low_pct']:+.2f}%, {ub['ci_high_pct']:+.2f}%] | "
+                f"{ub['p_value_boot']:.4f} | {sig} |\n"
             )
 
         f.write("\n## 5. Pairwise Statistical Comparisons (Paired McNemar's Exact Test)\n\n")
@@ -462,10 +560,12 @@ def generate_comparative_stats_report(
         for test in mcnemar_results:
             comp_str = f"`{test['config_a']}` vs `{test['config_b']}`"
             sig_badge = "**YES**" if test["significant"] else "No"
+            raw_p_str = f"{test['p_raw']:.4e}" if test["p_raw"] > 1e-15 else "< 1e-15"
+            adj_p_str = f"{test['p_adj']:.4e}" if test["p_adj"] > 1e-15 else "< 1e-15"
             f.write(
                 f"| {comp_str} | {test['n_common']} | {test['both_stopped']} | {test['neither_stopped']} | "
                 f"+{test['gained_by_b (b)']} | -{test['lost_by_b (c)']} | {test['odds_ratio']} | "
-                f"{test['risk_diff_pct']:+.1f}% | {test['p_raw']:.4e} | {test['p_adj']:.4e} | {sig_badge} |\n"
+                f"{test['risk_diff_pct']:+.1f}% | {raw_p_str} | {adj_p_str} | {sig_badge} |\n"
             )
 
         f.write("\n## 6. Detection Rate by Attack Family\n\n")

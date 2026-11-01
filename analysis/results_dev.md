@@ -87,11 +87,12 @@ Breakdown of benign false intercepts across configurations and template clusters
 
 Accounting for correlation within attack family and template clusters on the **DEV** split (seed 42):
 
-| Comparison (A vs B) | Rate A | Rate B | Observed Diff (A - B) | Bootstrap Mean Diff | 95% Bootstrap CI | Cluster Boot p | Significant? |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| `dual_gate` vs `consistency_only` | 92.9% | 74.8% | +18.10% | +18.18% | [+7.14%, +30.00%] | 0.0012 | **YES** (p < 0.05) |
-| `dual_gate` vs `taxonomy_only` | 92.9% | 100.0% | -7.14% | -7.16% | [-16.67%, +0.00%] | 0.0866 | No |
-| `dual_gate` vs `dual_gate_no_risk_engine` | 92.9% | 76.2% | +16.67% | +16.75% | [+6.67%, +27.62%] | 0.0012 | **YES** (p < 0.05) |
+| Comparison (A vs B) | Metric | Rate A | Rate B | Observed Diff (A - B) | Bootstrap Mean Diff | 95% Bootstrap CI | Cluster Boot p | Significant? |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| `dual_gate` vs `consistency_only` | Attack Recall | 92.9% | 74.8% | +18.10% | +18.18% | [+7.14%, +30.00%] | 0.0012 | **YES** (p < 0.05) |
+| `dual_gate` vs `taxonomy_only` | Attack Recall | 92.9% | 100.0% | -7.14% | -7.16% | [-16.67%, +0.00%] | 0.0866 | No |
+| `dual_gate` vs `dual_gate_no_risk_engine` | Attack Recall | 92.9% | 76.2% | +16.67% | +16.75% | [+6.67%, +27.62%] | 0.0012 | **YES** (p < 0.05) |
+| `dual_gate` vs `taxonomy_block` | Utility (Executed) | 97.2% | 85.1% | +12.13% | +12.09% | [+4.89%, +19.79%] | 0.0010 | **YES** (p < 0.05) |
 
 ## 5. Pairwise Statistical Comparisons (Paired McNemar's Exact Test)
 
@@ -99,9 +100,9 @@ Evaluated over identical compromised attack DEV cases with Holm-Bonferroni FWER 
 
 | Comparison (A vs B) | Common N | Both Stopped | Neither | Gained by B (+b) | Lost by B (-c) | Odds Ratio | Risk Diff | Raw p | Holm Adj p | Significant? |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| `dual_gate` vs `consistency_only` | 210 | 157 | 15 | +0 | -38 | 0.0 | -18.1% | 0.0000e+00 | 0.0000e+00 | **YES** |
+| `dual_gate` vs `consistency_only` | 210 | 157 | 15 | +0 | -38 | 0.0 | -18.1% | < 1e-15 | < 1e-15 | **YES** |
 | `dual_gate` vs `taxonomy_only` | 210 | 195 | 0 | +15 | -0 | inf | +7.1% | 6.1000e-05 | 6.1000e-05 | **YES** |
-| `dual_gate` vs `dual_gate_no_risk_engine` | 210 | 160 | 15 | +0 | -35 | 0.0 | -16.7% | 0.0000e+00 | 0.0000e+00 | **YES** |
+| `dual_gate` vs `dual_gate_no_risk_engine` | 210 | 160 | 15 | +0 | -35 | 0.0 | -16.7% | < 1e-15 | < 1e-15 | **YES** |
 
 ## 6. Detection Rate by Attack Family
 
