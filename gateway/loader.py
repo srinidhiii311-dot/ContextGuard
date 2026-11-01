@@ -160,11 +160,18 @@ class Gateway:
         if domain == "flight":
             protected_mappings.update(verifier.target_mappings)
 
-        for sa in policy.sensitive_actions:
+        all_candidate_actions = list(policy.sensitive_actions)
+        if manifest:
+            all_candidate_actions.extend(manifest.sensitive_actions)
+            all_candidate_actions.extend(manifest.allowed_actions)
+
+        for sa in all_candidate_actions:
             target_raw = sa.target
+            if not target_raw or target_raw == "*":
+                continue
             target_clean = target_raw.lstrip("#.")
-            is_critical = sa.irreversible
-            sensitivity = 0.95 if sa.irreversible else 0.70
+            is_critical = getattr(sa, "irreversible", False)
+            sensitivity = 0.95 if is_critical else 0.70
 
             intent_field = target_clean.replace("-", "_")
             if intent_field in ("from", "origin"):
@@ -177,11 +184,11 @@ class Gateway:
                 intent_field = "contact_email"
 
             mapping = {
-                "action_type": sa.action_type,
+                "action_type": getattr(sa, "action_type", "TYPE"),
                 "intent_field": intent_field,
                 "action_sensitivity": sensitivity,
                 "booking_critical": is_critical,
-                "description": sa.description,
+                "description": getattr(sa, "description", ""),
                 "target_selectors": [target_raw, target_clean, f"#{target_clean}"],
             }
             protected_mappings[target_clean] = mapping

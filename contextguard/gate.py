@@ -342,7 +342,16 @@ def _get_action_sensitivity(target: str, protected_fields: Dict) -> tuple[float,
                 bool(field_data.get("booking_critical", False)),
             )
         for selector in field_data.get("target_selectors", []):
-            if selector.lower() == t_low or selector.lower() in t_low:
+            if selector.lower() == t_low:
+                return (
+                    float(field_data.get("action_sensitivity", 0.30)),
+                    bool(field_data.get("booking_critical", False)),
+                )
+
+    # 1b. Check selector containment
+    for field_key, field_data in protected_fields.items():
+        for selector in field_data.get("target_selectors", []):
+            if len(selector) > 2 and selector.lower() in t_low:
                 return (
                     float(field_data.get("action_sensitivity", 0.30)),
                     bool(field_data.get("booking_critical", False)),
@@ -1038,6 +1047,23 @@ class ContextGuardGate:
                 unknown_field_triggered = True
                 if enforce_severity.get(decision, 0) < enforce_severity[Decision.REQUIRE_CONFIRMATION]:
                     decision = Decision.REQUIRE_CONFIRMATION
+
+        # C4: A marker hit alone must not raise decision above warn when action matches mapped locked-intent fields and no inconsistency exists.
+        has_any_inconsistency = any(
+            inc.check_type != "INJECTION_MARKER"
+            for inc in consistency.inconsistencies
+        )
+        if (
+            not has_any_inconsistency
+            and not unknown_field_triggered
+            and not fee_floor_triggered
+            and not has_hard_rule
+        ):
+            # When action matches intent with zero parameter or structural inconsistencies,
+            # an injection marker hit or threat detector hit on page text alone must not raise decision above warn.
+            if enforce_severity.get(decision, 0) > enforce_severity[Decision.ALLOW_WITH_FLAG]:
+                if consistency.marker_presence or threat.is_threat:
+                    decision = Decision.ALLOW_WITH_FLAG
 
         # Build reason chain
         parts = []

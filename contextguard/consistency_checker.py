@@ -236,6 +236,7 @@ class ContextConsistencyVerifier:
         Returns (intent_field_name, action_sensitivity, booking_critical).
         """
         t_low = target.lower().strip()
+        # 1. Exact match check across all mappings first (prevents short substrings like 'to' matching '#to-account')
         for field_key, field_cfg in self.target_mappings.items():
             if field_key.lower() == t_low:
                 return (
@@ -244,7 +245,17 @@ class ContextConsistencyVerifier:
                     bool(field_cfg.get("booking_critical", False)),
                 )
             for selector in field_cfg.get("target_selectors", []):
-                if selector.lower() == t_low or selector.lower() in t_low:
+                if selector.lower() == t_low:
+                    return (
+                        field_cfg.get("intent_field"),
+                        float(field_cfg.get("action_sensitivity", 0.5)),
+                        bool(field_cfg.get("booking_critical", False)),
+                    )
+
+        # 2. Substring / selector containment fallback
+        for field_key, field_cfg in self.target_mappings.items():
+            for selector in field_cfg.get("target_selectors", []):
+                if len(selector) > 2 and selector.lower() in t_low:
                     return (
                         field_cfg.get("intent_field"),
                         float(field_cfg.get("action_sensitivity", 0.5)),
