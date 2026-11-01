@@ -76,7 +76,7 @@ class LLMResponse:
 
 class RateLimiter:
     """Thread-safe rate limiter to enforce max requests per second."""
-    def __init__(self, max_rps: float = 2.0):
+    def __init__(self, max_rps: float = 0.5):
         self.interval = 1.0 / max_rps if max_rps > 0 else 0.0
         self._lock = threading.Lock()
         self._last_call = 0.0
@@ -109,9 +109,9 @@ class LLMClient:
                 "log_file": "runs/llm_calls.jsonl",
                 "default_provider": "gemini_api",
                 "roles": {
-                    "judge": {"provider": "gemini_api", "model": "gemini-2.5-flash", "temperature": 0.0, "max_tokens": 256},
-                    "attacker": {"provider": "gemini_api", "model": "gemini-1.5-pro", "temperature": 0.7, "max_tokens": 1024},
-                    "generator": {"provider": "gemini_api", "model": "gemini-1.5-pro", "temperature": 0.7, "max_tokens": 1024},
+                    "judge": {"provider": "gemini_api", "model": "gemini-3.5-flash-lite", "temperature": 0.0, "max_tokens": 256},
+                    "attacker": {"provider": "gemini_api", "model": "gemini-3.5-flash", "temperature": 0.7, "max_tokens": 1024},
+                    "generator": {"provider": "gemini_api", "model": "gemini-3.5-flash", "temperature": 0.7, "max_tokens": 1024},
                     "agent": {"provider": "mock", "model": "mock-agent-v1", "temperature": 0.2, "max_tokens": 512},
                 },
             }
@@ -193,13 +193,14 @@ class LLMClient:
         model: str,
         prompt: str,
         role_cfg: Dict[str, Any],
-        max_retries: int = 5,
-        base_delay: float = 1.0,
+        max_retries: int = 10,
+        base_delay: float = 2.0,
     ) -> Tuple[str, int, int, str, str]:
         """
         Direct Gemini API call using google-genai SDK with exponential backoff retry.
         Returns: (content, tokens_in, tokens_out, real_model_name, request_id)
         """
+        import re
         from google.genai import types
 
         client = self._get_genai_client()
@@ -255,10 +256,19 @@ class LLMClient:
                 )
 
                 if (is_rate_limit or is_network) and attempt < max_retries - 1:
-                    sleep_time = (base_delay * (2 ** attempt)) + random.uniform(0.1, 0.6)
+                    # Smart backoff: parse Google retry delay if present, else exponential backoff with quota-safe minimum
+                    retry_match = re.search(r"retry\s+in\s+([0-9.]+)\s*s", err_msg) or re.search(r"retrydelay['\":\s]+([0-9.]+)s", err_msg)
+                    if retry_match:
+                        sleep_time = float(retry_match.group(1)) + random.uniform(1.0, 2.5)
+                    elif is_rate_limit:
+                        sleep_time = max(15.0, (base_delay * (2 ** min(attempt, 4)))) + random.uniform(1.0, 3.0)
+                    else:
+                        sleep_time = (base_delay * (2 ** attempt)) + random.uniform(0.5, 1.5)
+
                     logger.warning(
-                        f"[gemini_api retry {attempt+1}/{max_retries}] Transient error ({exc}). Backing off for {sleep_time:.2f}s..."
+                        f"[gemini_api retry {attempt+1}/{max_retries}] 429/Network error: {exc}. Backing off for {sleep_time:.2f}s..."
                     )
+                    print(f"\n[429/Quota Backoff] Rate limit hit. Backing off for {sleep_time:.2f}s (attempt {attempt+1}/{max_retries})...", flush=True)
                     time.sleep(sleep_time)
                     continue
 
@@ -453,7 +463,7 @@ class LLMClient:
         role: str,
         prompts: List[str],
         max_workers: int = 5,
-        rate_limit_rps: float = 2.0,
+        rate_limit_rps: float = 0.5,
         use_cache: bool = True,
         provider: Optional[str] = None,
         model: Optional[str] = None,
@@ -523,7 +533,7 @@ def batch_llm_call(
     prompts: List[str],
     role: str = "judge",
     max_workers: int = 5,
-    rate_limit_rps: float = 2.0,
+    rate_limit_rps: float = 0.5,
     use_cache: bool = True,
     provider: Optional[str] = None,
     model: Optional[str] = None,

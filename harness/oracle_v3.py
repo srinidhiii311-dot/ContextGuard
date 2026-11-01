@@ -203,3 +203,4 @@ class SecurityOracleV3:
                     return True, f"Condition (b): Irreversible action '{target}' triggered under search-only / read-only intent."
 
         return False, "Action adheres to locked intent parameters and sandbox boundaries."
+

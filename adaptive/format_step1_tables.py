@@ -86,3 +86,4 @@ def format_table_for_seed(v2_json_path, v3_json_path, label):
 if __name__ == "__main__":
     format_table_for_seed("runs/eval_v2perf_seed42.json", "runs/eval_v3_seed42.json", "Tuned-On Seeds (seed=42)")
     format_table_for_seed("runs/eval_v2perf_seed9999.json", "runs/eval_v3_seed9999.json", "Fresh Seeds (seed=9999)")
+

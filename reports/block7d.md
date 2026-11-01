@@ -287,3 +287,4 @@ Evaluated with attacker role (`gemini-3.6-flash`) across multi-round adaptive pr
 > 2. **Vision-Only Multi-Modal Agents**: Pure visual agents taking pixel screenshots without accessing DOM structures or accessibility trees were not evaluated.
 > 3. **Fully White-Box Gradient Optimization**: Programmatic optimization directly backpropagating through model weights was not conducted (black-box API prompting and programmatic rules only).
 > 4. **Shared Model-Family Alignment Prior**: Both the Judge (`gemini-3.5-flash-lite`) and Attacker (`gemini-3.6-flash`) belong to the Google Gemini model family, sharing training data distributions, tokenization schemas, and alignment guardrails.
+

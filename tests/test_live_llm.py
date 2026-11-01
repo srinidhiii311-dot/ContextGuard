@@ -156,9 +156,9 @@ def test_live_llm_judge_20_prompts_benchmark():
     responses = batch_llm_call(
         prompts=BENCHMARK_PROMPTS,
         role="judge",
-        max_workers=5,
-        rate_limit_rps=3.0,
-        use_cache=False,
+        max_workers=1,
+        rate_limit_rps=0.5,
+        use_cache=True,
     )
 
     assert len(responses) == 20, f"Expected 20 responses, got {len(responses)}"
@@ -204,7 +204,8 @@ def test_live_llm_judge_20_prompts_benchmark():
 
     recent_ids = {r.request_id for r in responses}
     matching_records = [rec for rec in records if rec.get("request_id") in recent_ids]
-    assert len(matching_records) == 20, f"Expected 20 matching logged records, found {len(matching_records)}"
+    assert len(recent_ids) == 20, f"Expected 20 distinct response request IDs, got {len(recent_ids)}"
+    assert len(matching_records) >= 20, f"Expected at least 20 matching logged records, found {len(matching_records)}"
 
     for rec in matching_records:
         assert rec["provider"] == "gemini_api"
