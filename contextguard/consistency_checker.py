@@ -419,25 +419,26 @@ class ContextConsistencyVerifier:
                     )
                 )
 
-        # Check 2: Navigation trust boundary (FR8)
+        # Check 2: Navigation & Form submission boundary verification (FR8 / C2)
         nav_target = ""
-        if action.action_type == "NAVIGATE":
-            # Value takes precedence (full URL), then target
+        if action.action_type in ("NAVIGATE", "SUBMIT"):
             nav_target = action.value or action.target
-            # Strip navigate: prefix if present
-            if nav_target and nav_target.startswith("navigate:"):
-                nav_target = nav_target[len("navigate:"):]
+            if nav_target and str(nav_target).startswith("navigate:"):
+                nav_target = str(nav_target)[len("navigate:"):]
+        elif action.target and (str(action.target).startswith("http://") or str(action.target).startswith("https://")):
+            nav_target = action.target
 
-        if nav_target:
-            if not self._is_trusted_navigation(nav_target):
+        if nav_target and ("://" in str(nav_target) or action.action_type in ("NAVIGATE", "SUBMIT")):
+            if not self._is_trusted_navigation(str(nav_target)):
+                is_sub = (action.action_type == "SUBMIT")
                 inconsistencies.append(
                     InconsistencyItem(
                         check_type="NAVIGATION_BOUNDARY",
-                        field_name="navigation",
+                        field_name="form_submit" if is_sub else "navigation",
                         expected_value="within trust_boundary",
-                        observed_value=nav_target,
+                        observed_value=str(nav_target),
                         severity=0.90,
-                        detail=f"Navigation destination '{nav_target}' is outside configured trust boundary.",
+                        detail=f"{'Form submission' if is_sub else 'Navigation'} destination '{nav_target}' is outside configured trust boundary.",
                     )
                 )
 
