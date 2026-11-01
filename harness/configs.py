@@ -76,6 +76,32 @@ CONFIG_SPECS: Dict[str, GatewayConfigSpec] = {
             "enable_llm_checker": False,
         },
     ),
+    "taxonomy_warn": GatewayConfigSpec(
+        name="taxonomy_warn",
+        code="B1_warn",
+        description="Static attack taxonomy regex matching where a match produces a warning only.",
+        flags={
+            "enable_verifier": False,
+            "enable_taxonomy": True,
+            "enable_characterizer": False,
+            "enable_risk_engine": False,
+            "enable_policy_engine": False,
+            "enable_llm_checker": False,
+        },
+    ),
+    "taxonomy_block": GatewayConfigSpec(
+        name="taxonomy_block",
+        code="B1_block",
+        description="Static attack taxonomy regex matching where a match produces an outright block.",
+        flags={
+            "enable_verifier": False,
+            "enable_taxonomy": True,
+            "enable_characterizer": False,
+            "enable_risk_engine": False,
+            "enable_policy_engine": False,
+            "enable_llm_checker": False,
+        },
+    ),
     "consistency_only": GatewayConfigSpec(
         name="consistency_only",
         code="B2",
@@ -147,6 +173,8 @@ CONFIG_SPECS: Dict[str, GatewayConfigSpec] = {
 CONFIG_ALIASES = {
     "b0": "no_gateway",
     "b1": "taxonomy_only",
+    "b1_warn": "taxonomy_warn",
+    "b1_block": "taxonomy_block",
     "b2": "consistency_only",
     "d": "dual_gate",
     "h": "dual_gate_llm",
@@ -197,11 +225,17 @@ def evaluate_case_with_config(
         # Baseline 0: Passthrough
         decision = "allow"
 
-    elif cfg_name == "taxonomy_only":
-        # Baseline 1: Taxonomy / Regex matching only
+    elif cfg_name in ("taxonomy_only", "taxonomy_block"):
+        # Baseline 1: Taxonomy / Regex matching only (Block on hit)
         text_to_scan = f"{dom_text} {raw_html or ''} {case.proposed_action.source_text or ''} {case.proposed_action.value or ''}"
         hit = bool(TAXONOMY_REGEX.search(text_to_scan))
         decision = "block" if hit else "allow"
+
+    elif cfg_name == "taxonomy_warn":
+        # Baseline 1b: Taxonomy matching with warning only
+        text_to_scan = f"{dom_text} {raw_html or ''} {case.proposed_action.source_text or ''} {case.proposed_action.value or ''}"
+        hit = bool(TAXONOMY_REGEX.search(text_to_scan))
+        decision = "warn" if hit else "allow"
 
     elif cfg_name == "consistency_only":
         # Baseline 2: Context consistency verification only

@@ -306,3 +306,4 @@ def test_exact_trusted_domain_with_default_port(verifier):
 def test_exact_trusted_subdomain_with_ssl(verifier):
     """https://api.trusted.com:443/v1 should match 'api.trusted.com:443'."""
     assert verifier._is_trusted_navigation("https://api.trusted.com:443/v1") is True
+

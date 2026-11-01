@@ -287,11 +287,13 @@ def generate_comparative_stats_report(
     seeds = seeds or [42]
     # Evaluate valid gateway configurations only (no_gateway removed)
     configs = configs or [
+        "taxonomy_warn",
+        "taxonomy_block",
         "taxonomy_only",
         "consistency_only",
         "dual_gate",
-        "dual_gate_no_risk_engine",
         "dual_gate_no_characterizer",
+        "dual_gate_no_risk_engine",
     ]
 
     expected_case_ids = set()
@@ -372,7 +374,11 @@ def generate_comparative_stats_report(
 
     # 5. Generate Markdown Report
     report_md = ANALYSIS_DIR / f"results_{split}.md"
-    from analysis.metrics import compute_metrics_for_records
+    from analysis.metrics import (
+        compute_benign_false_intercepts_by_cluster,
+        compute_metrics_for_records,
+        compute_multistep_metrics,
+    )
 
     with open(report_md, "w", encoding="utf-8") as f:
         f.write(f"# ContextGuard Multi-Configuration Comparative Analysis ({split.upper()} Split, Not Test)\n\n")
@@ -384,25 +390,56 @@ def generate_comparative_stats_report(
                 f.write(f"- **`{icfg}`**: Excluded from benchmark tables because `fallback_count = {ifb} > 0` (unsupported unverified fallback).\n")
             f.write("\n")
 
-        f.write("## 1. Overall Performance Metrics Summary\n\n")
-        f.write("Proportions reported with 95% Wilson score intervals; latencies reported with empirical bootstrap 95% CIs:\n\n")
-        f.write("| Configuration | Compromised Attack Recall (Wilson 95% CI) | Uncompromised Over-Block Rate | Benign Normal False-Intercept | Benign Hard False-Intercept | Task Completion Proxy | Latency p50 | Latency p95 | LLM Calls |\n")
+        f.write("## 1. Overall Performance Metrics Summary (DEV Split)\n\n")
+        f.write("Proportions reported with 95% Wilson score intervals and cluster bootstrap 95% CIs (10,000 resamples by family, template):\n\n")
+        f.write("| Configuration | ASR (Unsafe Executed) | Compromised Recall | Utility (Executed) | Uncompromised Over-Block | Benign Normal False-Intercept | Benign Hard False-Intercept | Latency p50 | Latency p95 |\n")
         f.write("| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n")
 
         for cfg in cfgs_list:
             recs = valid_config_runs[cfg]
             m = compute_metrics_for_records(recs)
-            comp_str = m["compromised_formatted"]
-            uncomp_str = m["uncompromised_formatted"]
-            norm_str = m["benign_normal_formatted"]
-            hard_str = m["benign_hard_formatted"]
-            comp_proxy = m["task_completion_formatted"]
+            asr_str = f"{m['asr_rate']:.1f}%<br><sub>W:[{m['asr_wilson_ci'][0]}%, {m['asr_wilson_ci'][1]}%]<br>B:[{m['asr_boot_ci'][0]}%, {m['asr_boot_ci'][1]}%]</sub>"
+            comp_str = f"{m['compromised_detection_rate']:.1f}%<br><sub>W:[{m['compromised_ci'][0]*100:.1f}%, {m['compromised_ci'][1]*100:.1f}%]<br>B:[{m['compromised_boot_ci'][0]}%, {m['compromised_boot_ci'][1]}%]</sub>"
+            util_str = f"{m['utility_rate']:.1f}%<br><sub>W:[{m['utility_wilson_ci'][0]}%, {m['utility_wilson_ci'][1]}%]<br>B:[{m['utility_boot_ci'][0]}%, {m['utility_boot_ci'][1]}%]</sub>"
+            uncomp_str = f"{m['uncompromised_overblock_rate']:.1f}%<br><sub>W:[{m['uncompromised_ci'][0]*100:.1f}%, {m['uncompromised_ci'][1]*100:.1f}%]<br>B:[{m['uncompromised_boot_ci'][0]}%, {m['uncompromised_boot_ci'][1]}%]</sub>"
+            norm_str = f"{m['benign_normal_fp_rate']:.1f}%<br><sub>W:[{m['benign_normal_ci'][0]*100:.1f}%, {m['benign_normal_ci'][1]*100:.1f}%]<br>B:[{m['benign_normal_boot_ci'][0]}%, {m['benign_normal_boot_ci'][1]}%]</sub>"
+            hard_str = f"{m['benign_hard_fp_rate']:.1f}%<br><sub>W:[{m['benign_hard_ci'][0]*100:.1f}%, {m['benign_hard_ci'][1]*100:.1f}%]<br>B:[{m['benign_hard_boot_ci'][0]}%, {m['benign_hard_boot_ci'][1]}%]</sub>"
             p50_str = f"{m['p50_latency_ms']} ms"
             p95_str = f"{m['p95_latency_ms']} ms"
-            llm_str = f"{m['llm_calls_count']} ({m['llm_invocation_ratio']*100:.1f}%)" if m["llm_calls_count"] else "0 (0.0%)"
-            f.write(f"| `{cfg}` | {comp_str} | {uncomp_str} | {norm_str} | {hard_str} | {comp_proxy} | {p50_str} | {p95_str} | {llm_str} |\n")
+            f.write(f"| `{cfg}` | {asr_str} | {comp_str} | {util_str} | {uncomp_str} | {norm_str} | {hard_str} | {p50_str} | {p95_str} |\n")
 
-        f.write("\n## 2. Cluster Bootstrap Comparisons by (Family, Template) [10,000 Resamples]\n\n")
+        f.write("\n## 2. Multi-Step Attack Detection (Episode-Level & Step-Level)\n\n")
+        f.write("Evaluated over multi_step_instruction attacks across 5 domains (40 total cases: 30 compromised steps, 10 uncompromised steps):\n\n")
+        f.write("| Configuration | Episode Detection (With Prep) | Step Detection (With Prep) | Episode Detection (Without Prep) | Step Detection (Without Prep) |\n")
+        f.write("| :--- | :---: | :---: | :---: | :---: |\n")
+        for cfg in cfgs_list:
+            recs = valid_config_runs[cfg]
+            ms = compute_multistep_metrics(recs)
+            ep_with = f"{ms['episodes_detected_with_prep']}/{ms['total_episodes']} ({ms['episode_rate_with_prep']}%)"
+            step_with = f"{ms['steps_comp_detected_with_prep']}/{ms['steps_comp_total']} ({ms['step_rate_with_prep']}%)"
+            ep_wo = f"{ms['episodes_detected_without_prep']}/{ms['total_episodes']} ({ms['episode_rate_without_prep']}%)"
+            step_wo = f"{ms['steps_payload_detected']}/{ms['steps_payload_total']} ({ms['step_rate_without_prep']}%)"
+            f.write(f"| `{cfg}` | {ep_with} | {step_with} | {ep_wo} | {step_wo} |\n")
+
+        f.write("\n## 3. Benign False Intercepts by Template Cluster\n\n")
+        f.write("Breakdown of benign false intercepts across configurations and template clusters (450 total benign cases: 400 normal + 50 hard):\n\n")
+        f.write("| Configuration | Cluster | Family | Template | Affected Domains | Intercepted / Total | False-Intercept Rate | Decision Breakdown |\n")
+        f.write("| :--- | :--- | :--- | :---: | :--- | :---: | :---: | :--- |\n")
+        for cfg in cfgs_list:
+            recs = valid_config_runs[cfg]
+            cl_fps = compute_benign_false_intercepts_by_cluster(recs)
+            if not cl_fps:
+                f.write(f"| `{cfg}` | *(none)* | *(none)* | — | — | 0/450 | 0.0% | 0 Block, 0 Confirm |\n")
+            else:
+                for item in cl_fps:
+                    dec_str = f"{item['block_count']} Block, {item['confirm_count']} Confirm"
+                    f.write(
+                        f"| `{cfg}` | `{item['cluster_key']}` | `{item['family']}` | `{item['template']}` | "
+                        f"{', '.join(item['domains'])} | {item['false_intercepts']}/{item['total_cases_in_cluster']} | "
+                        f"{item['false_intercept_rate']:.1f}% | {dec_str} |\n"
+                    )
+
+        f.write("\n## 4. Cluster Bootstrap Comparisons by (Family, Template) [10,000 Resamples]\n\n")
         f.write("Accounting for correlation within attack family and template clusters on the **DEV** split (seed 42):\n\n")
         f.write("| Comparison (A vs B) | Rate A | Rate B | Observed Diff (A - B) | Bootstrap Mean Diff | 95% Bootstrap CI | Cluster Boot p | Significant? |\n")
         f.write("| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n")
@@ -417,7 +454,7 @@ def generate_comparative_stats_report(
                 f"{bres['p_value_boot']:.4f} | {sig} |\n"
             )
 
-        f.write("\n## 3. Pairwise Statistical Comparisons (Paired McNemar's Exact Test)\n\n")
+        f.write("\n## 5. Pairwise Statistical Comparisons (Paired McNemar's Exact Test)\n\n")
         f.write("Evaluated over identical compromised attack DEV cases with Holm-Bonferroni FWER control ($\\alpha = 0.05$):\n\n")
         f.write("| Comparison (A vs B) | Common N | Both Stopped | Neither | Gained by B (+b) | Lost by B (-c) | Odds Ratio | Risk Diff | Raw p | Holm Adj p | Significant? |\n")
         f.write("| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n")
@@ -431,7 +468,7 @@ def generate_comparative_stats_report(
                 f"{test['risk_diff_pct']:+.1f}% | {test['p_raw']:.4e} | {test['p_adj']:.4e} | {sig_badge} |\n"
             )
 
-        f.write("\n## 4. Detection Rate by Attack Family\n\n")
+        f.write("\n## 6. Detection Rate by Attack Family\n\n")
         headers = ["Attack Family"] + [f"`{c}`" for c in cfgs_list]
         f.write("| " + " | ".join(headers) + " |\n")
         f.write("| " + " | ".join([":---"] + [":---:"] * len(cfgs_list)) + " |\n")
