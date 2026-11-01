@@ -198,6 +198,15 @@ def generate_comparative_stats_report(
     seeds = seeds or [42]
     configs = configs or ["no_gateway", "taxonomy_only", "consistency_only", "dual_gate", "dual_gate_llm"]
 
+    # Determine expected case IDs for split dataset validation
+    expected_case_ids = set()
+    for fpath in [ROOT_DIR / "attacks" / split / "cases.jsonl", ROOT_DIR / "benign" / split / "cases.jsonl"]:
+        if fpath.is_file():
+            with open(fpath, "r", encoding="utf-8") as fp:
+                for line in fp:
+                    if line.strip():
+                        expected_case_ids.add(json.loads(line).get("case_id"))
+
     config_runs: Dict[str, List[Dict[str, Any]]] = {}
     for cfg in configs:
         for seed in seeds:
@@ -208,6 +217,11 @@ def generate_comparative_stats_report(
                     for line in f:
                         if line.strip():
                             records.append(json.loads(line))
+                # Validate that run aligns with frozen dataset split
+                rec_ids = set(r.get("task_id") for r in records)
+                if expected_case_ids and rec_ids != expected_case_ids:
+                    print(f"[Stats] Excluding stale run '{rf.name}': case count ({len(records)}) or IDs do not match dataset v2 ({len(expected_case_ids)} cases).")
+                    continue
                 config_runs[cfg] = records
 
     if not config_runs:

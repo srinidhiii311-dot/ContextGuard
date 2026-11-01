@@ -1,11 +1,7 @@
 config_a,config_b,n_common,both_stopped,neither_stopped,gained_by_b (b),lost_by_b (c),odds_ratio,risk_diff_pct,p_value,rank,p_raw,p_adj,alpha_threshold,significant
-no_gateway,taxonomy_only,210,0,0,210,0,inf,100.0,1.2154326714572542e-63,1,0.0,0.0,0.005,True
-no_gateway,consistency_only,210,0,105,105,0,inf,50.0,4.930380657631324e-32,4,0.0,0.0,0.007143,True
-no_gateway,dual_gate,210,0,76,134,0,inf,63.81,9.183549615799121e-41,2,0.0,0.0,0.005556,True
-no_gateway,dual_gate_llm,210,0,76,134,0,inf,63.81,9.183549615799121e-41,3,0.0,0.0,0.00625,True
-taxonomy_only,consistency_only,210,105,0,0,105,0.0,-50.0,4.930380657631324e-32,5,0.0,0.0,0.008333,True
-taxonomy_only,dual_gate,210,134,0,0,76,0.0,-36.19,2.6469779601696886e-23,6,0.0,0.0,0.01,True
-taxonomy_only,dual_gate_llm,210,134,0,0,76,0.0,-36.19,2.6469779601696886e-23,7,0.0,0.0,0.0125,True
-consistency_only,dual_gate,210,105,76,29,0,inf,13.81,3.725290298461914e-09,8,0.0,0.0,0.016667,True
-consistency_only,dual_gate_llm,210,105,76,29,0,inf,13.81,3.725290298461914e-09,9,0.0,0.0,0.025,True
-dual_gate,dual_gate_llm,210,134,76,0,0,1.0,0.0,1.0,10,1.0,1.0,0.05,False
+no_gateway,taxonomy_only,210,0,0,210,0,inf,100.0,1.2154326714572542e-63,1,0.0,0.0,0.008333,True
+no_gateway,consistency_only,210,0,68,142,0,inf,67.62,3.587324068671532e-43,3,0.0,0.0,0.0125,True
+no_gateway,dual_gate,210,0,30,180,0,inf,85.71,1.305060893599705e-54,2,0.0,0.0,0.01,True
+taxonomy_only,consistency_only,210,142,0,0,68,0.0,-32.38,6.776263578034403e-21,4,0.0,0.0,0.016667,True
+taxonomy_only,dual_gate,210,180,0,0,30,0.0,-14.29,1.862645149230957e-09,6,0.0,0.0,0.05,True
+consistency_only,dual_gate,210,142,30,38,0,inf,18.1,7.275957614183426e-12,5,0.0,0.0,0.025,True

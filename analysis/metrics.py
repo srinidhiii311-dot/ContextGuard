@@ -236,7 +236,15 @@ def generate_metrics_report(
     Computes and prints metrics for each config, saving to CSV and markdown.
     """
     seeds = seeds or [42]
-    configs = configs or ["no_gateway", "taxonomy_only", "consistency_only", "dual_gate", "dual_gate_llm"]
+    configs = configs or [
+        "no_gateway",
+        "taxonomy_only",
+        "consistency_only",
+        "dual_gate",
+        "dual_gate_llm",
+        "dual_gate_no_characterizer",
+        "dual_gate_no_risk_engine",
+    ]
 
     metrics_by_config: Dict[str, Dict[str, Any]] = {}
 
@@ -246,6 +254,9 @@ def generate_metrics_report(
             if not run_file.is_file():
                 continue
             records = load_run_records(run_file)
+            if len(records) != 680 and split == "dev":
+                # Stale run from prior dataset split
+                continue
             metrics = compute_metrics_for_records(records)
             metrics_by_config[f"{cfg}_{seed}"] = metrics
 

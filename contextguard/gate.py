@@ -949,7 +949,7 @@ class ContextGuardGate:
         # Step 6: Unknown threat characterization (Component 4)
         # Evaluates semantic deviation between locked intent and environment/action context.
         # Fires when an inconsistency was detected by Step 2, but Component 3 confidence < threshold
-        if detection.is_threat and (
+        if self._characterizer is not None and detection.is_threat and (
             detection.confidence < self._detector.confidence_threshold
             or detection.attack_type is None
         ):
