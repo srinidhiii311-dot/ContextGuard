@@ -663,13 +663,15 @@ class ContextGuardGate:
             if hasattr(self, "_verifier") and self._verifier is not None:
                 saved_verifier_intent = getattr(self._verifier, "trusted_intent", None)
                 self._verifier.trusted_intent = session.intent
-            consistency_report = self._run_verification(action, current_dom_text)
+            raw_html = getattr(action, "raw_html", "") or getattr(snapshot, "raw_html", "") or ""
+            full_dom_text = f"{current_dom_text} {raw_html}" if raw_html else current_dom_text
+            consistency_report = self._run_verification(action, full_dom_text)
             timing["verification_ms"] = (time.monotonic() - t0) * 1000
 
         # --- Steps 5 & 6: Threat Detection + Characterization ---
         t0 = time.monotonic()
         threat_result = self._run_threat_pipeline(
-            consistency_report, current_dom_text, action
+            consistency_report, full_dom_text, action
         )
         timing["threat_detection_ms"] = (time.monotonic() - t0) * 1000
 
