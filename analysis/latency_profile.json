@@ -1,0 +1,18 @@
+{
+  "n_cases": 200,
+  "with_audit": {
+    "p50_ms": 128.46,
+    "p95_ms": 173.58,
+    "mean_ms": 129.4
+  },
+  "without_audit": {
+    "p50_ms": 126.9,
+    "p95_ms": 164.2,
+    "mean_ms": 129.0
+  },
+  "time_shares": {
+    "audit_write_and_anchor_pct": 0.3,
+    "threat_pipeline_pct": 0.1,
+    "risk_engine_pct": 0.1
+  }
+}

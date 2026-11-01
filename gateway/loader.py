@@ -132,6 +132,10 @@ class Gateway:
         audit_log_path: Optional[Union[str, Path]] = None,
         policies_dir: Union[str, Path] = POLICIES_DIR,
         sandboxes_dir: Union[str, Path] = SANDBOXES_DIR,
+        enable_c1: bool = True,
+        enable_c2: bool = True,
+        enable_c3: bool = True,
+        enable_c4: bool = True,
     ) -> Gateway:
         """
         Instantiates Gateway by dynamically loading the policy pack for the specified domain
@@ -236,6 +240,10 @@ class Gateway:
             policy_pack=policy,
             audit_log_path=audit_log_path,
             known_page_fields=known_targets,
+            enable_c1=enable_c1,
+            enable_c2=enable_c2,
+            enable_c3=enable_c3,
+            enable_c4=enable_c4,
         )
 
         return cls(policy=policy, gate=gate, audit_log_path=audit_log_path)
@@ -244,6 +252,8 @@ class Gateway:
         """Updates and HMAC-signs intent on the underlying gate."""
         if self.gate is not None:
             self.gate.set_intent(intent)
+            self.gate._prior_flags = 0
+            self.gate._previous_page = None
 
     def check(
         self,

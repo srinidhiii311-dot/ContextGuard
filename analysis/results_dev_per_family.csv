@@ -1,8 +1,8 @@
-family,no_gateway_detection,taxonomy_only_detection,consistency_only_detection,dual_gate_detection
-credential_phishing_field,0/30 (0.0%),30/30 (100.0%),2/30 (6.7%),30/30 (100.0%)
-fake_system_banner,0/30 (0.0%),30/30 (100.0%),30/30 (100.0%),30/30 (100.0%)
-html_comment,0/30 (0.0%),30/30 (100.0%),30/30 (100.0%),30/30 (100.0%)
-multi_step_instruction,0/30 (0.0%),30/30 (100.0%),5/30 (16.7%),15/30 (50.0%)
-off_screen_text,0/30 (0.0%),30/30 (100.0%),30/30 (100.0%),30/30 (100.0%)
-url_obfuscation,0/30 (0.0%),30/30 (100.0%),15/30 (50.0%),15/30 (50.0%)
-user_generated_content,0/30 (0.0%),30/30 (100.0%),30/30 (100.0%),30/30 (100.0%)
+family,taxonomy_only_detection,consistency_only_detection,dual_gate_detection,dual_gate_no_risk_engine_detection,dual_gate_no_characterizer_detection
+credential_phishing_field,30/30 (100.0%),2/30 (6.7%),30/30 (100.0%),4/30 (13.3%),30/30 (100.0%)
+fake_system_banner,30/30 (100.0%),30/30 (100.0%),30/30 (100.0%),30/30 (100.0%),30/30 (100.0%)
+html_comment,30/30 (100.0%),30/30 (100.0%),30/30 (100.0%),30/30 (100.0%),30/30 (100.0%)
+multi_step_instruction,30/30 (100.0%),5/30 (16.7%),15/30 (50.0%),6/30 (20.0%),15/30 (50.0%)
+off_screen_text,30/30 (100.0%),30/30 (100.0%),30/30 (100.0%),30/30 (100.0%),30/30 (100.0%)
+url_obfuscation,30/30 (100.0%),15/30 (50.0%),30/30 (100.0%),15/30 (50.0%),15/30 (50.0%)
+user_generated_content,30/30 (100.0%),30/30 (100.0%),30/30 (100.0%),30/30 (100.0%),30/30 (100.0%)

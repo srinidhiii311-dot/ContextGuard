@@ -461,6 +461,10 @@ class ContextGuardGate:
         policy_pack:       Optional[Any] = None,
         audit_log_path:    Optional[Union[str, Path]] = None,
         known_page_fields: Optional[Any] = None,
+        enable_c1:         bool = True,
+        enable_c2:         bool = True,
+        enable_c3:         bool = True,
+        enable_c4:         bool = True,
     ) -> None:
         self.trusted_intent  = trusted_intent
         self._intent         = trusted_intent
@@ -488,6 +492,12 @@ class ContextGuardGate:
         self._protected      = protected_fields if protected_fields is not None else _load_protected_fields()
         self.policy_pack     = policy_pack
         self.known_page_fields = {str(f).strip().lower() for f in known_page_fields} if known_page_fields is not None else None
+        self.enable_c1 = enable_c1
+        self.enable_c2 = enable_c2
+        self.enable_c3 = enable_c3
+        self.enable_c4 = enable_c4
+        if hasattr(self, "_verifier") and self._verifier is not None:
+            self._verifier.enable_c2 = enable_c2
 
         # Component 8: Attack Chain Detector (Stage 2)
         self.enable_chain_detector = enable_chain_detector
@@ -675,7 +685,10 @@ class ContextGuardGate:
                 saved_verifier_intent = getattr(self._verifier, "trusted_intent", None)
                 self._verifier.trusted_intent = session.intent
             raw_html = getattr(action, "raw_html", "") or getattr(snapshot, "raw_html", "") or ""
-            full_dom_text = f"{current_dom_text} {raw_html}" if raw_html else current_dom_text
+            if self.enable_c1:
+                full_dom_text = f"{current_dom_text} {raw_html}" if raw_html else current_dom_text
+            else:
+                full_dom_text = current_dom_text
             consistency_report = self._run_verification(action, full_dom_text)
             timing["verification_ms"] = (time.monotonic() - t0) * 1000
 
@@ -1032,7 +1045,7 @@ class ContextGuardGate:
 
         # C3: Fail-closed field check for TYPE/SELECT/SUBMIT targets not in site manifest's known page fields
         unknown_field_triggered = False
-        if self.known_page_fields is not None and action.action_type in ("TYPE", "SELECT", "SUBMIT"):
+        if self.enable_c3 and self.known_page_fields is not None and action.action_type in ("TYPE", "SELECT", "SUBMIT"):
             act_tgt = (action.target or "").strip().lower()
             bare_tgt = act_tgt.lstrip("#.")
             is_known = (act_tgt in self.known_page_fields or bare_tgt in self.known_page_fields)
@@ -1054,7 +1067,8 @@ class ContextGuardGate:
             for inc in consistency.inconsistencies
         )
         if (
-            not has_any_inconsistency
+            self.enable_c4
+            and not has_any_inconsistency
             and not unknown_field_triggered
             and not fee_floor_triggered
             and not has_hard_rule

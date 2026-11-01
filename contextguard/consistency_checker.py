@@ -432,14 +432,18 @@ class ContextConsistencyVerifier:
 
         # Check 2: Navigation & Form submission boundary verification (FR8 / C2)
         nav_target = ""
-        if action.action_type in ("NAVIGATE", "SUBMIT"):
+        c2_enabled = getattr(self, "enable_c2", True)
+        valid_nav_types = ("NAVIGATE", "SUBMIT") if c2_enabled else ("NAVIGATE",)
+        if action.action_type in valid_nav_types:
             nav_target = action.value or action.target
             if nav_target and str(nav_target).startswith("navigate:"):
                 nav_target = str(nav_target)[len("navigate:"):]
         elif action.target and (str(action.target).startswith("http://") or str(action.target).startswith("https://")):
             nav_target = action.target
+        elif action.action_type == "CLICK" and action.value and (str(action.value).startswith("http://") or str(action.value).startswith("https://")):
+            nav_target = action.value
 
-        if nav_target and ("://" in str(nav_target) or action.action_type in ("NAVIGATE", "SUBMIT")):
+        if nav_target and ("://" in str(nav_target) or action.action_type in valid_nav_types):
             if not self._is_trusted_navigation(str(nav_target)):
                 is_sub = (action.action_type == "SUBMIT")
                 inconsistencies.append(
@@ -572,7 +576,8 @@ class ContextConsistencyVerifier:
             if not parsed.netloc:
                 # Relative path on same origin
                 return True
-            return any(h in parsed.netloc.lower() for h in self.trusted_hosts)
+            target_host = parsed.netloc.lower().split(":")[0]
+            return any(target_host == h.lower().split(":")[0] for h in self.trusted_hosts)
         except Exception:
             return False
 
