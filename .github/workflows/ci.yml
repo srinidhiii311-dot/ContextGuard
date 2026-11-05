@@ -17,7 +17,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
-        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt pytest ruff pytest-cov pytest-timeout google-genai
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt pytest ruff pytest-cov pytest-timeout
       - name: Lint syntax & core errors
         run: python -m ruff check contextguard backend agent tests --select E9,F63,F7 && python -m ruff check tests --select F82
       - name: Install Playwright browsers

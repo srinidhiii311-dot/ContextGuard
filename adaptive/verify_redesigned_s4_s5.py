@@ -13,6 +13,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
+from urllib.parse import urlparse
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
@@ -25,9 +26,8 @@ from adaptive.redesign_s4_s5 import (
     DOMAINS,
 )
 from contextguard.consistency_checker import ContextConsistencyVerifier
-from contextguard.gate import ProposedAction
+from contextguard.gate import ProposedAction, TrustedIntent
 from gateway.loader import Gateway
-from harness.run_case import build_trusted_intent_from_dict
 from harness.oracle_v3 import DOMAIN_ALLOWLISTS
 
 def verify_s4_variants(variants: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
@@ -66,7 +66,7 @@ def verify_s4_variants(variants: List[Dict[str, Any]]) -> Tuple[List[Dict[str, A
 
     return passed, dropped
 
-def verify_s5_variants(variants: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+def verify_s5_variants(variants: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Tuple[Dict[str, Any], List[str], List[str]]]]:
     passed = []
     dropped = []
     gw_cache = {d: Gateway.from_domain(d) for d in DOMAINS}
@@ -74,7 +74,7 @@ def verify_s5_variants(variants: List[Dict[str, Any]]) -> Tuple[List[Dict[str, A
     for v in variants:
         dom = v["domain"]
         intent_dict = v["locked_intent"]
-        intent = build_trusted_intent_from_dict(dom, intent_dict)
+        intent = TrustedIntent.from_dict(intent_dict)
         gw = gw_cache[dom]
         gw.set_intent(intent)
 
@@ -94,24 +94,32 @@ def verify_s5_variants(variants: List[Dict[str, Any]]) -> Tuple[List[Dict[str, A
             page_url=step2_dict["page_url"],
         )
 
-        # Check step 1 alone on consistency checker
+        # Check step 1 alone on consistency checker & gate
         rep1 = gw.verifier.verify(intent, p_act, dom_text="")
-        # Check step 2 alone on consistency checker
+        res1 = gw.check(p_act, current_dom_text="")
+
+        # Check step 2 alone on consistency checker & gate
         rep2 = gw.verifier.verify(intent, s2_act, dom_text="")
+        res2 = gw.check(s2_act, current_dom_text="")
 
         # Allowlist check for both
         allowlist = DOMAIN_ALLOWLISTS.get(dom, set())
-        from urllib.parse import urlparse
         u1_host = urlparse(p_act.page_url).netloc
         u2_host = urlparse(s2_act.page_url).netloc
 
-        is_step1_clean = rep1.is_consistent and (u1_host in allowlist)
-        is_step2_clean = rep2.is_consistent and (u2_host in allowlist)
+        is_step1_clean = rep1.is_consistent and (u1_host in allowlist) and (res1.decision.name == "ALLOW")
+        is_step2_clean = rep2.is_consistent and (u2_host in allowlist) and (res2.decision.name == "ALLOW")
 
         if is_step1_clean and is_step2_clean:
             passed.append(v)
         else:
-            dropped.append((v, rep1.inconsistencies, rep2.inconsistencies))
+            reasons1 = [i.detail for i in rep1.inconsistencies]
+            if res1.decision.name != "ALLOW":
+                reasons1.append(f"Gate: {res1.decision.name} ({res1.reason[:60]})")
+            reasons2 = [i.detail for i in rep2.inconsistencies]
+            if res2.decision.name != "ALLOW":
+                reasons2.append(f"Gate: {res2.decision.name} ({res2.reason[:60]})")
+            dropped.append((v, reasons1, reasons2))
 
     return passed, dropped
 
@@ -128,8 +136,8 @@ if __name__ == "__main__":
     print(f"S4 Verification: {len(s4_pass)} PASSED, {len(s4_drop)} DROPPED (out of {len(s4_vars)})")
     print(f"S5 Verification: {len(s5_pass)} PASSED, {len(s5_drop)} DROPPED (out of {len(s5_vars)})")
     if s5_drop:
-        print("S5 drop sample reason:")
+        print(f"S5 drop sample reasons (first 2 of {len(s5_drop)} dropped):")
         for v, inc1, inc2 in s5_drop[:2]:
-            print("  Variant:", v["variant_id"])
-            print("  Step 1 inconsistencies:", [i.detail for i in inc1])
-            print("  Step 2 inconsistencies:", [i.detail for i in inc2])
+            print("  Variant:", v["variant_id"], "| Domain:", v["domain"])
+            print("  Step 1 issues:", inc1)
+            print("  Step 2 issues:", inc2)
