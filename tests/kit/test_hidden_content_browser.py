@@ -1,5 +1,6 @@
 """Runs the computed-style scan in real Chromium. Skipped when Playwright/Chromium is missing."""
 import unittest
+import pytest
 from contextguard.hidden_content import scan_page, score_findings
 
 HTML = """<html><body style="background:#fff">
@@ -18,7 +19,9 @@ BENIGN = """<html><body><p>Search flights</p><nav style="display:none"><a>Help</
 <span aria-hidden="true">&#9992;</span></body></html>"""
 
 
+@pytest.mark.browser
 class T(unittest.TestCase):
+    @pytest.mark.browser
     def test_real_browser(self):
         try:
             from playwright.sync_api import sync_playwright

@@ -195,6 +195,7 @@ def test_each_site_serves_manifest_pages_and_resets(running_sandboxes):
             assert "INJECTED_TEST_PAYLOAD_123" not in resp.read().decode("utf-8")
 
 
+@pytest.mark.browser
 def test_quick_benign_playwright_run_per_site(running_sandboxes):
     """
     Executes a quick benign Playwright browser session per site.

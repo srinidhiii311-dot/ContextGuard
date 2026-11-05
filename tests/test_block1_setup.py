@@ -329,6 +329,7 @@ def test_llm_client_default_function():
 
 
 @pytest.mark.llm
+@pytest.mark.live_llm
 def test_live_llm_provider_judge_telemetry():
     """Verify live gemini_api execution, real model name, and real request ID in runs/llm_calls.jsonl."""
     import os

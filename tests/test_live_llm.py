@@ -22,6 +22,8 @@ load_dotenv()
 
 from llm.client import batch_llm_call, llm_call
 
+pytestmark = [pytest.mark.llm, pytest.mark.live_llm]
+
 ROOT_DIR = Path(__file__).resolve().parent.parent
 
 # 20 distinct prompts that do NOT contain the expected verdict / answer

@@ -17,7 +17,7 @@ import threading
 import time
 import urllib.request
 from pathlib import Path
-from typing import Dict, Generator, List, Tuple
+from typing import Any, Dict, Generator, List, Tuple
 import pytest
 import uvicorn
 
