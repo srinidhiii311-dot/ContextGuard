@@ -271,4 +271,20 @@ def get_task_audit_trail(
     limit: int = Query(100, ge=1, le=1000),
 ) -> List[Dict[str, Any]]:
     """Returns traceable append-only audit trail records for a task (FR21, FR23)."""
+    from pathlib import Path
+    import json
+    audit_file = Path("runs/audit_log.jsonl")
+    if audit_file.exists():
+        records = []
+        try:
+            with open(audit_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    if task_id in line:
+                        data = json.loads(line)
+                        if data.get("task_id") == task_id:
+                            records.append(data)
+            if records:
+                return records[-limit:]
+        except Exception:
+            pass
     return get_audit_log(task_id=task_id, limit=limit)

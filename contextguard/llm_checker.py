@@ -22,7 +22,7 @@ import time
 import urllib.request
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 SYSTEM_PROMPT = (
     "You are a security reviewer for an AI web agent. You compare the USER INTENT with the "

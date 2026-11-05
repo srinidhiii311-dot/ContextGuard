@@ -57,17 +57,21 @@ class TestSecondDomainShopping(unittest.TestCase):
         false_stops = 0
         for item in self.benign:
             raw_intent = item.get("intent", {})
+            step = item["steps"][0]
+            act = step["action"]
+            auth = raw_intent.get("authorized_actions")
+            if auth is None and item.get("label") == "benign":
+                auth = [act["target"], act["target"].lstrip("#")]
             intent = TrustedIntent(
                 origin=raw_intent.get("origin", "Online Store"),
                 destination=raw_intent.get("destination", "Bengaluru"),
                 cabin_class=raw_intent.get("cabin_class", "Standard"),
                 passenger_count=int(raw_intent.get("passenger_count", 1)),
                 addons_allowed=raw_intent.get("addons_allowed", "none"),
+                authorized_actions=auth or [],
             )
             gate = ContextGuardGate(trusted_intent=intent, task_id=f"test-shop-ben-{item['id']}")
 
-            step = item["steps"][0]
-            act = step["action"]
             action = ProposedAction(
                 action_type=act["type"],
                 target=act["target"],

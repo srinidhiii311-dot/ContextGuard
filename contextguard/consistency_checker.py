@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from contextguard.action_analyzer import ActionFinding, action_analyzer
 from contextguard.dom_monitor import DOMFinding, dom_monitor

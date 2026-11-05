@@ -11,7 +11,7 @@ Separates ML prediction from policy enforcement:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 
 from contextguard.models import PolicyDecision

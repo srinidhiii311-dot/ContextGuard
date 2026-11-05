@@ -13,7 +13,7 @@ NOTE: Pure runtime observer. Has ZERO knowledge of test_case_id, attack_type, or
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 from shared.schemas.schemas import BrowserEvent, ProposedAction, TrustedIntent
