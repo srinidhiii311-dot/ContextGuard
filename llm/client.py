@@ -101,6 +101,8 @@ class LLMClient:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.log_file.parent.mkdir(parents=True, exist_ok=True)
         self._genai_client = None
+        max_rps = float(self.config.get("rate_limit_rps", 0.5))
+        self.rate_limiter = RateLimiter(max_rps=max_rps)
 
     def _load_config(self) -> Dict[str, Any]:
         if not self.config_path.is_file():
@@ -140,6 +142,10 @@ class LLMClient:
             "model": role_cfg.get("model", "default"),
             "temperature": role_cfg.get("temperature", 0.0),
         }
+        # Guarantee cross-split cache isolation
+        split = role_cfg.get("split") or os.environ.get("CONTEXTGUARD_SPLIT") or os.environ.get("EVAL_SPLIT")
+        if split:
+            key_payload["split"] = split
         serialized = json.dumps(key_payload, sort_keys=True)
         return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
@@ -249,10 +255,35 @@ class LLMClient:
                 last_exception = exc
                 err_msg = str(exc).lower()
 
-                # Check if retryable: network/DNS error or 429 rate limit
-                is_rate_limit = "429" in err_msg or "resource_exhausted" in err_msg or "quota" in err_msg
-                is_network = isinstance(exc, (socket.gaierror, socket.herror, ConnectionError, TimeoutError)) or any(
-                    term in err_msg for term in ["dns", "name resolution", "connection reset", "connecterror", "timeout", "network"]
+                # Check if retryable: network/DNS error, 429 rate limit, or 503/server transient error
+                exc_type_name = type(exc).__name__.lower()
+                is_rate_limit = (
+                    "429" in err_msg
+                    or "503" in err_msg
+                    or "500" in err_msg
+                    or "502" in err_msg
+                    or "504" in err_msg
+                    or "resource_exhausted" in err_msg
+                    or "quota" in err_msg
+                    or "unavailable" in err_msg
+                    or "high demand" in err_msg
+                    or "overloaded" in err_msg
+                )
+                is_network = (
+                    isinstance(exc, (socket.gaierror, socket.herror, ConnectionError, TimeoutError, OSError))
+                    or any(
+                        term in err_msg for term in [
+                            "getaddrinfo", "dns", "name resolution", "connection reset",
+                            "connecterror", "connect error", "timeout", "network", "socket",
+                            "unreachable", "remote protocol error", "connection closed",
+                            "server disconnected", "disconnected", "broken pipe"
+                        ]
+                    )
+                    or any(
+                        t in exc_type_name for t in [
+                            "connect", "timeout", "network", "protocol", "transport", "socket"
+                        ]
+                    )
                 )
 
                 if (is_rate_limit or is_network) and attempt < max_retries - 1:
@@ -261,7 +292,8 @@ class LLMClient:
                     if retry_match:
                         sleep_time = float(retry_match.group(1)) + random.uniform(1.0, 2.5)
                     elif is_rate_limit:
-                        sleep_time = max(15.0, (base_delay * (2 ** min(attempt, 4)))) + random.uniform(1.0, 3.0)
+                        min_backoff = 15.0 if base_delay >= 1.0 else 0.05
+                        sleep_time = max(min_backoff, (base_delay * (2 ** min(attempt, 4)))) + random.uniform(0.01, 0.05 if base_delay < 1.0 else 3.0)
                     else:
                         sleep_time = (base_delay * (2 ** attempt)) + random.uniform(0.5, 1.5)
 
@@ -269,10 +301,24 @@ class LLMClient:
                         f"[gemini_api retry {attempt+1}/{max_retries}] 429/Network error: {exc}. Backing off for {sleep_time:.2f}s..."
                     )
                     print(f"\n[429/Quota Backoff] Rate limit hit. Backing off for {sleep_time:.2f}s (attempt {attempt+1}/{max_retries})...", flush=True)
+                    try:
+                        log_dir = Path("runs")
+                        log_dir.mkdir(parents=True, exist_ok=True)
+                        with open(log_dir / "api_failures.log", "a", encoding="utf-8") as f_err:
+                            f_err.write(f"[{datetime.datetime.now(datetime.timezone.utc).isoformat()}] RETRY {attempt+1}/{max_retries}: {type(exc).__name__}: {exc} -> backoff {sleep_time:.2f}s\n")
+                    except Exception:
+                        pass
                     time.sleep(sleep_time)
                     continue
 
-                # Non-retryable error or retries exhausted
+                # Non-retryable error or retries exhausted: log fatal abort
+                try:
+                    log_dir = Path("runs")
+                    log_dir.mkdir(parents=True, exist_ok=True)
+                    with open(log_dir / "api_failures.log", "a", encoding="utf-8") as f_err:
+                        f_err.write(f"[{datetime.datetime.now(datetime.timezone.utc).isoformat()}] FATAL ABORT (attempts={attempt+1}/{max_retries}): {type(exc).__name__}: {exc}\n")
+                except Exception:
+                    pass
                 raise
 
         raise last_exception or RuntimeError("Gemini API call failed after retries")
@@ -363,6 +409,7 @@ class LLMClient:
         use_cache: bool = True,
         provider: Optional[str] = None,
         model: Optional[str] = None,
+        split: Optional[str] = None,
     ) -> LLMResponse:
         """Executes an LLM call for a designated role with caching, backoff, and full logging."""
         role_cfg = self.get_role_config(role)
@@ -372,6 +419,9 @@ class LLMClient:
         effective_cfg = dict(role_cfg)
         effective_cfg["provider"] = effective_provider
         effective_cfg["model"] = effective_model
+        split_val = split or os.environ.get("CONTEXTGUARD_SPLIT") or os.environ.get("EVAL_SPLIT")
+        if split_val:
+            effective_cfg["split"] = split_val
 
         cache_key = self._compute_cache_key(role, prompt, effective_cfg)
         start_time = time.perf_counter()
@@ -404,10 +454,12 @@ class LLMClient:
                     "tokens_out": resp.tokens_out,
                     "latency_ms": latency_ms,
                     "cached": True,
+                    "split": split_val,
                 })
                 return resp
 
-        # Live provider dispatch
+        # Live provider dispatch with rate limiting
+        self.rate_limiter.acquire()
         content, tokens_in, tokens_out, real_model, request_id = self._dispatch_provider(
             provider=effective_provider,
             model=effective_model,
@@ -439,6 +491,7 @@ class LLMClient:
                 "request_id": request_id,
                 "tokens_in": tokens_in,
                 "tokens_out": tokens_out,
+                "split": split_val,
             })
 
         # Append to call log
@@ -454,6 +507,7 @@ class LLMClient:
             "tokens_out": tokens_out,
             "latency_ms": latency_ms,
             "cached": False,
+            "split": split_val,
         })
 
         return resp
@@ -513,6 +567,7 @@ def llm_call(
     use_cache: bool = True,
     provider: Optional[str] = None,
     model: Optional[str] = None,
+    split: Optional[str] = None,
 ) -> LLMResponse:
     """
     Provider-agnostic wrapper function driven by config.yaml.
@@ -526,6 +581,7 @@ def llm_call(
         use_cache=use_cache,
         provider=provider,
         model=model,
+        split=split,
     )
 
 

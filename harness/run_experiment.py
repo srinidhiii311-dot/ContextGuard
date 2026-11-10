@@ -39,10 +39,10 @@ MAIN_CONFIGS = [
     "taxonomy_warn",
     "consistency_only",
     "regex_only",
-    "llm_judge_only",
     "tool_allowlist",
     "dual_gate",
     "dual_gate_llm",
+    "llm_judge_only",
 ]
 
 ALL_CONFIGS_WITH_ABLATIONS = [
@@ -51,10 +51,8 @@ ALL_CONFIGS_WITH_ABLATIONS = [
     "taxonomy_warn",
     "consistency_only",
     "regex_only",
-    "llm_judge_only",
     "tool_allowlist",
     "dual_gate",
-    "dual_gate_llm",
     "dual_gate_no_characterizer",
     "dual_gate_no_risk_engine",
     "dual_gate_no_c1",
@@ -63,6 +61,8 @@ ALL_CONFIGS_WITH_ABLATIONS = [
     "dual_gate_no_c4",
     "dual_gate_no_c5",
     "dual_gate_no_c6",
+    "dual_gate_llm",
+    "llm_judge_only",
 ]
 
 
@@ -100,14 +100,29 @@ def run_single_config(
     config: str,
     seed: int = 42,
     output_dir: Path = RUNS_DIR,
+    resume: bool = False,
 ) -> Path:
     """
     Executes all cases under one configuration and seed.
     Writes records to runs/<config>_<seed>.jsonl.
+    If resume=True and the configuration file is already fully completed,
+    it skips re-execution without inspecting partial records.
     """
     norm_cfg = normalize_config_name(config)
     output_dir.mkdir(parents=True, exist_ok=True)
     out_file = output_dir / f"{norm_cfg}_{seed}.jsonl"
+
+    if resume and out_file.is_file():
+        try:
+            with open(out_file, "r", encoding="utf-8") as f_chk:
+                completed_lines = sum(1 for line in f_chk if line.strip())
+            if completed_lines == len(cases):
+                print(f"  [RESUME] Config '{norm_cfg}' seed {seed} already fully completed ({completed_lines}/{len(cases)} records). Skipping.")
+                return out_file
+            else:
+                print(f"  [RESUME] Config '{norm_cfg}' seed {seed} incomplete ({completed_lines}/{len(cases)} records). Re-running with cached responses (zero partial record inspection).")
+        except Exception:
+            pass
 
     print(f"\n--- Running Experiment: Config='{norm_cfg}' | Seed={seed} | Cases={len(cases)} ---")
     t0 = time.time()
@@ -173,6 +188,11 @@ def parse_args():
         help="Explicit confirmation required to run against the held-out 'test' split.",
     )
     parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume execution: skip completed configs and re-run interrupted configs using cached responses.",
+    )
+    parser.add_argument(
         "--limit",
         type=int,
         default=None,
@@ -191,6 +211,10 @@ def main():
             "is strictly forbidden without the '--final' flag. "
             "Never evaluate on test data during development or tuning."
         )
+
+    # Set environment split tag so all LLM client calls include split in cache keys
+    import os
+    os.environ["CONTEXTGUARD_SPLIT"] = args.split
 
     # Determine configurations to run
     configs_to_run: List[str] = []
@@ -223,7 +247,7 @@ def main():
 
     for seed in args.seeds:
         for cfg in configs_to_run:
-            run_file = run_single_config(cases=cases, config=cfg, seed=seed)
+            run_file = run_single_config(cases=cases, config=cfg, seed=seed, resume=args.resume)
             produced_run_files.append(run_file)
 
     total_time = time.time() - start_total

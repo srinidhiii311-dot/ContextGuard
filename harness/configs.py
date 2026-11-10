@@ -403,7 +403,7 @@ def evaluate_case_with_config(
         prompt = build_judge_prompt(case.locked_intent, action_dict)
         client = get_judge_client()
         try:
-            resp = client.call(role="judge", prompt=prompt, use_cache=True)
+            resp = client.call(role="judge", prompt=prompt, use_cache=True, split=case.split)
             clean = resp.content.strip()
             if clean.startswith("```"):
                 clean = clean.split("```")[1]
