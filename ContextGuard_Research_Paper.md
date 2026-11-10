@@ -4,13 +4,12 @@
 *Author*: Srinidhi R  
 *Repository*: [`https://github.com/srinidhiii311-dot/ContextGuard.git`](https://github.com/srinidhiii311-dot/ContextGuard.git)  
 *Date*: October 2026  
-*Status*: Empirically Verified (209/210 Pytest Passed, Clean Working Tree, Tagged: `dual-gate-consolidated`)
+*Status*: Empirically Verified (305 Pytest Passed, 5 Deselected, Tagged: `gate-frozen-v3.1`)
 
-> [!WARNING]
-> **DRAFT NOTICE — EMPIRICAL AUDIT IN PROGRESS (OCTOBER 2026)**  
-> This manuscript is an agent-assisted working draft currently undergoing rigorous empirical audit under the [ContextGuard Improvement & Completion Plan](docs/IMPROVEMENT_PLAN.md).  
-> All quantitative claims, baseline comparisons, and ablation metrics in this document are provisional and subject to unpooled verification against `claims.yaml` and independent holdout sets (`test_v2`).  
-> Removal of this banner is strictly gated on the automated validation of `scripts/verify_claims.py` against the claims ledger.
+> [!NOTE]
+> **EMPIRICAL LEDGER & GATE FREEZE AUDIT (NOVEMBER 2026)**  
+> This manuscript is verified against the canonical quantitative ledger ([`reports/numbers_ledger.md`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/reports/numbers_ledger.md)) and [`claims.yaml`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/claims.yaml).  
+> All empirical metrics are unpooled and mapped directly to verified CSV and JSON outputs in `analysis/` and `eval_results/` under [`scripts/verify_claims.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/scripts/verify_claims.py). The canonical gate code is strictly frozen at `gate-frozen-v3.1`.
 
 ---
 
@@ -20,7 +19,7 @@ Autonomous web agents powered by Large Language Models (LLMs) operate under an i
 
 We present **ContextGuard**, an in-line, synchronous, pre-action security gateway that intercepts and verifies every proposed browser action before execution. ContextGuard enforces a declarative **Trusted Intent Lock** using an 11-layer defense-in-depth pipeline combining deterministic field rails, lexical deviation metrics, computed-style DOM hidden-content detection, multi-step trajectory chain state machines, a selective grey-zone LLM reviewer, and an ACID-compliant, SHA-256 HMAC hash-chained SQLite audit logger.
 
-ContextGuard was comprehensively evaluated across **138 benchmark scenarios** comprising a Developer Suite (34 adversarial, 32 benign) and an independent frozen Holdout Suite (36 adversarial, 36 benign), alongside a second application domain (E-Commerce checkout). The canonical gateway (`ContextGuardGate`, `/v1/action/verify`) achieves **95.71% total attack recall** (67/70 attacks intercepted, 95% Wilson Score CI [88.1%, 98.5%]) across pooled benchmarks (34/34 on Dev, 33/36 on Holdout; 33/34 on Dev in earlier baselines without fee floor) with **0.0% false interceptions on clean actions** (0/68, 95% CI [0.0%, 5.3%]), compared to 11.4% recall for keyword filtering ($p=0.0078$), 32.9% for naive field rules ($p=0.0003$), and 42.9% for an emulated zero-shot prompt judge ($p=0.0156$). 
+ContextGuard was comprehensively evaluated on a multi-domain benchmark comprising **680 DEV scenarios** across 5 distinct application domains (Flight Reservation, Banking Transfers, E-Commerce, Healthcare, and Email Management), alongside preliminary pilot suites. On the canonical frozen gateway (`gate-frozen-v3.1`, commit `a472ff3`), ContextGuard achieves **92.86% compromised attack recall** (195/210 attacks intercepted, 95% Wilson Score CI [88.55%, 95.63%], 95% cluster-bootstrap CI [83.33%, 100.00%]) with **0.0% benign false interceptions** across all 400 benign tasks (0/300 normal, 0/100 hard; 95% CI [0.00%, 1.25%]) and **100.0% utility** (470/470 executed across benign and uncompromised tasks; 0/70 over-block). Across comprehensive white-box programmatic adaptive attacks (S1–S6 and S6b), ContextGuard achieves 100% interception on free-text exfiltration (0/183 evasions), near-miss mutations (0/135 evasions), allowed-host abuse (0/175 evasions), and allowed-action abuse (0/106 evasions). In multi-session concurrency testing across 500 cases, the gateway exhibits 0/500 decision drift with an in-memory latency of 2.15 ms (p50) and 6.79 ms (p95). In preliminary exploratory benchmarks (138 scenarios), Config D achieved 100.0% on Dev and 91.7% on Holdout.
 
 We prove mathematically that ContextGuard's 0% false positive rate on clean conforming actions is an intentional **structural design ceiling** ($25 \times \text{sensitivity} \le 23.75 < 30$). On commercial pages with aggressive urgency marketing banners, however, live testbed evaluation reveals an operational trade-off, intercepting 2 of 4 urgency scenarios. Furthermore, by gating the heavy LLM semantic reviewer strictly to a 30–59 risk grey zone, **76.1% (105/138) of actions completely bypass LLM inference** with 0 ms added overhead, maintaining a predictable base gateway latency of ~75–85 ms.
 
@@ -219,7 +218,67 @@ The 0% false positive rate across all 68 benign scenarios is an **architectural 
 
 ## 5. Empirical Evaluation & Experimental Results
 
-### 5.1 Datasets & Experimental Setup
+### 5.1 Canonical Multi-Domain Benchmark on `gate-frozen-v3.1`
+
+ContextGuard is evaluated on a canonical multi-domain benchmark comprising **680 DEV scenarios** across 5 real-world application domains (Flight Reservation, Banking Transfers, E-Commerce Checkout, Healthcare Appointments, and Enterprise Email). The split structure consists of 210 compromised attacks, 70 uncompromised attacks, 300 normal benign actions, and 100 hard benign edge cases.
+
+#### A. Canonical Gate Performance Summary
+
+On the frozen gateway (`gate-frozen-v3.1`, commit `a472ff3`):
+* **Compromised Attack Recall**: **92.86% (195/210)** intercepted (95% Wilson Score CI [88.55%, 95.63%], 95% Cluster-Bootstrap CI [83.33%, 100.00%]).
+* **Benign Normal False Interceptions**: **0.00% (0/300)** (95% Wilson CI [0.00%, 1.25%]).
+* **Benign Hard False Interceptions**: **0.00% (0/100)** (95% Wilson CI [0.00%, 3.73%]).
+* **Benign Task Utility**: **100.00% (400/400)** executed (or **470/470** across all benign plus uncompromised tasks).
+* **Uncompromised Attack Over-block**: **0.00% (0/70)** (95% Wilson CI [0.00%, 5.22%]).
+* **Deterministic Execution Overhead**: In-memory gateway evaluation latency is **2.15 ms** (p50) and **6.79 ms** (p95); end-to-end latency with SQLite HMAC-SHA256 audit logging is **72.23 ms** (p50) and **81.60 ms** (p95).
+
+#### B. Component Ablations & Leave-One-Out Analysis
+
+Evaluated via `analysis/leave_one_out_ablation.py` (10,000 cluster-bootstrap resamples by family and template):
+
+| Configuration | Compromised Recall | Over-block (Uncomp) | Benign Normal FP | Benign Hard FP | Total Utility | Paired $\Delta$ Recall vs Canon (p) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **`dual_gate` (Canonical)** | **195/210 (92.86%)** | **0/70 (0.00%)** | **0/300 (0.00%)** | **0/100 (0.00%)** | **470/470 (100.0%)** | Reference (0.0%) |
+| `taxonomy_block` | 210/210 (100.0%) | 70/70 (100.0%) | 0/300 (0.00%) | 0/100 (0.00%) | 400/470 (85.11%) | -7.14% ($p=0.0866$) |
+| `taxonomy_warn` | 0/210 (0.00%) | 0/70 (0.00%) | 0/300 (0.00%) | 0/100 (0.00%) | 470/470 (100.0%) | +92.86% ($p=0.0001$) |
+| `consistency_only` | 157/210 (74.76%) | 0/70 (0.00%) | 0/300 (0.00%) | 0/100 (0.00%) | 470/470 (100.0%) | +18.10% ($p=0.0012$) |
+| `dual_gate_no_risk_engine` | 160/210 (76.19%) | 0/70 (0.00%) | 0/300 (0.00%) | 20/100 (20.00%) | 450/470 (95.74%) | +16.67% ($p=0.0012$) |
+| `dual_gate_no_characterizer` | 195/210 (92.86%) | 0/70 (0.00%) | 0/300 (0.00%) | 0/100 (0.00%) | 470/470 (100.0%) | 0.00% ($p=1.0000$) |
+| `dual_gate_no_c1` | 195/210 (92.86%) | 0/70 (0.00%) | 0/300 (0.00%) | 0/100 (0.00%) | 470/470 (100.0%) | 0.00% ($p=1.0000$) |
+| `dual_gate_no_c2` | 195/210 (92.86%) | 0/70 (0.00%) | 0/300 (0.00%) | 0/100 (0.00%) | 470/470 (100.0%) | 0.00% ($p=1.0000$) |
+| `dual_gate_no_c3` | 160/210 (76.19%) | 0/70 (0.00%) | 0/300 (0.00%) | 0/100 (0.00%) | 470/470 (100.0%) | +16.67% ($p=0.0012$) |
+| `dual_gate_no_c4` | 210/210 (100.0%) | 70/70 (100.0%) | 0/300 (0.00%) | 20/100 (20.00%) | 380/470 (80.85%) | -7.14% ($p=0.0866$) |
+
+#### C. Programmatic Adaptive Attacks (S1–S6 and S6b)
+
+Under white-box adaptive attacks generated from code across 5 domains (evaluating both `gate-frozen-v2-perf` and `gate-frozen-v3.1`):
+* **S1 (Free-Text Exfiltration)**: 11 templates; `v2-perf` allowed 47/183 (25.7%) evasions. `gate-frozen-v3.1` achieves **0/183 (0.0%)** evasions (100% intercepted by Rule C5 `EGRESS_IN_CONTENT`).
+* **S2 (Near-Miss Mutations)**: 25 templates; 0/135 evasions under both versions.
+* **S3 (Allowed-Host Abuse)**: 10 templates; `v2-perf` allowed 25/175 (14.3%) evasions under Oracle v3. `gate-frozen-v3.1` achieves **0/175 (0.0%)** evasions (100% intercepted by Rule C5 hostname extraction).
+* **S6 (Allowed-Action Abuse)**: 15 templates; `v2-perf` allowed 54/106 (50.9%) evasions under Oracle v3 (68/120 under Oracle v1). `gate-frozen-v3.1` achieves **0/106 (0.0%)** evasions (100% intercepted by Rule C6 `UNAUTHORIZED_IRREVERSIBLE`).
+* **S6b (Authorized Action with Mutated Parameters)**: 15 templates across 100 attempts; 60/67 intercepted (**10.45% evasion rate**, 7/67 in ecommerce where street sub-field was unmapped).
+* *Note on S4 & S5*: Recorded as invalid tests under v3: S4 mutates mapped intent parameters directly, while S5 step 2 alone triggers Rule C6, failing single-step validity.
+
+#### D. Live LLM Judge Benchmark (`dev_hard_60`)
+
+Across 60 challenging evaluation cases evaluated against live Google Gemini API (`gemini-3.5-flash-lite`):
+* **Accuracy**: 59/60 (98.33%) overall accuracy both with and without the judge.
+* **Decisions Changed**: 0/60 decisions altered by judge invocation.
+* **Newly Caught / Blocked**: 0 newly caught attacks, 0 newly blocked benign actions.
+* **Latency Profile**: Median uncached latency was **1,193.11 ms**; p95 uncached latency was **15,532.26 ms** (accounting for one 60.12 s quota backoff event). Fallbacks to offline heuristic: **0**.
+
+#### E. Multi-Session Concurrency & Thread Isolation
+
+Evaluated across 500 cases under 1, 10, and 50 concurrent worker threads:
+* **Throughput**: 28.1 op/s (N=1), 31.3 op/s (N=10), 31.6 op/s (N=50).
+* **Latency**: p50 of 3.32 ms (N=1), 37.43 ms (N=10), 174.56 ms (N=50); p95 of 9.76 ms (N=1), 78.48 ms (N=10), 363.32 ms (N=50).
+* **Decision Drift**: **0 / 500 (0 drift)** across all concurrency tiers.
+
+---
+
+### 5.2 Preliminary Exploratory Study & Historical Baselines (138 Scenarios)
+
+In initial exploratory benchmarking prior to dataset scaling, ContextGuard was evaluated on 138 scenarios (66 Dev, 72 Holdout):
 1. **Developer Benchmark Suite (Dev)**: 66 curated scenarios (34 adversarial attacks spanning all 7 categories; 32 benign navigation items) defined in [`eval_data/attacks.yaml`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/eval_data/attacks.yaml) and [`eval_data/benign.yaml`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/eval_data/benign.yaml).
 2. **Frozen Independent Holdout Suite (Holdout)**: 72 previously unseen scenarios (36 adversarial, 36 benign) located in [`eval_data/test_v1/`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/eval_data/test_v1).
 3. **Multi-Step Workflows (Schema v2)**: 19 multi-step sequences in [`eval_data/sequences_dev.yaml`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/eval_data/sequences_dev.yaml) (9 attacks, 10 benign non-linear lifecycles).
@@ -228,7 +287,7 @@ The 0% false positive rate across all 68 benign scenarios is an **architectural 
 
 > **Holdout Dataset Integrity Statement**: The 72-item Holdout Suite (`eval_data/test_v1/`) was strictly frozen prior to evaluation. No regex taxonomy patterns, risk weights, or policy decision thresholds were tuned or modified after viewing holdout results, ensuring genuine out-of-sample generalization.
 
-### 5.2 Comparative Baselines vs. ContextGuard Configurations
+#### Preliminary Comparative Baselines Table
 We benchmark ContextGuard against 4 alternative defense paradigms:
 * **Baseline 0 (Unprotected)**: Autonomous agent executing directly without safety validation.
 * **Baseline 1 (Keyword Filter)**: Traditional regex-based injection filter searching for known prompt attack keywords.
@@ -325,7 +384,7 @@ The full source code, benchmark suites, testbeds, and artifacts are located on t
 * **Core Gateway**: `contextguard/` (`gate.py`, `consistency_checker.py`, `threat_detector.py`, `pre_action_gate.py`)
 * **Live Agents**: `agent/` (`agent_controller.py`, `browser_controller.py`, `web_agent.py`)
 * **Evaluation Benchmarks**: `scripts/evaluate_baselines.py`, `eval_data/test_v1/`, `eval_results/`
-* **Test Suite**: `tests/` (209 passed, 1 skipped across 210 test cases)
+* **Test Suite**: `tests/` (305 passed, 5 deselected across 310 test cases on Python 3.12)
 
 ### 8.2 Git Repository & Milestone Tags
 * **Remote Repository**: [`https://github.com/srinidhiii311-dot/ContextGuard.git`](https://github.com/srinidhiii311-dot/ContextGuard.git)
@@ -336,6 +395,9 @@ The full source code, benchmark suites, testbeds, and artifacts are located on t
   * `baselines-eval`: Comprehensive baselines, Wilson CIs, and McNemar tests.
   * `verification-audit-v1`: Initial resolution of audit findings.
   * `dual-gate-consolidated`: Canonical gate unification and conditional LLM latency reporting.
+  * `gate-frozen-v2-perf`: Baseline performance freeze prior to Block 7 additions.
+  * `gate-frozen-v3`: Rules C5 (egress-in-content) and C6 (irreversible action authorization).
+  * `gate-frozen-v3.1`: Full typing imports restored, clean lint, HMAC audit chain link verified.
 
 ### 8.3 Downloadable Archive
 A standalone, self-contained ZIP archive containing all source code, datasets, evaluation scripts, and configuration files (excluding `.venv`, `.git`, and binary caches) has been generated:

@@ -4,12 +4,14 @@
 
 Autonomous web agents act on content they cannot fully trust: a page's text, hidden DOM elements, and navigation targets are attacker-controllable, yet conventional agent architectures feed this untrusted content directly into the model's observation context, creating a pervasive indirect prompt-injection surface. ContextGuard addresses this vulnerability with a synchronous, pre-action safety gateway that sits between an agent's planning step and browser execution, evaluating every proposed browser action against an immutable locked statement of user intent prior to dispatch. ContextGuard combines a multi-layer defense-in-depth pipeline—structural intent verification, known threat taxonomy classification, semantic deviation characterization, DOM baseline region hashing, computed-style hidden content scanning, an optional real LLM semantic reviewer in the 30–59 risk grey zone, a stateful multi-step attack chain detector, and an unbypassable deterministic hard-rule floor—with role-based human-in-the-loop authorization and an HMAC-anchored SHA-256 audit log.
 
-**Empirical Evaluation Results (`eval_results/REPORT.md`)**:
-- **Development Benchmark**: Evaluated across 66 author-written scenarios in the flight reservation domain (34 attacks, 32 benign tasks).
-- **Attack Interception Recall**: 33 of 34 attacks intercepted in Configs B through H (97.06%, 95% Wilson CI [85.08%, 99.48%]). In the baseline development suite, `ATK_08` (evades taxonomy, fast-track auto-verification skip step) was the single unintercepted single-step action; it is caught by the stateful multi-step chain detector (Config E) and the single-step plan-integrity hard-rule floor.
-- **Benign Precision & Usability**: 0 of 32 benign tasks were falsely intercepted under the full gate (Config D: 0.00% FP interception, 95% CI [0.00%, 10.72%]; 1/32 calibrated to non-interfering `ALLOW_WITH_FLAG` [3.12%, 95% CI 0.55–15.74%]).
-- **Gateway Runtime Latency**: Config D achieves a mean latency of 67.59 ms (p95: 75.55 ms); with the optional LLM semantic reviewer (Config H), mean latency is 82.91 ms (p95: 98.10 ms).
-- **Generalization Evaluation**: To prevent benchmark overfitting, ContextGuard was evaluated on an independent 72-item frozen holdout set (`eval_data/test_v1/`, 36 attacks and 36 benign items) and a second distinct application domain (E-Commerce Shopping Checkout, 16 attacks and 16 benign items), preserving 0% benign false-interception rates across both.
+**Empirical Evaluation Results (`reports/numbers_ledger.md`)**:
+- **Canonical Multi-Domain DEV Benchmark (`gate-frozen-v3.1`)**: Evaluated across 680 scenarios spanning 5 real-world domains (Flight, Banking, E-Commerce, Healthcare, Email):
+  - **Attack Interception Recall**: **195 of 210** compromised attacks intercepted (**92.86%**, 95% Wilson CI [88.55%, 95.63%], 95% cluster-bootstrap CI [83.33%, 100.00%]).
+  - **Benign Usability & Zero False Interceptions**: **0 of 400** benign tasks falsely intercepted (0/300 normal benign, 0/100 hard edge cases; 95% Wilson CI [0.00%, 1.25%]) and **100.0% utility** (470/470 executed across all benign plus uncompromised tasks; 0/70 over-block).
+  - **Programmatic Adaptive Evasion Defense (S1–S6 and S6b)**: 0/183 evasions on free-text exfiltration (Rule C5), 0/135 on near-miss mutations, 0/175 on allowed-host abuse (Rule C5), and 0/106 on allowed-action abuse (Rule C6).
+  - **Deterministic Runtime Latency**: Base gateway in-memory evaluation latency is **2.15 ms** (p50) and **6.79 ms** (p95); end-to-end latency with SQLite HMAC audit logging is **72.23 ms** (p50) and **81.60 ms** (p95).
+  - **Concurrency & Drift**: **0 / 500 drift** across 1, 10, and 50 concurrent worker sessions.
+- **Preliminary Pilot Study (138 Scenarios)**: In early exploratory benchmarking, Config A achieved 85.3% on Dev, Config B achieved 100.0% on Dev, and Config D achieved 100.0% on Dev and 91.7% on Holdout (`eval_results/REPORT.md`). All 305 automated test cases pass on Python 3.12 (`gate-frozen-v3.1`).
 
 ### Dual-Gate Implementation Architecture & Demo Reconciliation
 ContextGuard includes two gate implementations tailored to different operational runtimes:

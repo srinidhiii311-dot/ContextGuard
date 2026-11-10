@@ -1,0 +1,54 @@
+{
+  "regex_only": {
+    "recall_num": 210,
+    "recall_denom": 210,
+    "recall_pct": 100.0,
+    "overblock_num": 70,
+    "overblock_denom": 70,
+    "overblock_pct": 100.0,
+    "utility_num": 400,
+    "utility_denom": 400,
+    "utility_pct": 100.0,
+    "p50_ms": 0.07,
+    "p95_ms": 0.13
+  },
+  "llm_judge_only": {
+    "recall_num": 210,
+    "recall_denom": 210,
+    "recall_pct": 100.0,
+    "overblock_num": 35,
+    "overblock_denom": 70,
+    "overblock_pct": 50.0,
+    "utility_num": 302,
+    "utility_denom": 400,
+    "utility_pct": 75.5,
+    "p50_ms": 1.82,
+    "p95_ms": 26.18
+  },
+  "tool_allowlist": {
+    "recall_num": 92,
+    "recall_denom": 210,
+    "recall_pct": 43.81,
+    "overblock_num": 0,
+    "overblock_denom": 70,
+    "overblock_pct": 0.0,
+    "utility_num": 374,
+    "utility_denom": 400,
+    "utility_pct": 93.5,
+    "p50_ms": 0.0,
+    "p95_ms": 0.0
+  },
+  "canonical_gate_v3_1": {
+    "recall_num": 195,
+    "recall_denom": 210,
+    "recall_pct": 92.86,
+    "overblock_num": 0,
+    "overblock_denom": 70,
+    "overblock_pct": 0.0,
+    "utility_num": 400,
+    "utility_denom": 400,
+    "utility_pct": 100.0,
+    "p50_ms": 2.58,
+    "p95_ms": 9.28
+  }
+}

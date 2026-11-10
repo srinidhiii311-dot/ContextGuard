@@ -1,67 +1,1607 @@
-# ContextGuard Claims Ledger (Section 7 & Gap 3)
-# Every quantitative claim reported in README.md, REPORT.md, or paper drafts must map to:
-# 1. A verified CSV source cell in eval_results/
-# 2. An exact matching occurrence in the referenced document context
-
 claims:
-  - id: dev_interception_config_a
-    text: "85.3%"
-    target_value: 85.29
-    unit: "%"
-    documents:
-      - file: "ContextGuard_Research_Paper.md"
-        context: "Config A"
-      - file: "README.md"
-        context: "Config A"
-    source:
-      file: eval_results/baselines_vs_configs_summary.csv
-      where:
-        cfg: "A"
-      column: "dev_atk_pct"
-    tolerance: 0.1
-    notes: "Dev field checks only"
-
-  - id: dev_interception_config_b
-    text: "100.0%"
-    target_value: 100.00
-    unit: "%"
-    documents:
-      - file: "ContextGuard_Research_Paper.md"
-        context: "Config B"
-    source:
-      file: eval_results/baselines_vs_configs_summary.csv
-      where:
-        cfg: "B"
-      column: "dev_atk_pct"
-    tolerance: 0.1
-    notes: "Dev taxonomy addition"
-
-  - id: dev_interception_config_d
-    text: "100.0%"
-    target_value: 100.00
-    unit: "%"
-    documents:
-      - file: "ContextGuard_Research_Paper.md"
-        context: "Config D"
-    source:
-      file: eval_results/baselines_vs_configs_summary.csv
-      where:
-        cfg: "D"
-      column: "dev_atk_pct"
-    tolerance: 0.1
-    notes: "Dev full gate with fee floor"
-
-  - id: holdout_interception_config_d
-    text: "91.7%"
-    target_value: 91.67
-    unit: "%"
-    documents:
-      - file: "ContextGuard_Research_Paper.md"
-        context: "Config D"
-    source:
-      file: eval_results/baselines_vs_configs_summary.csv
-      where:
-        cfg: "D"
-      column: "hld_atk_pct"
-    tolerance: 0.1
-    notes: "Holdout v1 full gate recall"
+- id: dev_v3_1_recall
+  value: 92.86
+  target_value: 92.86
+  text: 92.9%
+  numerator: 195
+  denominator: 210
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: dev_v3_1_recall
+    column: value
+  tolerance: 0.1
+  notes: Dev compromised attack recall 195/210; Wilson [88.55%, 95.63%], Cluster Bootstrap
+    [83.33%, 100.0%]
+- id: dev_v3_1_benign_normal_fp
+  value: 0.0
+  target_value: 0.0
+  text: 0.0%
+  numerator: 0
+  denominator: 300
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: dev_v3_1_benign_normal_fp
+    column: value
+  tolerance: 0.1
+  notes: Dev benign normal false-intercept rate 0/300; Wilson [0.00%, 1.25%]
+- id: dev_v3_1_benign_hard_fp
+  value: 0.0
+  target_value: 0.0
+  text: 0.0%
+  numerator: 0
+  denominator: 100
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: dev_v3_1_benign_hard_fp
+    column: value
+  tolerance: 0.1
+  notes: Dev benign hard false-intercept rate 0/100; Wilson [0.00%, 3.73%]
+- id: dev_v3_1_utility
+  value: 100.0
+  target_value: 100.0
+  text: 100.0%
+  numerator: 400
+  denominator: 400
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: dev_v3_1_utility
+    column: value
+  tolerance: 0.1
+  notes: Dev benign task utility 400/400 (or 470/470 including uncompromised); Wilson
+    [99.19%, 100.0%]
+- id: dev_v3_1_uncomp_overblock
+  value: 0.0
+  target_value: 0.0
+  text: 0.0%
+  numerator: 0
+  denominator: 70
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: dev_v3_1_uncomp_overblock
+    column: value
+  tolerance: 0.1
+  notes: Dev uncompromised attack over-block rate 0/70; Wilson [0.00%, 5.22%]
+- id: ablation_taxonomy_block_recall
+  value: 100.0
+  target_value: 100.0
+  text: 100.0%
+  numerator: 210
+  denominator: 210
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_taxonomy_block_recall
+    column: value
+  tolerance: 0.1
+  notes: 'Taxonomy Block recall 210/210; Δ vs canon: -7.14% (95% CI [-16.67%, 0.0%],
+    p=0.0866)'
+- id: ablation_taxonomy_block_overblock
+  value: 100.0
+  target_value: 100.0
+  text: 100.0%
+  numerator: 70
+  denominator: 70
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_taxonomy_block_overblock
+    column: value
+  tolerance: 0.1
+  notes: Taxonomy Block over-block 70/70 (100.0%)
+- id: ablation_taxonomy_block_utility
+  value: 85.11
+  target_value: 85.11
+  text: 85.1%
+  numerator: 400
+  denominator: 470
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_taxonomy_block_utility
+    column: value
+  tolerance: 0.1
+  notes: 'Taxonomy Block utility 400/470; Δ vs canon: +14.89% (95% CI [+8.51%, +22.34%],
+    p=0.0001)'
+- id: ablation_taxonomy_warn_recall
+  value: 0.0
+  target_value: 0.0
+  text: 0.0%
+  numerator: 0
+  denominator: 210
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_taxonomy_warn_recall
+    column: value
+  tolerance: 0.1
+  notes: 'Taxonomy Warn recall 0/210; Δ vs canon: +92.86% (95% CI [+83.33%, +100.0%],
+    p=0.0001)'
+- id: ablation_taxonomy_warn_overblock
+  value: 0.0
+  target_value: 0.0
+  text: 0.0%
+  numerator: 0
+  denominator: 70
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_taxonomy_warn_overblock
+    column: value
+  tolerance: 0.1
+  notes: Taxonomy Warn over-block 0/70 (0.0%)
+- id: ablation_taxonomy_warn_utility
+  value: 100.0
+  target_value: 100.0
+  text: 100.0%
+  numerator: 470
+  denominator: 470
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_taxonomy_warn_utility
+    column: value
+  tolerance: 0.1
+  notes: Taxonomy Warn utility 470/470 (100.0%)
+- id: ablation_consistency_only_recall
+  value: 74.76
+  target_value: 74.76
+  text: 74.8%
+  numerator: 157
+  denominator: 210
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_consistency_only_recall
+    column: value
+  tolerance: 0.1
+  notes: 'Consistency Only recall 157/210; Δ vs canon: +18.10% (95% CI [+7.14%, +30.00%],
+    p=0.0012)'
+- id: ablation_consistency_only_overblock
+  value: 0.0
+  target_value: 0.0
+  text: 0.0%
+  numerator: 0
+  denominator: 70
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_consistency_only_overblock
+    column: value
+  tolerance: 0.1
+  notes: Consistency Only over-block 0/70 (0.0%)
+- id: ablation_consistency_only_utility
+  value: 100.0
+  target_value: 100.0
+  text: 100.0%
+  numerator: 470
+  denominator: 470
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_consistency_only_utility
+    column: value
+  tolerance: 0.1
+  notes: Consistency Only utility 470/470 (100.0%)
+- id: ablation_no_risk_engine_recall
+  value: 76.19
+  target_value: 76.19
+  text: 76.2%
+  numerator: 160
+  denominator: 210
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_no_risk_engine_recall
+    column: value
+  tolerance: 0.1
+  notes: 'No Risk Engine recall 160/210; Δ vs canon: +16.67% (95% CI [+6.67%, +27.62%],
+    p=0.0012)'
+- id: ablation_no_risk_engine_overblock
+  value: 0.0
+  target_value: 0.0
+  text: 0.0%
+  numerator: 0
+  denominator: 70
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_no_risk_engine_overblock
+    column: value
+  tolerance: 0.1
+  notes: No Risk Engine over-block 0/70 (0.0%)
+- id: ablation_no_risk_engine_utility
+  value: 95.74
+  target_value: 95.74
+  text: 95.7%
+  numerator: 450
+  denominator: 470
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_no_risk_engine_utility
+    column: value
+  tolerance: 0.1
+  notes: 'No Risk Engine utility 450/470; Δ vs canon: +4.26% (95% CI [+1.06%, +8.51%],
+    p=0.0028)'
+- id: ablation_no_risk_engine_hard_fp
+  value: 20.0
+  target_value: 20.0
+  text: 20.0%
+  numerator: 20
+  denominator: 100
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_no_risk_engine_hard_fp
+    column: value
+  tolerance: 0.1
+  notes: No Risk Engine hard benign false intercept 20/100 (20.0%)
+- id: ablation_no_characterizer_recall
+  value: 92.86
+  target_value: 92.86
+  text: 92.9%
+  numerator: 195
+  denominator: 210
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_no_characterizer_recall
+    column: value
+  tolerance: 0.1
+  notes: 'No Characterizer recall 195/210; Δ vs canon: 0.0% (p=1.0000)'
+- id: ablation_no_characterizer_overblock
+  value: 0.0
+  target_value: 0.0
+  text: 0.0%
+  numerator: 0
+  denominator: 70
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_no_characterizer_overblock
+    column: value
+  tolerance: 0.1
+  notes: No Characterizer over-block 0/70 (0.0%)
+- id: ablation_no_characterizer_utility
+  value: 100.0
+  target_value: 100.0
+  text: 100.0%
+  numerator: 470
+  denominator: 470
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_no_characterizer_utility
+    column: value
+  tolerance: 0.1
+  notes: No Characterizer utility 470/470 (100.0%)
+- id: ablation_no_c1_recall
+  value: 92.86
+  target_value: 92.86
+  text: 92.9%
+  numerator: 195
+  denominator: 210
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_no_c1_recall
+    column: value
+  tolerance: 0.1
+  notes: 'No C1 (origin/destination) recall 195/210; Δ vs canon: 0.0% (p=1.0000)'
+- id: ablation_no_c2_recall
+  value: 92.86
+  target_value: 92.86
+  text: 92.9%
+  numerator: 195
+  denominator: 210
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_no_c2_recall
+    column: value
+  tolerance: 0.1
+  notes: 'No C2 (dates/times) recall 195/210; Δ vs canon: 0.0% (p=1.0000)'
+- id: ablation_no_c3_recall
+  value: 76.19
+  target_value: 76.19
+  text: 76.2%
+  numerator: 160
+  denominator: 210
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_no_c3_recall
+    column: value
+  tolerance: 0.1
+  notes: 'No C3 (passenger/payee) recall 160/210; Δ vs canon: +16.67% (95% CI [+6.67%,
+    +27.62%], p=0.0012)'
+- id: ablation_no_c4_recall
+  value: 100.0
+  target_value: 100.0
+  text: 100.0%
+  numerator: 210
+  denominator: 210
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_no_c4_recall
+    column: value
+  tolerance: 0.1
+  notes: 'No C4 (navigation/action) recall 210/210; Δ vs canon: -7.14% (95% CI [-16.67%,
+    0.0%], p=0.0866)'
+- id: ablation_no_c4_overblock
+  value: 100.0
+  target_value: 100.0
+  text: 100.0%
+  numerator: 70
+  denominator: 70
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_no_c4_overblock
+    column: value
+  tolerance: 0.1
+  notes: No C4 over-block 70/70 (100.0%)
+- id: ablation_no_c4_hard_fp
+  value: 20.0
+  target_value: 20.0
+  text: 20.0%
+  numerator: 20
+  denominator: 100
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_no_c4_hard_fp
+    column: value
+  tolerance: 0.1
+  notes: No C4 hard benign false intercept 20/100 (20.0%)
+- id: ablation_no_c5_recall
+  value: 92.86
+  target_value: 92.86
+  text: 92.9%
+  numerator: 195
+  denominator: 210
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_no_c5_recall
+    column: value
+  tolerance: 0.1
+  notes: 'No C5 (egress-in-content) recall 195/210 (92.86%, 95% Wilson [88.5%, 95.7%]);
+    Δ vs canon: 0.00% (p=1.0000)'
+- id: ablation_no_c5_utility
+  value: 100.0
+  target_value: 100.0
+  text: 100.0%
+  numerator: 470
+  denominator: 470
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_no_c5_utility
+    column: value
+  tolerance: 0.1
+  notes: No C5 utility 470/470 (100.0%, 95% Wilson [99.2%, 100.0%])
+- id: ablation_no_c6_recall
+  value: 92.86
+  target_value: 92.86
+  text: 92.9%
+  numerator: 195
+  denominator: 210
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_no_c6_recall
+    column: value
+  tolerance: 0.1
+  notes: 'No C6 (irreversible-action authorization) recall 195/210 (92.86%); Δ vs
+    canon: 0.00% (p=1.0000)'
+- id: ablation_no_c6_utility
+  value: 100.0
+  target_value: 100.0
+  text: 100.0%
+  numerator: 470
+  denominator: 470
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: ablation_no_c6_utility
+    column: value
+  tolerance: 0.1
+  notes: No C6 utility 470/470 (100.0%, 95% Wilson [99.2%, 100.0%])
+- id: benign_irreversible_actions_utility
+  value: 100.0
+  target_value: 100.0
+  text: 100.0%
+  numerator: 26
+  denominator: 26
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: analysis/leave_one_out_ablation.json
+  command: python analysis/leave_one_out_ablation.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: benign_irreversible_actions_utility
+    column: value
+  tolerance: 0.1
+  notes: 'Benign irreversible-action cases (26: 13 flight #confirm-booking, 13 email
+    #send-btn): 26/26 allowed (100.0%)'
+- id: adaptive_s1_v2perf_o1_evasions
+  value: 25.68
+  target_value: 25.68
+  text: 25.7%
+  numerator: 47
+  denominator: 183
+  git_tag: gate-frozen-v2-perf
+  oracle_version: v1
+  source_file: adaptive/format_step1_tables.py
+  command: python adaptive/format_step1_tables.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: adaptive_s1_v2perf_o1_evasions
+    column: value
+  tolerance: 0.1
+  notes: 'S1 (Free-text) under v2-perf: 11 templates, 47/183 evasions'
+- id: adaptive_s1_v3_o3_evasions
+  value: 0.0
+  target_value: 0.0
+  text: 0.0%
+  numerator: 0
+  denominator: 183
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: adaptive/format_step1_tables.py
+  command: python adaptive/format_step1_tables.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: adaptive_s1_v3_o3_evasions
+    column: value
+  tolerance: 0.1
+  notes: 'S1 under gate-frozen-v3.1: 0/183 evasions (100% intercepted by Rule C5 egress-in-content)
+    Note: Seeds 42 and 9999 produce identical counts due to deterministic slot enumeration.'
+- id: adaptive_s2_v2perf_o1_evasions
+  value: 0.0
+  target_value: 0.0
+  text: 0.0%
+  numerator: 0
+  denominator: 135
+  git_tag: gate-frozen-v2-perf
+  oracle_version: v1
+  source_file: adaptive/format_step1_tables.py
+  command: python adaptive/format_step1_tables.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: adaptive_s2_v2perf_o1_evasions
+    column: value
+  tolerance: 0.1
+  notes: 'S2 (Near-miss) under v2-perf: 25 templates, 0/135 evasions'
+- id: adaptive_s2_v3_o3_evasions
+  value: 0.0
+  target_value: 0.0
+  text: 0.0%
+  numerator: 0
+  denominator: 135
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: adaptive/format_step1_tables.py
+  command: python adaptive/format_step1_tables.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: adaptive_s2_v3_o3_evasions
+    column: value
+  tolerance: 0.1
+  notes: 'S2 under gate-frozen-v3.1: 0/135 evasions (100% intercepted) Note: Seeds
+    42 and 9999 produce identical counts due to deterministic slot enumeration.'
+- id: adaptive_s3_v2perf_o1_evasions
+  value: 25.0
+  target_value: 25.0
+  text: 25.0%
+  numerator: 50
+  denominator: 200
+  git_tag: gate-frozen-v2-perf
+  oracle_version: v1
+  source_file: adaptive/format_step1_tables.py
+  command: python adaptive/format_step1_tables.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: adaptive_s3_v2perf_o1_evasions
+    column: value
+  tolerance: 0.1
+  notes: 'S3 (Host abuse) under v2-perf and Oracle v1: 10 templates, 50/200 evasions'
+- id: adaptive_s3_v2perf_o3_evasions
+  value: 14.29
+  target_value: 14.29
+  text: 14.3%
+  numerator: 25
+  denominator: 175
+  git_tag: gate-frozen-v2-perf
+  oracle_version: v3
+  source_file: adaptive/format_step1_tables.py
+  command: python adaptive/format_step1_tables.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: adaptive_s3_v2perf_o3_evasions
+    column: value
+  tolerance: 0.1
+  notes: 'S3 under v2-perf and Oracle v3: 25/175 evasions (resolves 7c/7d conflict;
+    true code denominator is 175, not 75)'
+- id: adaptive_s3_v3_o3_evasions
+  value: 0.0
+  target_value: 0.0
+  text: 0.0%
+  numerator: 0
+  denominator: 175
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: adaptive/format_step1_tables.py
+  command: python adaptive/format_step1_tables.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: adaptive_s3_v3_o3_evasions
+    column: value
+  tolerance: 0.1
+  notes: 'S3 under gate-frozen-v3.1 and Oracle v3: 0/175 evasions (100% intercepted
+    by Rule C5 host abuse check) Note: Seeds 42 and 9999 produce identical counts
+    due to deterministic slot enumeration.'
+- id: adaptive_s6_v2perf_o1_evasions
+  value: 56.67
+  target_value: 56.67
+  text: 56.7%
+  numerator: 68
+  denominator: 120
+  git_tag: gate-frozen-v2-perf
+  oracle_version: v1
+  source_file: adaptive/format_step1_tables.py
+  command: python adaptive/format_step1_tables.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: adaptive_s6_v2perf_o1_evasions
+    column: value
+  tolerance: 0.1
+  notes: 'S6 under v2-perf and Oracle v1: 15 templates, 68/120 evasions (resolves
+    7c/7d conflict; true 5-domain denominator is 120, not 14/120 which was flight-only)'
+- id: adaptive_s6_v2perf_o3_evasions
+  value: 50.94
+  target_value: 50.94
+  text: 50.9%
+  numerator: 54
+  denominator: 106
+  git_tag: gate-frozen-v2-perf
+  oracle_version: v3
+  source_file: adaptive/format_step1_tables.py
+  command: python adaptive/format_step1_tables.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: adaptive_s6_v2perf_o3_evasions
+    column: value
+  tolerance: 0.1
+  notes: 'S6 under v2-perf and Oracle v3: 54/106 evasions (14 email delete-btn cases
+    recognized as reversible move-to-trash in manifest)'
+- id: adaptive_s6_v3_o3_evasions
+  value: 0.0
+  target_value: 0.0
+  text: 0.0%
+  numerator: 0
+  denominator: 106
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: adaptive/format_step1_tables.py
+  command: python adaptive/format_step1_tables.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: adaptive_s6_v3_o3_evasions
+    column: value
+  tolerance: 0.1
+  notes: 'S6 under gate-frozen-v3.1: 0/106 evasions (100% intercepted by Rule C6 irreversible
+    action authorization) Note: Seeds 42 and 9999 produce identical counts due to
+    deterministic slot enumeration.'
+- id: adaptive_s6b_v3_evasions
+  value: 10.45
+  target_value: 10.45
+  text: 10.4%
+  numerator: 7
+  denominator: 67
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: reports/block7d.md
+  command: python adaptive/evaluate_s6b.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: adaptive_s6b_v3_evasions
+    column: value
+  tolerance: 0.1
+  notes: 'S6b (Authorized Action with Parameter Mutation): 60/67 intercepted; 7 evasions
+    in ecommerce where street is unmapped in intent'
+- id: judge_dev_hard_60_accuracy
+  value: 98.33
+  target_value: 98.33
+  text: 98.3%
+  numerator: 59
+  denominator: 60
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: reports/block7d.md
+  command: python analysis/run_dev_hard_60_judge.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: judge_dev_hard_60_accuracy
+    column: value
+  tolerance: 0.1
+  notes: Live judge accuracy 59/60 on dev_hard_60.jsonl
+- id: judge_dev_hard_60_decisions_changed
+  value: 0.0
+  target_value: 0.0
+  text: '0'
+  numerator: 0
+  denominator: 60
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: reports/block7d.md
+  command: python analysis/run_dev_hard_60_judge.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: judge_dev_hard_60_decisions_changed
+    column: value
+  tolerance: 0.1
+  notes: 'Decisions changed between Judge OFF vs Judge ON: 0/60'
+- id: judge_dev_hard_60_newly_caught
+  value: 0.0
+  target_value: 0.0
+  text: '0'
+  numerator: 0
+  denominator: 45
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: reports/block7d.md
+  command: python analysis/run_dev_hard_60_judge.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: judge_dev_hard_60_newly_caught
+    column: value
+  tolerance: 0.1
+  notes: 'Newly caught attacks by LLM judge: 0/45'
+- id: judge_dev_hard_60_newly_blocked
+  value: 0.0
+  target_value: 0.0
+  text: '0'
+  numerator: 0
+  denominator: 15
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: reports/block7d.md
+  command: python analysis/run_dev_hard_60_judge.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: judge_dev_hard_60_newly_blocked
+    column: value
+  tolerance: 0.1
+  notes: 'Newly blocked benign actions by LLM judge: 0/15'
+- id: judge_median_uncached_latency_ms
+  value: 1193.11
+  target_value: 1193.11
+  text: 1,193.11 ms
+  numerator: null
+  denominator: null
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: reports/block7d.md
+  command: python analysis/run_dev_hard_60_judge.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: judge_median_uncached_latency_ms
+    column: value
+  tolerance: 5.0
+  notes: Median uncached latency across 51 live Gemini API calls
+- id: judge_p95_uncached_latency_ms
+  value: 15532.26
+  target_value: 15532.26
+  text: 15,532.26 ms
+  numerator: null
+  denominator: null
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: reports/block7d.md
+  command: python analysis/run_dev_hard_60_judge.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: judge_p95_uncached_latency_ms
+    column: value
+  tolerance: 10.0
+  notes: p95 uncached latency across live Gemini calls including one 60.12s 429 quota
+    backoff
+- id: judge_fallbacks_count
+  value: 0.0
+  target_value: 0.0
+  text: '0'
+  numerator: 0
+  denominator: 60
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: reports/block7d.md
+  command: python analysis/run_dev_hard_60_judge.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: judge_fallbacks_count
+    column: value
+  tolerance: 0.1
+  notes: 'Fallbacks to offline heuristic: 0'
+- id: attacker_7b_total_calls
+  value: 14.0
+  target_value: 14.0
+  text: '14'
+  numerator: 14
+  denominator: 14
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: reports/block7d.md
+  command: python adaptive/llm_attacker_7b.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: attacker_7b_total_calls
+    column: value
+  tolerance: 0.1
+  notes: Total calls logged in runs/llm_calls.jsonl for Block 7b
+- id: attacker_7b_safety_refusals
+  value: 14.29
+  target_value: 14.29
+  text: '2'
+  numerator: 2
+  denominator: 14
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: reports/block7d.md
+  command: python adaptive/llm_attacker_7b.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: attacker_7b_safety_refusals
+    column: value
+  tolerance: 0.1
+  notes: Safety refusals by gemini-3.6-flash alignment filter (2/14 = 14.29%)
+- id: attacker_7b_valid_actions
+  value: 85.71
+  target_value: 85.71
+  text: '12'
+  numerator: 12
+  denominator: 14
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: reports/block7d.md
+  command: python adaptive/llm_attacker_7b.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: attacker_7b_valid_actions
+    column: value
+  tolerance: 0.1
+  notes: 'Valid actions compliant with structural rules a-d: 12/14 (85.71%)'
+- id: attacker_7b_evasions
+  value: 0.0
+  target_value: 0.0
+  text: 0.0%
+  numerator: 0
+  denominator: 3
+  git_tag: gate-frozen-v3.1
+  oracle_version: v3
+  source_file: reports/block7d.md
+  command: python adaptive/llm_attacker_7b.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: attacker_7b_evasions
+    column: value
+  tolerance: 0.1
+  notes: 'Attacker evasions on oracle-unsafe actions: 0/3 (0.0%, Wilson [0.0%, 56.15%])'
+- id: system_latency_in_memory_p50_ms
+  value: 2.15
+  target_value: 2.15
+  text: 2.15 ms
+  numerator: null
+  denominator: null
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: analysis/results_dev.md
+  command: python analysis/profile_latency.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: system_latency_in_memory_p50_ms
+    column: value
+  tolerance: 0.1
+  notes: Canonical dual_gate in-memory p50 latency
+- id: system_latency_in_memory_p95_ms
+  value: 6.79
+  target_value: 6.79
+  text: 6.79 ms
+  numerator: null
+  denominator: null
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: analysis/results_dev.md
+  command: python analysis/profile_latency.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: system_latency_in_memory_p95_ms
+    column: value
+  tolerance: 0.1
+  notes: Canonical dual_gate in-memory p95 latency
+- id: system_latency_audit_p50_ms
+  value: 2.47
+  target_value: 2.47
+  text: 2.47 ms
+  numerator: null
+  denominator: null
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: analysis/latency_profile.json
+  command: python analysis/profile_latency.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: system_latency_audit_p50_ms
+    column: value
+  tolerance: 0.1
+  notes: 'Dual gate latency with JSONL group-commit audit writer p50: 2.47 ms'
+- id: system_latency_audit_p95_ms
+  value: 7.88
+  target_value: 7.88
+  text: 7.88 ms
+  numerator: null
+  denominator: null
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: analysis/latency_profile.json
+  command: python analysis/profile_latency.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: system_latency_audit_p95_ms
+    column: value
+  tolerance: 0.1
+  notes: 'Dual gate latency with JSONL group-commit audit writer p95: 7.88 ms'
+- id: system_concurrency_p50_n1
+  value: 4.29
+  target_value: 4.29
+  text: 4.29 ms
+  numerator: null
+  denominator: null
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: runs/concurrency_benchmark.json
+  command: python harness/concurrency_bench.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: system_concurrency_p50_n1
+    column: value
+  tolerance: 0.1
+  notes: 'Concurrency tier N=1 (JSONL group-commit audit): p50 latency 4.29 ms, throughput
+    188.8 op/s'
+- id: system_concurrency_p95_n1
+  value: 12.31
+  target_value: 12.31
+  text: 12.31 ms
+  numerator: null
+  denominator: null
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: runs/concurrency_benchmark.json
+  command: python harness/concurrency_bench.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: system_concurrency_p95_n1
+    column: value
+  tolerance: 0.1
+  notes: 'Concurrency tier N=1 (JSONL group-commit audit): p95 latency 12.31 ms'
+- id: system_concurrency_p50_n10
+  value: 113.79
+  target_value: 113.79
+  text: 113.79 ms
+  numerator: null
+  denominator: null
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: runs/concurrency_benchmark.json
+  command: python harness/concurrency_bench.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: system_concurrency_p50_n10
+    column: value
+  tolerance: 0.1
+  notes: 'Concurrency tier N=10 (JSONL group-commit audit): p50 latency 113.79 ms,
+    throughput 47.2 op/s'
+- id: system_concurrency_p95_n10
+  value: 477.88
+  target_value: 477.88
+  text: 477.88 ms
+  numerator: null
+  denominator: null
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: runs/concurrency_benchmark.json
+  command: python harness/concurrency_bench.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: system_concurrency_p95_n10
+    column: value
+  tolerance: 0.1
+  notes: 'Concurrency tier N=10 (JSONL group-commit audit): p95 latency 477.88 ms'
+- id: system_concurrency_p50_n50
+  value: 151.4
+  target_value: 151.4
+  text: 151.40 ms
+  numerator: null
+  denominator: null
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: runs/concurrency_benchmark.json
+  command: python harness/concurrency_bench.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: system_concurrency_p50_n50
+    column: value
+  tolerance: 1.0
+  notes: 'Concurrency tier N=50 (JSONL group-commit audit): p50 latency 151.40 ms,
+    throughput 245.8 op/s'
+- id: system_concurrency_p95_n50
+  value: 288.67
+  target_value: 288.67
+  text: 288.67 ms
+  numerator: null
+  denominator: null
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: runs/concurrency_benchmark.json
+  command: python harness/concurrency_bench.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: system_concurrency_p95_n50
+    column: value
+  tolerance: 2.0
+  notes: 'Concurrency tier N=50 (JSONL group-commit audit): p95 latency 288.67 ms'
+- id: legacy_sqlite_p50_ms
+  value: 72.23
+  target_value: 72.23
+  text: 72.23 ms
+  numerator: null
+  denominator: null
+  git_tag: gate-frozen-v1
+  oracle_version: none
+  source_file: ContextGuard_Research_Paper.md
+  command: python analysis/profile_latency.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: legacy_sqlite_p50_ms
+    column: value
+  tolerance: 0.1
+  notes: 'Legacy / Historical SQLite Path: 72.23 ms p50'
+- id: legacy_sqlite_p95_ms
+  value: 81.6
+  target_value: 81.6
+  text: 81.60 ms
+  numerator: null
+  denominator: null
+  git_tag: gate-frozen-v1
+  oracle_version: none
+  source_file: ContextGuard_Research_Paper.md
+  command: python analysis/profile_latency.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: legacy_sqlite_p95_ms
+    column: value
+  tolerance: 0.1
+  notes: 'Legacy / Historical SQLite Path: 81.60 ms p95'
+- id: system_concurrency_drift_500
+  value: 0.0
+  target_value: 0.0
+  text: '0'
+  numerator: 0
+  denominator: 500
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: harness/concurrency_bench.py
+  command: python harness/concurrency_bench.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: system_concurrency_drift_500
+    column: value
+  tolerance: 0.1
+  notes: 0/500 drift across 1, 10, and 50 concurrent session tiers
+- id: system_tests_passed_count
+  value: 305.0
+  target_value: 305.0
+  text: '305'
+  numerator: 305
+  denominator: 310
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: tests/
+  command: pytest -m "not (llm or live_llm or browser)" -q --timeout=60
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: system_tests_passed_count
+    column: value
+  tolerance: 0.1
+  notes: 305 passed, 5 deselected in automated local and CI test execution
+- id: system_concurrency_gate_only_p50_n1
+  value: 2.58
+  target_value: 2.58
+  text: 2.58 ms
+  numerator: null
+  denominator: null
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: runs/concurrency_gate_only.json
+  command: python scratch/run_gate_only_500.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: system_concurrency_gate_only_p50_n1
+    column: value
+  tolerance: 0.2
+  notes: 'Concurrency Gate-Only tier N=1 (In-Memory): p50 latency 2.58 ms, throughput
+    289.0 op/s'
+- id: system_concurrency_gate_only_p95_n1
+  value: 9.28
+  target_value: 9.28
+  text: 9.28 ms
+  numerator: null
+  denominator: null
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: runs/concurrency_gate_only.json
+  command: python scratch/run_gate_only_500.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: system_concurrency_gate_only_p95_n1
+    column: value
+  tolerance: 0.5
+  notes: 'Concurrency Gate-Only tier N=1 (In-Memory): p95 latency 9.28 ms'
+- id: system_concurrency_gate_only_p50_n10
+  value: 28.4
+  target_value: 28.4
+  text: 28.40 ms
+  numerator: null
+  denominator: null
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: runs/concurrency_gate_only.json
+  command: python scratch/run_gate_only_500.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: system_concurrency_gate_only_p50_n10
+    column: value
+  tolerance: 1.0
+  notes: 'Concurrency Gate-Only tier N=10 (In-Memory): p50 latency 28.40 ms, throughput
+    300.6 op/s'
+- id: system_concurrency_gate_only_p95_n10
+  value: 72.56
+  target_value: 72.56
+  text: 72.56 ms
+  numerator: null
+  denominator: null
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: runs/concurrency_gate_only.json
+  command: python scratch/run_gate_only_500.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: system_concurrency_gate_only_p95_n10
+    column: value
+  tolerance: 2.0
+  notes: 'Concurrency Gate-Only tier N=10 (In-Memory): p95 latency 72.56 ms'
+- id: system_concurrency_gate_only_p50_n50
+  value: 91.43
+  target_value: 91.43
+  text: 91.43 ms
+  numerator: null
+  denominator: null
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: runs/concurrency_gate_only.json
+  command: python scratch/run_gate_only_500.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: system_concurrency_gate_only_p50_n50
+    column: value
+  tolerance: 5.0
+  notes: 'Concurrency Gate-Only tier N=50 (In-Memory): p50 latency 91.43 ms, throughput
+    290.2 op/s'
+- id: system_concurrency_gate_only_p95_n50
+  value: 219.78
+  target_value: 219.78
+  text: 219.78 ms
+  numerator: null
+  denominator: null
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: runs/concurrency_gate_only.json
+  command: python scratch/run_gate_only_500.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: system_concurrency_gate_only_p95_n50
+    column: value
+  tolerance: 10.0
+  notes: 'Concurrency Gate-Only tier N=50 (In-Memory): p95 latency 219.78 ms'
+- id: unseen_templates_total_count
+  value: 34.0
+  target_value: 34.0
+  text: '34'
+  numerator: 34
+  denominator: 34
+  git_tag: gate-frozen-v3.1
+  oracle_version: oracle_v3
+  source_file: runs/eval_block10_unseen.json
+  command: python adaptive/generate_block10_unseen.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: unseen_templates_total_count
+    column: value
+  tolerance: 0.1
+  notes: 34 total unseen templates across S1 (6), S2 (6), S3 (6), S5 (7), S6b (9)
+- id: unseen_templates_s1_evasions
+  value: 0.0
+  target_value: 0.0
+  text: 0.0%
+  numerator: 0
+  denominator: 6
+  git_tag: gate-frozen-v3.1
+  oracle_version: oracle_v3
+  source_file: runs/eval_block10_unseen.json
+  command: python adaptive/generate_block10_unseen.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: unseen_templates_s1_evasions
+    column: value
+  tolerance: 0.1
+  notes: 'Unseen S1 templates: 0/6 evasions (100% intercepted by C5)'
+- id: unseen_templates_s2_evasions
+  value: 0.0
+  target_value: 0.0
+  text: 0.0%
+  numerator: 0
+  denominator: 6
+  git_tag: gate-frozen-v3.1
+  oracle_version: oracle_v3
+  source_file: runs/eval_block10_unseen.json
+  command: python adaptive/generate_block10_unseen.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: unseen_templates_s2_evasions
+    column: value
+  tolerance: 0.1
+  notes: 'Unseen S2 templates: 0/6 evasions (100% intercepted by C1/C2)'
+- id: unseen_templates_s3_evasions
+  value: 0.0
+  target_value: 0.0
+  text: 0.0%
+  numerator: 0
+  denominator: 6
+  git_tag: gate-frozen-v3.1
+  oracle_version: oracle_v3
+  source_file: runs/eval_block10_unseen.json
+  command: python adaptive/generate_block10_unseen.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: unseen_templates_s3_evasions
+    column: value
+  tolerance: 0.1
+  notes: 'Unseen S3 templates: 0/6 evasions (100% intercepted by origin/redirect check)'
+- id: unseen_templates_s6b_evasions
+  value: 11.11
+  target_value: 11.11
+  text: 11.1%
+  numerator: 1
+  denominator: 9
+  git_tag: gate-frozen-v3.1
+  oracle_version: oracle_v3
+  source_file: runs/eval_block10_unseen.json
+  command: python adaptive/generate_block10_unseen.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: unseen_templates_s6b_evasions
+    column: value
+  tolerance: 0.1
+  notes: 'Unseen S6b templates: 8/8 oracle-unsafe intercepted on gate-frozen-v3.1;
+    1 unmapped address mutation evades stateless gate and is caught 100% by LLM Judge'
+- id: unseen_templates_valid_stateless_interception
+  value: 100.0
+  target_value: 100.0
+  text: 100.0%
+  numerator: 24
+  denominator: 24
+  git_tag: gate-frozen-v3.1
+  oracle_version: oracle_v3
+  source_file: runs/eval_block10_unseen.json
+  command: python adaptive/generate_block10_unseen.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: unseen_templates_valid_stateless_interception
+    column: value
+  tolerance: 0.1
+  notes: 100% interception (24/24) on all valid stateless unseen templates (S1, S2,
+    S3, S6b)
+- id: dev_interception_config_a
+  text: 85.3%
+  target_value: 85.29
+  unit: '%'
+  documents:
+  - file: ContextGuard_Research_Paper.md
+    context: Config A
+  - file: README.md
+    context: Config A
+  source:
+    file: eval_results/baselines_vs_configs_summary.csv
+    where:
+      cfg: A
+    column: dev_atk_pct
+  tolerance: 0.1
+  notes: Dev field checks only
+- id: dev_interception_config_b
+  text: 100.0%
+  target_value: 100.0
+  unit: '%'
+  documents:
+  - file: ContextGuard_Research_Paper.md
+    context: Config B
+  source:
+    file: eval_results/baselines_vs_configs_summary.csv
+    where:
+      cfg: B
+    column: dev_atk_pct
+  tolerance: 0.1
+  notes: Dev taxonomy addition
+- id: dev_interception_config_d
+  text: 100.0%
+  target_value: 100.0
+  unit: '%'
+  documents:
+  - file: ContextGuard_Research_Paper.md
+    context: Config D
+  source:
+    file: eval_results/baselines_vs_configs_summary.csv
+    where:
+      cfg: D
+    column: dev_atk_pct
+  tolerance: 0.1
+  notes: Dev full gate with fee floor
+- id: holdout_interception_config_d
+  text: 91.7%
+  target_value: 91.67
+  unit: '%'
+  documents:
+  - file: ContextGuard_Research_Paper.md
+    context: Config D
+  source:
+    file: eval_results/baselines_vs_configs_summary.csv
+    where:
+      cfg: D
+    column: hld_atk_pct
+  tolerance: 0.1
+  notes: Holdout v1 full gate recall
+- id: baseline_regex_only_recall
+  value: 100.0
+  target_value: 100.0
+  text: 100.0%
+  numerator: 210
+  denominator: 210
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: runs/block12_baselines_eval.json
+  command: python analysis/block12_baselines.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: baseline_regex_only_recall
+    column: value
+  tolerance: 0.1
+  notes: 'Baseline 1 (Regex-Only): 210/210 recall on compromised dev attacks'
+- id: baseline_regex_only_overblock
+  value: 100.0
+  target_value: 100.0
+  text: 100.0%
+  numerator: 70
+  denominator: 70
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: runs/block12_baselines_eval.json
+  command: python analysis/block12_baselines.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: baseline_regex_only_overblock
+    column: value
+  tolerance: 0.1
+  notes: 'Baseline 1 (Regex-Only): 70/70 over-block on uncompromised dev attacks (100%
+    false intercept)'
+- id: baseline_regex_only_utility
+  value: 100.0
+  target_value: 100.0
+  text: 100.0%
+  numerator: 400
+  denominator: 400
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: runs/block12_baselines_eval.json
+  command: python analysis/block12_baselines.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: baseline_regex_only_utility
+    column: value
+  tolerance: 0.1
+  notes: 'Baseline 1 (Regex-Only): 400/400 utility on benign dev tasks'
+- id: baseline_llm_judge_recall
+  value: 100.0
+  target_value: 100.0
+  text: 100.0%
+  numerator: 210
+  denominator: 210
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: runs/block12_baselines_eval.json
+  command: python analysis/block12_baselines.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: baseline_llm_judge_recall
+    column: value
+  tolerance: 0.1
+  notes: 'Baseline 2 (LLM-Judge-Only Cached): 210/210 recall on compromised dev attacks'
+- id: baseline_llm_judge_overblock
+  value: 50.0
+  target_value: 50.0
+  text: 50.0%
+  numerator: 35
+  denominator: 70
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: runs/block12_baselines_eval.json
+  command: python analysis/block12_baselines.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: baseline_llm_judge_overblock
+    column: value
+  tolerance: 0.1
+  notes: 'Baseline 2 (LLM-Judge-Only Cached): 35/70 over-block on uncompromised dev
+    attacks'
+- id: baseline_llm_judge_utility
+  value: 75.5
+  target_value: 75.5
+  text: 75.5%
+  numerator: 302
+  denominator: 400
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: runs/block12_baselines_eval.json
+  command: python analysis/block12_baselines.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: baseline_llm_judge_utility
+    column: value
+  tolerance: 0.1
+  notes: 'Baseline 2 (LLM-Judge-Only Cached): 302/400 utility on benign dev tasks
+    (98 false intercepts)'
+- id: baseline_tool_allowlist_recall
+  value: 43.81
+  target_value: 43.81
+  text: 43.8%
+  numerator: 92
+  denominator: 210
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: runs/block12_baselines_eval.json
+  command: python analysis/block12_baselines.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: baseline_tool_allowlist_recall
+    column: value
+  tolerance: 0.1
+  notes: 'Baseline 3 (Tool-Allowlist): 92/210 recall on compromised dev attacks'
+- id: baseline_tool_allowlist_overblock
+  value: 0.0
+  target_value: 0.0
+  text: 0.0%
+  numerator: 0
+  denominator: 70
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: runs/block12_baselines_eval.json
+  command: python analysis/block12_baselines.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: baseline_tool_allowlist_overblock
+    column: value
+  tolerance: 0.1
+  notes: 'Baseline 3 (Tool-Allowlist): 0/70 over-block on uncompromised dev attacks'
+- id: baseline_tool_allowlist_utility
+  value: 93.5
+  target_value: 93.5
+  text: 93.5%
+  numerator: 374
+  denominator: 400
+  git_tag: gate-frozen-v3.1
+  oracle_version: none
+  source_file: runs/block12_baselines_eval.json
+  command: python analysis/block12_baselines.py
+  source:
+    file: eval_results/numbers_ledger.csv
+    where:
+      id: baseline_tool_allowlist_utility
+    column: value
+  tolerance: 0.1
+  notes: 'Baseline 3 (Tool-Allowlist): 374/400 utility on benign dev tasks'

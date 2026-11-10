@@ -1,18 +1,18 @@
 {
   "n_cases": 200,
   "with_audit": {
-    "p50_ms": 128.46,
-    "p95_ms": 173.58,
-    "mean_ms": 129.4
+    "p50_ms": 2.47,
+    "p95_ms": 7.88,
+    "mean_ms": 3.45
   },
   "without_audit": {
-    "p50_ms": 126.9,
-    "p95_ms": 164.2,
-    "mean_ms": 129.0
+    "p50_ms": 1.82,
+    "p95_ms": 7.4,
+    "mean_ms": 2.4
   },
   "time_shares": {
-    "audit_write_and_anchor_pct": 0.3,
-    "threat_pipeline_pct": 0.1,
-    "risk_engine_pct": 0.1
+    "audit_write_and_anchor_pct": 30.5,
+    "threat_pipeline_pct": 2.2,
+    "risk_engine_pct": 0.0
   }
 }

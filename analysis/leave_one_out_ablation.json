@@ -1,74 +1,842 @@
 [
   {
-    "name": "dual_gate (Canonical)",
-    "elapsed_s": 2.7,
-    "comp_recall": "195/210 (92.9% [88.6%, 95.6%])",
-    "uncomp_overblock": "0/70 (0.0% [0.0%, 5.2%])",
-    "norm_fp_total": "0/300 (0.0% [0.0%, 1.3%])",
-    "norm_fp_block": "0/300 (0.0% [0.0%, 1.3%])",
-    "norm_fp_confirm": "0/300 (0.0% [0.0%, 1.3%])",
-    "hard_fp_total": "0/100 (0.0% [0.0%, 3.7%])",
-    "hard_fp_block": "0/100 (0.0% [0.0%, 3.7%])",
-    "hard_fp_confirm": "0/100 (0.0% [0.0%, 3.7%])"
+    "name": "dual_gate",
+    "comp_recall_num": 195,
+    "comp_recall_denom": 210,
+    "comp_recall_pct": 92.86,
+    "comp_recall_wilson": [
+      0.89,
+      0.96
+    ],
+    "comp_recall_boot_ci": [
+      83.33,
+      100.0
+    ],
+    "delta_recall_vs_canon": {
+      "obs": 0.0,
+      "mean": 0.0,
+      "ci_95": [
+        0.0,
+        0.0
+      ],
+      "p_val": 1.0
+    },
+    "uncomp_overblock_num": 0,
+    "uncomp_overblock_denom": 70,
+    "uncomp_overblock_pct": 0.0,
+    "uncomp_overblock_wilson": [
+      0.0,
+      0.05
+    ],
+    "norm_fp_num": 0,
+    "norm_fp_denom": 300,
+    "norm_fp_pct": 0.0,
+    "norm_fp_wilson": [
+      0.0,
+      0.01
+    ],
+    "hard_fp_num": 0,
+    "hard_fp_denom": 100,
+    "hard_fp_pct": 0.0,
+    "hard_fp_wilson": [
+      0.0,
+      0.04
+    ],
+    "utility_num": 470,
+    "utility_denom": 470,
+    "utility_pct": 100.0,
+    "utility_wilson": [
+      0.99,
+      1.0
+    ],
+    "utility_boot_ci": [
+      100.0,
+      100.0
+    ],
+    "delta_utility_vs_canon": {
+      "obs": 0.0,
+      "mean": 0.0,
+      "ci_95": [
+        0.0,
+        0.0
+      ],
+      "p_val": 1.0
+    },
+    "benign_irreversible_actions": {
+      "total": 26,
+      "allowed": 26,
+      "intercepted": 0,
+      "utility_pct": 100.0
+    }
   },
   {
-    "name": "dual_gate_no_c1 (-C1)",
-    "elapsed_s": 2.6,
-    "comp_recall": "195/210 (92.9% [88.6%, 95.6%])",
-    "uncomp_overblock": "0/70 (0.0% [0.0%, 5.2%])",
-    "norm_fp_total": "0/300 (0.0% [0.0%, 1.3%])",
-    "norm_fp_block": "0/300 (0.0% [0.0%, 1.3%])",
-    "norm_fp_confirm": "0/300 (0.0% [0.0%, 1.3%])",
-    "hard_fp_total": "0/100 (0.0% [0.0%, 3.7%])",
-    "hard_fp_block": "0/100 (0.0% [0.0%, 3.7%])",
-    "hard_fp_confirm": "0/100 (0.0% [0.0%, 3.7%])"
+    "name": "taxonomy_block",
+    "comp_recall_num": 210,
+    "comp_recall_denom": 210,
+    "comp_recall_pct": 100.0,
+    "comp_recall_wilson": [
+      0.98,
+      1.0
+    ],
+    "comp_recall_boot_ci": [
+      100.0,
+      100.0
+    ],
+    "delta_recall_vs_canon": {
+      "obs": -7.14,
+      "mean": -7.16,
+      "ci_95": [
+        -16.67,
+        0.0
+      ],
+      "p_val": 0.0866
+    },
+    "uncomp_overblock_num": 70,
+    "uncomp_overblock_denom": 70,
+    "uncomp_overblock_pct": 100.0,
+    "uncomp_overblock_wilson": [
+      0.95,
+      1.0
+    ],
+    "norm_fp_num": 0,
+    "norm_fp_denom": 300,
+    "norm_fp_pct": 0.0,
+    "norm_fp_wilson": [
+      0.0,
+      0.01
+    ],
+    "hard_fp_num": 0,
+    "hard_fp_denom": 100,
+    "hard_fp_pct": 0.0,
+    "hard_fp_wilson": [
+      0.0,
+      0.04
+    ],
+    "utility_num": 400,
+    "utility_denom": 470,
+    "utility_pct": 85.11,
+    "utility_wilson": [
+      0.82,
+      0.88
+    ],
+    "utility_boot_ci": [
+      77.66,
+      92.55
+    ],
+    "delta_utility_vs_canon": {
+      "obs": 14.89,
+      "mean": 14.82,
+      "ci_95": [
+        7.45,
+        22.34
+      ],
+      "p_val": 0.0001
+    },
+    "benign_irreversible_actions": {
+      "total": 26,
+      "allowed": 26,
+      "intercepted": 0,
+      "utility_pct": 100.0
+    }
   },
   {
-    "name": "dual_gate_no_c2 (-C2)",
-    "elapsed_s": 2.6,
-    "comp_recall": "195/210 (92.9% [88.6%, 95.6%])",
-    "uncomp_overblock": "0/70 (0.0% [0.0%, 5.2%])",
-    "norm_fp_total": "0/300 (0.0% [0.0%, 1.3%])",
-    "norm_fp_block": "0/300 (0.0% [0.0%, 1.3%])",
-    "norm_fp_confirm": "0/300 (0.0% [0.0%, 1.3%])",
-    "hard_fp_total": "0/100 (0.0% [0.0%, 3.7%])",
-    "hard_fp_block": "0/100 (0.0% [0.0%, 3.7%])",
-    "hard_fp_confirm": "0/100 (0.0% [0.0%, 3.7%])"
+    "name": "taxonomy_warn",
+    "comp_recall_num": 0,
+    "comp_recall_denom": 210,
+    "comp_recall_pct": 0.0,
+    "comp_recall_wilson": [
+      0.0,
+      0.02
+    ],
+    "comp_recall_boot_ci": [
+      0.0,
+      0.0
+    ],
+    "delta_recall_vs_canon": {
+      "obs": 92.86,
+      "mean": 92.84,
+      "ci_95": [
+        83.33,
+        100.0
+      ],
+      "p_val": 0.0001
+    },
+    "uncomp_overblock_num": 0,
+    "uncomp_overblock_denom": 70,
+    "uncomp_overblock_pct": 0.0,
+    "uncomp_overblock_wilson": [
+      0.0,
+      0.05
+    ],
+    "norm_fp_num": 0,
+    "norm_fp_denom": 300,
+    "norm_fp_pct": 0.0,
+    "norm_fp_wilson": [
+      0.0,
+      0.01
+    ],
+    "hard_fp_num": 0,
+    "hard_fp_denom": 100,
+    "hard_fp_pct": 0.0,
+    "hard_fp_wilson": [
+      0.0,
+      0.04
+    ],
+    "utility_num": 470,
+    "utility_denom": 470,
+    "utility_pct": 100.0,
+    "utility_wilson": [
+      0.99,
+      1.0
+    ],
+    "utility_boot_ci": [
+      100.0,
+      100.0
+    ],
+    "delta_utility_vs_canon": {
+      "obs": 0.0,
+      "mean": 0.0,
+      "ci_95": [
+        0.0,
+        0.0
+      ],
+      "p_val": 1.0
+    },
+    "benign_irreversible_actions": {
+      "total": 26,
+      "allowed": 26,
+      "intercepted": 0,
+      "utility_pct": 100.0
+    }
   },
   {
-    "name": "dual_gate_no_c3 (-C3)",
-    "elapsed_s": 2.8,
-    "comp_recall": "160/210 (76.2% [70.0%, 81.4%])",
-    "uncomp_overblock": "0/70 (0.0% [0.0%, 5.2%])",
-    "norm_fp_total": "0/300 (0.0% [0.0%, 1.3%])",
-    "norm_fp_block": "0/300 (0.0% [0.0%, 1.3%])",
-    "norm_fp_confirm": "0/300 (0.0% [0.0%, 1.3%])",
-    "hard_fp_total": "0/100 (0.0% [0.0%, 3.7%])",
-    "hard_fp_block": "0/100 (0.0% [0.0%, 3.7%])",
-    "hard_fp_confirm": "0/100 (0.0% [0.0%, 3.7%])"
+    "name": "consistency_only",
+    "comp_recall_num": 157,
+    "comp_recall_denom": 210,
+    "comp_recall_pct": 74.76,
+    "comp_recall_wilson": [
+      0.68,
+      0.8
+    ],
+    "comp_recall_boot_ci": [
+      61.43,
+      86.67
+    ],
+    "delta_recall_vs_canon": {
+      "obs": 18.1,
+      "mean": 18.18,
+      "ci_95": [
+        7.14,
+        30.0
+      ],
+      "p_val": 0.0012
+    },
+    "uncomp_overblock_num": 0,
+    "uncomp_overblock_denom": 70,
+    "uncomp_overblock_pct": 0.0,
+    "uncomp_overblock_wilson": [
+      0.0,
+      0.05
+    ],
+    "norm_fp_num": 0,
+    "norm_fp_denom": 300,
+    "norm_fp_pct": 0.0,
+    "norm_fp_wilson": [
+      0.0,
+      0.01
+    ],
+    "hard_fp_num": 0,
+    "hard_fp_denom": 100,
+    "hard_fp_pct": 0.0,
+    "hard_fp_wilson": [
+      0.0,
+      0.04
+    ],
+    "utility_num": 470,
+    "utility_denom": 470,
+    "utility_pct": 100.0,
+    "utility_wilson": [
+      0.99,
+      1.0
+    ],
+    "utility_boot_ci": [
+      100.0,
+      100.0
+    ],
+    "delta_utility_vs_canon": {
+      "obs": 0.0,
+      "mean": 0.0,
+      "ci_95": [
+        0.0,
+        0.0
+      ],
+      "p_val": 1.0
+    },
+    "benign_irreversible_actions": {
+      "total": 26,
+      "allowed": 26,
+      "intercepted": 0,
+      "utility_pct": 100.0
+    }
   },
   {
-    "name": "dual_gate_no_c4 (-C4)",
-    "elapsed_s": 2.7,
-    "comp_recall": "210/210 (100.0% [98.2%, 100.0%])",
-    "uncomp_overblock": "70/70 (100.0% [94.8%, 100.0%])",
-    "norm_fp_total": "0/300 (0.0% [0.0%, 1.3%])",
-    "norm_fp_block": "0/300 (0.0% [0.0%, 1.3%])",
-    "norm_fp_confirm": "0/300 (0.0% [0.0%, 1.3%])",
-    "hard_fp_total": "20/100 (20.0% [13.3%, 28.9%])",
-    "hard_fp_block": "3/100 (3.0% [1.0%, 8.5%])",
-    "hard_fp_confirm": "17/100 (17.0% [10.9%, 25.5%])"
+    "name": "dual_gate_no_risk_engine",
+    "comp_recall_num": 160,
+    "comp_recall_denom": 210,
+    "comp_recall_pct": 76.19,
+    "comp_recall_wilson": [
+      0.7,
+      0.81
+    ],
+    "comp_recall_boot_ci": [
+      63.33,
+      87.62
+    ],
+    "delta_recall_vs_canon": {
+      "obs": 16.67,
+      "mean": 16.75,
+      "ci_95": [
+        6.67,
+        27.62
+      ],
+      "p_val": 0.0012
+    },
+    "uncomp_overblock_num": 0,
+    "uncomp_overblock_denom": 70,
+    "uncomp_overblock_pct": 0.0,
+    "uncomp_overblock_wilson": [
+      0.0,
+      0.05
+    ],
+    "norm_fp_num": 0,
+    "norm_fp_denom": 300,
+    "norm_fp_pct": 0.0,
+    "norm_fp_wilson": [
+      0.0,
+      0.01
+    ],
+    "hard_fp_num": 20,
+    "hard_fp_denom": 100,
+    "hard_fp_pct": 20.0,
+    "hard_fp_wilson": [
+      0.13,
+      0.29
+    ],
+    "utility_num": 450,
+    "utility_denom": 470,
+    "utility_pct": 95.74,
+    "utility_wilson": [
+      0.94,
+      0.97
+    ],
+    "utility_boot_ci": [
+      91.49,
+      98.94
+    ],
+    "delta_utility_vs_canon": {
+      "obs": 4.26,
+      "mean": 4.25,
+      "ci_95": [
+        1.06,
+        8.51
+      ],
+      "p_val": 0.034
+    },
+    "benign_irreversible_actions": {
+      "total": 26,
+      "allowed": 24,
+      "intercepted": 2,
+      "utility_pct": 92.31
+    }
   },
   {
-    "name": "dual_gate_no_characterizer (-Char)",
-    "elapsed_s": 2.7,
-    "comp_recall": "195/210 (92.9% [88.6%, 95.6%])",
-    "uncomp_overblock": "0/70 (0.0% [0.0%, 5.2%])",
-    "norm_fp_total": "0/300 (0.0% [0.0%, 1.3%])",
-    "norm_fp_block": "0/300 (0.0% [0.0%, 1.3%])",
-    "norm_fp_confirm": "0/300 (0.0% [0.0%, 1.3%])",
-    "hard_fp_total": "0/100 (0.0% [0.0%, 3.7%])",
-    "hard_fp_block": "0/100 (0.0% [0.0%, 3.7%])",
-    "hard_fp_confirm": "0/100 (0.0% [0.0%, 3.7%])"
+    "name": "dual_gate_no_characterizer",
+    "comp_recall_num": 195,
+    "comp_recall_denom": 210,
+    "comp_recall_pct": 92.86,
+    "comp_recall_wilson": [
+      0.89,
+      0.96
+    ],
+    "comp_recall_boot_ci": [
+      83.33,
+      100.0
+    ],
+    "delta_recall_vs_canon": {
+      "obs": 0.0,
+      "mean": 0.0,
+      "ci_95": [
+        0.0,
+        0.0
+      ],
+      "p_val": 1.0
+    },
+    "uncomp_overblock_num": 0,
+    "uncomp_overblock_denom": 70,
+    "uncomp_overblock_pct": 0.0,
+    "uncomp_overblock_wilson": [
+      0.0,
+      0.05
+    ],
+    "norm_fp_num": 0,
+    "norm_fp_denom": 300,
+    "norm_fp_pct": 0.0,
+    "norm_fp_wilson": [
+      0.0,
+      0.01
+    ],
+    "hard_fp_num": 0,
+    "hard_fp_denom": 100,
+    "hard_fp_pct": 0.0,
+    "hard_fp_wilson": [
+      0.0,
+      0.04
+    ],
+    "utility_num": 470,
+    "utility_denom": 470,
+    "utility_pct": 100.0,
+    "utility_wilson": [
+      0.99,
+      1.0
+    ],
+    "utility_boot_ci": [
+      100.0,
+      100.0
+    ],
+    "delta_utility_vs_canon": {
+      "obs": 0.0,
+      "mean": 0.0,
+      "ci_95": [
+        0.0,
+        0.0
+      ],
+      "p_val": 1.0
+    },
+    "benign_irreversible_actions": {
+      "total": 26,
+      "allowed": 26,
+      "intercepted": 0,
+      "utility_pct": 100.0
+    }
+  },
+  {
+    "name": "dual_gate_no_c1",
+    "comp_recall_num": 195,
+    "comp_recall_denom": 210,
+    "comp_recall_pct": 92.86,
+    "comp_recall_wilson": [
+      0.89,
+      0.96
+    ],
+    "comp_recall_boot_ci": [
+      83.33,
+      100.0
+    ],
+    "delta_recall_vs_canon": {
+      "obs": 0.0,
+      "mean": 0.0,
+      "ci_95": [
+        0.0,
+        0.0
+      ],
+      "p_val": 1.0
+    },
+    "uncomp_overblock_num": 0,
+    "uncomp_overblock_denom": 70,
+    "uncomp_overblock_pct": 0.0,
+    "uncomp_overblock_wilson": [
+      0.0,
+      0.05
+    ],
+    "norm_fp_num": 0,
+    "norm_fp_denom": 300,
+    "norm_fp_pct": 0.0,
+    "norm_fp_wilson": [
+      0.0,
+      0.01
+    ],
+    "hard_fp_num": 0,
+    "hard_fp_denom": 100,
+    "hard_fp_pct": 0.0,
+    "hard_fp_wilson": [
+      0.0,
+      0.04
+    ],
+    "utility_num": 470,
+    "utility_denom": 470,
+    "utility_pct": 100.0,
+    "utility_wilson": [
+      0.99,
+      1.0
+    ],
+    "utility_boot_ci": [
+      100.0,
+      100.0
+    ],
+    "delta_utility_vs_canon": {
+      "obs": 0.0,
+      "mean": 0.0,
+      "ci_95": [
+        0.0,
+        0.0
+      ],
+      "p_val": 1.0
+    },
+    "benign_irreversible_actions": {
+      "total": 26,
+      "allowed": 26,
+      "intercepted": 0,
+      "utility_pct": 100.0
+    }
+  },
+  {
+    "name": "dual_gate_no_c2",
+    "comp_recall_num": 195,
+    "comp_recall_denom": 210,
+    "comp_recall_pct": 92.86,
+    "comp_recall_wilson": [
+      0.89,
+      0.96
+    ],
+    "comp_recall_boot_ci": [
+      83.33,
+      100.0
+    ],
+    "delta_recall_vs_canon": {
+      "obs": 0.0,
+      "mean": 0.0,
+      "ci_95": [
+        0.0,
+        0.0
+      ],
+      "p_val": 1.0
+    },
+    "uncomp_overblock_num": 0,
+    "uncomp_overblock_denom": 70,
+    "uncomp_overblock_pct": 0.0,
+    "uncomp_overblock_wilson": [
+      0.0,
+      0.05
+    ],
+    "norm_fp_num": 0,
+    "norm_fp_denom": 300,
+    "norm_fp_pct": 0.0,
+    "norm_fp_wilson": [
+      0.0,
+      0.01
+    ],
+    "hard_fp_num": 0,
+    "hard_fp_denom": 100,
+    "hard_fp_pct": 0.0,
+    "hard_fp_wilson": [
+      0.0,
+      0.04
+    ],
+    "utility_num": 470,
+    "utility_denom": 470,
+    "utility_pct": 100.0,
+    "utility_wilson": [
+      0.99,
+      1.0
+    ],
+    "utility_boot_ci": [
+      100.0,
+      100.0
+    ],
+    "delta_utility_vs_canon": {
+      "obs": 0.0,
+      "mean": 0.0,
+      "ci_95": [
+        0.0,
+        0.0
+      ],
+      "p_val": 1.0
+    },
+    "benign_irreversible_actions": {
+      "total": 26,
+      "allowed": 26,
+      "intercepted": 0,
+      "utility_pct": 100.0
+    }
+  },
+  {
+    "name": "dual_gate_no_c3",
+    "comp_recall_num": 160,
+    "comp_recall_denom": 210,
+    "comp_recall_pct": 76.19,
+    "comp_recall_wilson": [
+      0.7,
+      0.81
+    ],
+    "comp_recall_boot_ci": [
+      63.33,
+      87.62
+    ],
+    "delta_recall_vs_canon": {
+      "obs": 16.67,
+      "mean": 16.75,
+      "ci_95": [
+        6.67,
+        27.62
+      ],
+      "p_val": 0.0012
+    },
+    "uncomp_overblock_num": 0,
+    "uncomp_overblock_denom": 70,
+    "uncomp_overblock_pct": 0.0,
+    "uncomp_overblock_wilson": [
+      0.0,
+      0.05
+    ],
+    "norm_fp_num": 0,
+    "norm_fp_denom": 300,
+    "norm_fp_pct": 0.0,
+    "norm_fp_wilson": [
+      0.0,
+      0.01
+    ],
+    "hard_fp_num": 0,
+    "hard_fp_denom": 100,
+    "hard_fp_pct": 0.0,
+    "hard_fp_wilson": [
+      0.0,
+      0.04
+    ],
+    "utility_num": 470,
+    "utility_denom": 470,
+    "utility_pct": 100.0,
+    "utility_wilson": [
+      0.99,
+      1.0
+    ],
+    "utility_boot_ci": [
+      100.0,
+      100.0
+    ],
+    "delta_utility_vs_canon": {
+      "obs": 0.0,
+      "mean": 0.0,
+      "ci_95": [
+        0.0,
+        0.0
+      ],
+      "p_val": 1.0
+    },
+    "benign_irreversible_actions": {
+      "total": 26,
+      "allowed": 26,
+      "intercepted": 0,
+      "utility_pct": 100.0
+    }
+  },
+  {
+    "name": "dual_gate_no_c4",
+    "comp_recall_num": 210,
+    "comp_recall_denom": 210,
+    "comp_recall_pct": 100.0,
+    "comp_recall_wilson": [
+      0.98,
+      1.0
+    ],
+    "comp_recall_boot_ci": [
+      100.0,
+      100.0
+    ],
+    "delta_recall_vs_canon": {
+      "obs": -7.14,
+      "mean": -7.16,
+      "ci_95": [
+        -16.67,
+        0.0
+      ],
+      "p_val": 0.0866
+    },
+    "uncomp_overblock_num": 70,
+    "uncomp_overblock_denom": 70,
+    "uncomp_overblock_pct": 100.0,
+    "uncomp_overblock_wilson": [
+      0.95,
+      1.0
+    ],
+    "norm_fp_num": 0,
+    "norm_fp_denom": 300,
+    "norm_fp_pct": 0.0,
+    "norm_fp_wilson": [
+      0.0,
+      0.01
+    ],
+    "hard_fp_num": 20,
+    "hard_fp_denom": 100,
+    "hard_fp_pct": 20.0,
+    "hard_fp_wilson": [
+      0.13,
+      0.29
+    ],
+    "utility_num": 380,
+    "utility_denom": 470,
+    "utility_pct": 80.85,
+    "utility_wilson": [
+      0.77,
+      0.84
+    ],
+    "utility_boot_ci": [
+      72.34,
+      88.3
+    ],
+    "delta_utility_vs_canon": {
+      "obs": 19.15,
+      "mean": 19.07,
+      "ci_95": [
+        11.7,
+        27.66
+      ],
+      "p_val": 0.0001
+    },
+    "benign_irreversible_actions": {
+      "total": 26,
+      "allowed": 24,
+      "intercepted": 2,
+      "utility_pct": 92.31
+    }
+  },
+  {
+    "name": "dual_gate_no_c5",
+    "comp_recall_num": 195,
+    "comp_recall_denom": 210,
+    "comp_recall_pct": 92.86,
+    "comp_recall_wilson": [
+      0.89,
+      0.96
+    ],
+    "comp_recall_boot_ci": [
+      83.33,
+      100.0
+    ],
+    "delta_recall_vs_canon": {
+      "obs": 0.0,
+      "mean": 0.0,
+      "ci_95": [
+        0.0,
+        0.0
+      ],
+      "p_val": 1.0
+    },
+    "uncomp_overblock_num": 0,
+    "uncomp_overblock_denom": 70,
+    "uncomp_overblock_pct": 0.0,
+    "uncomp_overblock_wilson": [
+      0.0,
+      0.05
+    ],
+    "norm_fp_num": 0,
+    "norm_fp_denom": 300,
+    "norm_fp_pct": 0.0,
+    "norm_fp_wilson": [
+      0.0,
+      0.01
+    ],
+    "hard_fp_num": 0,
+    "hard_fp_denom": 100,
+    "hard_fp_pct": 0.0,
+    "hard_fp_wilson": [
+      0.0,
+      0.04
+    ],
+    "utility_num": 470,
+    "utility_denom": 470,
+    "utility_pct": 100.0,
+    "utility_wilson": [
+      0.99,
+      1.0
+    ],
+    "utility_boot_ci": [
+      100.0,
+      100.0
+    ],
+    "delta_utility_vs_canon": {
+      "obs": 0.0,
+      "mean": 0.0,
+      "ci_95": [
+        0.0,
+        0.0
+      ],
+      "p_val": 1.0
+    },
+    "benign_irreversible_actions": {
+      "total": 26,
+      "allowed": 26,
+      "intercepted": 0,
+      "utility_pct": 100.0
+    }
+  },
+  {
+    "name": "dual_gate_no_c6",
+    "comp_recall_num": 195,
+    "comp_recall_denom": 210,
+    "comp_recall_pct": 92.86,
+    "comp_recall_wilson": [
+      0.89,
+      0.96
+    ],
+    "comp_recall_boot_ci": [
+      83.33,
+      100.0
+    ],
+    "delta_recall_vs_canon": {
+      "obs": 0.0,
+      "mean": 0.0,
+      "ci_95": [
+        0.0,
+        0.0
+      ],
+      "p_val": 1.0
+    },
+    "uncomp_overblock_num": 0,
+    "uncomp_overblock_denom": 70,
+    "uncomp_overblock_pct": 0.0,
+    "uncomp_overblock_wilson": [
+      0.0,
+      0.05
+    ],
+    "norm_fp_num": 0,
+    "norm_fp_denom": 300,
+    "norm_fp_pct": 0.0,
+    "norm_fp_wilson": [
+      0.0,
+      0.01
+    ],
+    "hard_fp_num": 0,
+    "hard_fp_denom": 100,
+    "hard_fp_pct": 0.0,
+    "hard_fp_wilson": [
+      0.0,
+      0.04
+    ],
+    "utility_num": 470,
+    "utility_denom": 470,
+    "utility_pct": 100.0,
+    "utility_wilson": [
+      0.99,
+      1.0
+    ],
+    "utility_boot_ci": [
+      100.0,
+      100.0
+    ],
+    "delta_utility_vs_canon": {
+      "obs": 0.0,
+      "mean": 0.0,
+      "ci_95": [
+        0.0,
+        0.0
+      ],
+      "p_val": 1.0
+    },
+    "benign_irreversible_actions": {
+      "total": 26,
+      "allowed": 26,
+      "intercepted": 0,
+      "utility_pct": 100.0
+    }
   }
 ]

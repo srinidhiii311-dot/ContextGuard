@@ -1,0 +1,363 @@
+{
+  "audit_backend": "JSONL Group-Commit Audit Writer",
+  "audit_log_path": "runs/concurrency_audit.jsonl",
+  "audit_verified": true,
+  "tiers": {
+    "tier_1": {
+      "workers": 1,
+      "total_cases": 500,
+      "repeats": 3,
+      "runs": [
+        {
+          "concurrency": 1,
+          "total_cases": 500,
+          "elapsed_seconds": 2.288,
+          "throughput_ops_per_sec": 218.5,
+          "p50_latency_ms": 3.54,
+          "p95_latency_ms": 12.31,
+          "differing_decisions_count": 0
+        },
+        {
+          "concurrency": 1,
+          "total_cases": 500,
+          "elapsed_seconds": 2.648,
+          "throughput_ops_per_sec": 188.8,
+          "p50_latency_ms": 4.29,
+          "p95_latency_ms": 10.24,
+          "differing_decisions_count": 0
+        },
+        {
+          "concurrency": 1,
+          "total_cases": 500,
+          "elapsed_seconds": 19.713,
+          "throughput_ops_per_sec": 25.4,
+          "p50_latency_ms": 6.48,
+          "p95_latency_ms": 200.26,
+          "differing_decisions_count": 0
+        }
+      ],
+      "throughput_ops_per_sec": 188.8,
+      "p50_latency_ms": 4.29,
+      "p95_latency_ms": 12.31,
+      "differing_decisions_count": 0
+    },
+    "tier_10": {
+      "workers": 10,
+      "total_cases": 500,
+      "repeats": 3,
+      "runs": [
+        {
+          "concurrency": 10,
+          "total_cases": 500,
+          "elapsed_seconds": 7.355,
+          "throughput_ops_per_sec": 68.0,
+          "p50_latency_ms": 101.9,
+          "p95_latency_ms": 451.44,
+          "differing_decisions_count": 0
+        },
+        {
+          "concurrency": 10,
+          "total_cases": 500,
+          "elapsed_seconds": 14.317,
+          "throughput_ops_per_sec": 34.9,
+          "p50_latency_ms": 154.75,
+          "p95_latency_ms": 1131.44,
+          "differing_decisions_count": 0
+        },
+        {
+          "concurrency": 10,
+          "total_cases": 500,
+          "elapsed_seconds": 10.583,
+          "throughput_ops_per_sec": 47.2,
+          "p50_latency_ms": 113.79,
+          "p95_latency_ms": 477.88,
+          "differing_decisions_count": 0
+        }
+      ],
+      "throughput_ops_per_sec": 47.2,
+      "p50_latency_ms": 113.79,
+      "p95_latency_ms": 477.88,
+      "differing_decisions_count": 0
+    },
+    "tier_50": {
+      "workers": 50,
+      "total_cases": 500,
+      "repeats": 3,
+      "runs": [
+        {
+          "concurrency": 50,
+          "total_cases": 500,
+          "elapsed_seconds": 2.034,
+          "throughput_ops_per_sec": 245.8,
+          "p50_latency_ms": 151.4,
+          "p95_latency_ms": 288.67,
+          "differing_decisions_count": 0
+        },
+        {
+          "concurrency": 50,
+          "total_cases": 500,
+          "elapsed_seconds": 1.884,
+          "throughput_ops_per_sec": 265.5,
+          "p50_latency_ms": 120.35,
+          "p95_latency_ms": 269.04,
+          "differing_decisions_count": 0
+        },
+        {
+          "concurrency": 50,
+          "total_cases": 500,
+          "elapsed_seconds": 2.805,
+          "throughput_ops_per_sec": 178.2,
+          "p50_latency_ms": 164.05,
+          "p95_latency_ms": 488.05,
+          "differing_decisions_count": 0
+        }
+      ],
+      "throughput_ops_per_sec": 245.8,
+      "p50_latency_ms": 151.4,
+      "p95_latency_ms": 288.67,
+      "differing_decisions_count": 0
+    }
+  },
+  "gate_only_in_memory": {
+    "audit_backend": "None (In-Memory Gate Only)",
+    "audit_log_path": null,
+    "audit_verified": true,
+    "tiers": {
+      "tier_1": {
+        "workers": 1,
+        "total_cases": 500,
+        "repeats": 3,
+        "runs": [
+          {
+            "concurrency": 1,
+            "total_cases": 500,
+            "elapsed_seconds": 1.734,
+            "throughput_ops_per_sec": 288.3,
+            "p50_latency_ms": 2.6,
+            "p95_latency_ms": 9.24,
+            "differing_decisions_count": 0
+          },
+          {
+            "concurrency": 1,
+            "total_cases": 500,
+            "elapsed_seconds": 1.704,
+            "throughput_ops_per_sec": 293.4,
+            "p50_latency_ms": 2.58,
+            "p95_latency_ms": 9.31,
+            "differing_decisions_count": 0
+          },
+          {
+            "concurrency": 1,
+            "total_cases": 500,
+            "elapsed_seconds": 1.73,
+            "throughput_ops_per_sec": 289.0,
+            "p50_latency_ms": 2.57,
+            "p95_latency_ms": 9.28,
+            "differing_decisions_count": 0
+          }
+        ],
+        "throughput_ops_per_sec": 289.0,
+        "p50_latency_ms": 2.58,
+        "p95_latency_ms": 9.28,
+        "differing_decisions_count": 0
+      },
+      "tier_10": {
+        "workers": 10,
+        "total_cases": 500,
+        "repeats": 3,
+        "runs": [
+          {
+            "concurrency": 10,
+            "total_cases": 500,
+            "elapsed_seconds": 1.598,
+            "throughput_ops_per_sec": 312.8,
+            "p50_latency_ms": 27.67,
+            "p95_latency_ms": 62.45,
+            "differing_decisions_count": 0
+          },
+          {
+            "concurrency": 10,
+            "total_cases": 500,
+            "elapsed_seconds": 1.663,
+            "throughput_ops_per_sec": 300.6,
+            "p50_latency_ms": 28.4,
+            "p95_latency_ms": 72.56,
+            "differing_decisions_count": 0
+          },
+          {
+            "concurrency": 10,
+            "total_cases": 500,
+            "elapsed_seconds": 1.704,
+            "throughput_ops_per_sec": 293.4,
+            "p50_latency_ms": 28.6,
+            "p95_latency_ms": 76.73,
+            "differing_decisions_count": 0
+          }
+        ],
+        "throughput_ops_per_sec": 300.6,
+        "p50_latency_ms": 28.4,
+        "p95_latency_ms": 72.56,
+        "differing_decisions_count": 0
+      },
+      "tier_50": {
+        "workers": 50,
+        "total_cases": 500,
+        "repeats": 3,
+        "runs": [
+          {
+            "concurrency": 50,
+            "total_cases": 500,
+            "elapsed_seconds": 1.723,
+            "throughput_ops_per_sec": 290.2,
+            "p50_latency_ms": 91.43,
+            "p95_latency_ms": 228.62,
+            "differing_decisions_count": 0
+          },
+          {
+            "concurrency": 50,
+            "total_cases": 500,
+            "elapsed_seconds": 1.736,
+            "throughput_ops_per_sec": 288.1,
+            "p50_latency_ms": 82.51,
+            "p95_latency_ms": 215.25,
+            "differing_decisions_count": 0
+          },
+          {
+            "concurrency": 50,
+            "total_cases": 500,
+            "elapsed_seconds": 1.66,
+            "throughput_ops_per_sec": 301.1,
+            "p50_latency_ms": 93.24,
+            "p95_latency_ms": 219.78,
+            "differing_decisions_count": 0
+          }
+        ],
+        "throughput_ops_per_sec": 290.2,
+        "p50_latency_ms": 91.43,
+        "p95_latency_ms": 219.78,
+        "differing_decisions_count": 0
+      }
+    }
+  },
+  "gate_plus_jsonl_audit": {
+    "audit_backend": "JSONL Group-Commit Audit Writer",
+    "audit_log_path": "runs/concurrency_audit.jsonl",
+    "audit_verified": true,
+    "tiers": {
+      "tier_1": {
+        "workers": 1,
+        "total_cases": 500,
+        "repeats": 3,
+        "runs": [
+          {
+            "concurrency": 1,
+            "total_cases": 500,
+            "elapsed_seconds": 2.288,
+            "throughput_ops_per_sec": 218.5,
+            "p50_latency_ms": 3.54,
+            "p95_latency_ms": 12.31,
+            "differing_decisions_count": 0
+          },
+          {
+            "concurrency": 1,
+            "total_cases": 500,
+            "elapsed_seconds": 2.648,
+            "throughput_ops_per_sec": 188.8,
+            "p50_latency_ms": 4.29,
+            "p95_latency_ms": 10.24,
+            "differing_decisions_count": 0
+          },
+          {
+            "concurrency": 1,
+            "total_cases": 500,
+            "elapsed_seconds": 19.713,
+            "throughput_ops_per_sec": 25.4,
+            "p50_latency_ms": 6.48,
+            "p95_latency_ms": 200.26,
+            "differing_decisions_count": 0
+          }
+        ],
+        "throughput_ops_per_sec": 188.8,
+        "p50_latency_ms": 4.29,
+        "p95_latency_ms": 12.31,
+        "differing_decisions_count": 0
+      },
+      "tier_10": {
+        "workers": 10,
+        "total_cases": 500,
+        "repeats": 3,
+        "runs": [
+          {
+            "concurrency": 10,
+            "total_cases": 500,
+            "elapsed_seconds": 7.355,
+            "throughput_ops_per_sec": 68.0,
+            "p50_latency_ms": 101.9,
+            "p95_latency_ms": 451.44,
+            "differing_decisions_count": 0
+          },
+          {
+            "concurrency": 10,
+            "total_cases": 500,
+            "elapsed_seconds": 14.317,
+            "throughput_ops_per_sec": 34.9,
+            "p50_latency_ms": 154.75,
+            "p95_latency_ms": 1131.44,
+            "differing_decisions_count": 0
+          },
+          {
+            "concurrency": 10,
+            "total_cases": 500,
+            "elapsed_seconds": 10.583,
+            "throughput_ops_per_sec": 47.2,
+            "p50_latency_ms": 113.79,
+            "p95_latency_ms": 477.88,
+            "differing_decisions_count": 0
+          }
+        ],
+        "throughput_ops_per_sec": 47.2,
+        "p50_latency_ms": 113.79,
+        "p95_latency_ms": 477.88,
+        "differing_decisions_count": 0
+      },
+      "tier_50": {
+        "workers": 50,
+        "total_cases": 500,
+        "repeats": 3,
+        "runs": [
+          {
+            "concurrency": 50,
+            "total_cases": 500,
+            "elapsed_seconds": 2.034,
+            "throughput_ops_per_sec": 245.8,
+            "p50_latency_ms": 151.4,
+            "p95_latency_ms": 288.67,
+            "differing_decisions_count": 0
+          },
+          {
+            "concurrency": 50,
+            "total_cases": 500,
+            "elapsed_seconds": 1.884,
+            "throughput_ops_per_sec": 265.5,
+            "p50_latency_ms": 120.35,
+            "p95_latency_ms": 269.04,
+            "differing_decisions_count": 0
+          },
+          {
+            "concurrency": 50,
+            "total_cases": 500,
+            "elapsed_seconds": 2.805,
+            "throughput_ops_per_sec": 178.2,
+            "p50_latency_ms": 164.05,
+            "p95_latency_ms": 488.05,
+            "differing_decisions_count": 0
+          }
+        ],
+        "throughput_ops_per_sec": 245.8,
+        "p50_latency_ms": 151.4,
+        "p95_latency_ms": 288.67,
+        "differing_decisions_count": 0
+      }
+    }
+  }
+}

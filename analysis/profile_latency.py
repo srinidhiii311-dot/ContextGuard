@@ -97,7 +97,7 @@ def run_latency_profiling(n_cases=200):
             gw = Gateway.from_domain(c.domain, trusted_intent=intent, audit_log_path=null_audit_path)
             # Patch audit logger to no-op
             if gw.gate is not None:
-                gw.gate._log_decision_to_audit = lambda action, result, session=None: {"prev_hash": "0"*64, "entry_hash": "0"*64, "index": 0}
+                gw.gate._log_decision_to_audit = lambda action, result, session=None, **kwargs: {"prev_hash": "0"*64, "entry_hash": "0"*64, "index": 0}
             gw_cache_no_audit[gw_key] = gw
 
         p_act = ProposedAction(
