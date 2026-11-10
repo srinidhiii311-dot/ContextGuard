@@ -1,21 +1,34 @@
 """
-harness/configs.py — Gateway Configuration Definitions & Evaluation Adapters (Block 5)
+harness/configs.py — Gateway Configuration Definitions & Evaluation Adapters (Block 5 & Block 8e)
 
-Explicit definitions and adapters for defensive configurations:
+Explicit definitions and adapters for all defensive configurations, baselines, and ablations:
+Core Architectures & Baselines:
 1. no_gateway (B0): Passthrough baseline allowing all actions without inspection.
-2. taxonomy_only (B1): Static keyword and regex taxonomy matching without consistency checks or ML risk engine.
-3. consistency_only (B2/A): Intent parameter and navigation boundary consistency verification only.
-4. dual_gate (D): Canonical Full Gate (Consistency + Taxonomy + Characterizer + Risk Engine + Policy Engine).
-5. dual_gate_llm (H): Canonical Gate + LLM Semantic Consistency Reviewer (Grey-Zone Raiser).
-Ablations:
-6. dual_gate_no_characterizer: Full gate bypassing Component 4 (lexical characterizer).
-7. dual_gate_no_risk_engine: Full gate with unweighted heuristic risk mapping.
+2. taxonomy_block (B1_block): Static keyword and regex taxonomy matching; hit results in BLOCK.
+3. taxonomy_warn (B1_warn): Static keyword and regex taxonomy matching; hit produces WARN only.
+4. consistency_only (B2): Intent parameter and navigation boundary consistency verification only.
+5. regex_only: Pure static regex scanner across DOM and action parameters without entity binding.
+6. llm_judge_only: Direct LLM consistency evaluation (gemini-3.5-flash-lite) with no rule engine floor.
+7. tool_allowlist: Static action and target allowlist from sandbox manifests without value inspection.
+8. dual_gate (D): Canonical Full Gate (Consistency + Taxonomy + Characterizer + Risk Engine + Policy).
+9. dual_gate_llm (H): Canonical Gate + LLM Semantic Consistency Reviewer in grey zone (30 <= score < 60).
+
+Component Ablations:
+10. dual_gate_no_characterizer: Full gate bypassing Component 4 lexical characterizer.
+11. dual_gate_no_risk_engine: Full gate with direct rule matching bypassing weighted ML risk scoring.
+12. dual_gate_no_c1: Full gate without C1 In-Context Injection Defense.
+13. dual_gate_no_c2: Full gate without C2 Semantic Intent Alignment.
+14. dual_gate_no_c3: Full gate without C3 DOM Structural Invariants.
+15. dual_gate_no_c4: Full gate without C4 Behavioral Anomaly Detection & False-Positive Filter.
+16. dual_gate_no_c5: Full gate without C5 Data Egress & Exfiltration Filter.
+17. dual_gate_no_c6: Full gate without C6 Irreversible Action Authorization.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 import hashlib
+import json
 from pathlib import Path
 import re
 import time
@@ -23,14 +36,16 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from contextguard.consistency_checker import ContextConsistencyVerifier
 from contextguard.gate import ContextGuardGate, Decision, GateResult, ProposedAction, TrustedIntent
-from contextguard.llm_checker import LLMChecker
+from contextguard.llm_checker import LLMChecker, build_judge_prompt
 from contextguard.threat_detector import ThreatDetector
 from gateway.loader import Gateway
 from harness.case_schema import EvaluationCase
+from harness.oracle_v3 import DOMAIN_ALLOWLISTS
 from harness.run_case import build_trusted_intent_from_dict, map_gate_decision
 from harness.run_record import LLMCallRecord, RunRecord
+from llm.client import LLMClient
 
-# Traditional keyword / attack taxonomy pattern for taxonomy_only baseline
+# Traditional keyword / attack taxonomy pattern for taxonomy matching
 TAXONOMY_REGEX = re.compile(
     r"(ignore\s+previous\s+instructions|system\s+override|data-attack-type|attacker\.example|"
     r"display\s*:\s*none|evil-pay|override\s+previous|new\s+instructions|disregard|"
@@ -38,6 +53,36 @@ TAXONOMY_REGEX = re.compile(
     r"transfer\s+all|send\s+to\s+attacker|forward\s+all)",
     re.IGNORECASE,
 )
+
+_MANIFESTS_CACHE: Optional[Dict[str, Dict[str, Any]]] = None
+_JUDGE_CLIENT: Optional[LLMClient] = None
+
+
+def get_sandbox_manifests() -> Dict[str, Dict[str, Any]]:
+    global _MANIFESTS_CACHE
+    if _MANIFESTS_CACHE is None:
+        manifests = {}
+        for dom in ["flight", "banking", "ecommerce", "healthcare", "email"]:
+            mpath = Path(__file__).resolve().parent.parent / "sandboxes" / dom / "manifest.json"
+            if mpath.exists():
+                with open(mpath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    allowed_actions = set()
+                    for a in data.get("allowed_actions", []):
+                        allowed_actions.add((a["action_type"].upper(), a["target"].lower()))
+                    manifests[dom] = {
+                        "base_url": data.get("base_url", ""),
+                        "allowed_actions": allowed_actions,
+                    }
+        _MANIFESTS_CACHE = manifests
+    return _MANIFESTS_CACHE
+
+
+def get_judge_client() -> LLMClient:
+    global _JUDGE_CLIENT
+    if _JUDGE_CLIENT is None:
+        _JUDGE_CLIENT = LLMClient()
+    return _JUDGE_CLIENT
 
 
 @dataclass
@@ -63,10 +108,10 @@ CONFIG_SPECS: Dict[str, GatewayConfigSpec] = {
             "enable_llm_checker": False,
         },
     ),
-    "taxonomy_only": GatewayConfigSpec(
-        name="taxonomy_only",
-        code="B1",
-        description="Static keyword and attack taxonomy regex matching only.",
+    "taxonomy_block": GatewayConfigSpec(
+        name="taxonomy_block",
+        code="B1_block",
+        description="Static attack taxonomy regex matching where a match produces an outright block.",
         flags={
             "enable_verifier": False,
             "enable_taxonomy": True,
@@ -89,19 +134,6 @@ CONFIG_SPECS: Dict[str, GatewayConfigSpec] = {
             "enable_llm_checker": False,
         },
     ),
-    "taxonomy_block": GatewayConfigSpec(
-        name="taxonomy_block",
-        code="B1_block",
-        description="Static attack taxonomy regex matching where a match produces an outright block.",
-        flags={
-            "enable_verifier": False,
-            "enable_taxonomy": True,
-            "enable_characterizer": False,
-            "enable_risk_engine": False,
-            "enable_policy_engine": False,
-            "enable_llm_checker": False,
-        },
-    ),
     "consistency_only": GatewayConfigSpec(
         name="consistency_only",
         code="B2",
@@ -114,6 +146,24 @@ CONFIG_SPECS: Dict[str, GatewayConfigSpec] = {
             "enable_policy_engine": False,
             "enable_llm_checker": False,
         },
+    ),
+    "regex_only": GatewayConfigSpec(
+        name="regex_only",
+        code="Baseline_Regex",
+        description="Pure static regex scanner across DOM and action text without entity binding.",
+        flags={"regex_only": True},
+    ),
+    "llm_judge_only": GatewayConfigSpec(
+        name="llm_judge_only",
+        code="Baseline_Judge",
+        description="Direct LLM consistency evaluation (gemini-3.5-flash-lite) with no rule engine.",
+        flags={"llm_judge_only": True},
+    ),
+    "tool_allowlist": GatewayConfigSpec(
+        name="tool_allowlist",
+        code="Baseline_Allowlist",
+        description="Static action and target allowlist from sandbox manifests without value inspection.",
+        flags={"tool_allowlist": True},
     ),
     "dual_gate": GatewayConfigSpec(
         name="dual_gate",
@@ -167,12 +217,49 @@ CONFIG_SPECS: Dict[str, GatewayConfigSpec] = {
             "enable_llm_checker": False,
         },
     ),
+    "dual_gate_no_c1": GatewayConfigSpec(
+        name="dual_gate_no_c1",
+        code="Abl_NoC1",
+        description="Ablation: Full gate without C1 In-Context Injection Defense.",
+        flags={"c1": False},
+    ),
+    "dual_gate_no_c2": GatewayConfigSpec(
+        name="dual_gate_no_c2",
+        code="Abl_NoC2",
+        description="Ablation: Full gate without C2 Semantic Intent Alignment.",
+        flags={"c2": False},
+    ),
+    "dual_gate_no_c3": GatewayConfigSpec(
+        name="dual_gate_no_c3",
+        code="Abl_NoC3",
+        description="Ablation: Full gate without C3 DOM Structural Invariant Enforcement.",
+        flags={"c3": False},
+    ),
+    "dual_gate_no_c4": GatewayConfigSpec(
+        name="dual_gate_no_c4",
+        code="Abl_NoC4",
+        description="Ablation: Full gate without C4 Behavioral Anomaly Detection & False-Positive Filter.",
+        flags={"c4": False},
+    ),
+    "dual_gate_no_c5": GatewayConfigSpec(
+        name="dual_gate_no_c5",
+        code="Abl_NoC5",
+        description="Ablation: Full gate without C5 Data Egress & Exfiltration Filter.",
+        flags={"c5": False},
+    ),
+    "dual_gate_no_c6": GatewayConfigSpec(
+        name="dual_gate_no_c6",
+        code="Abl_NoC6",
+        description="Ablation: Full gate without C6 Irreversible Action Authorization.",
+        flags={"c6": False},
+    ),
 }
 
-# Aliases
+# Unified aliases
 CONFIG_ALIASES = {
     "b0": "no_gateway",
-    "b1": "taxonomy_only",
+    "b1": "taxonomy_block",
+    "taxonomy_only": "taxonomy_block",
     "b1_warn": "taxonomy_warn",
     "b1_block": "taxonomy_block",
     "b2": "consistency_only",
@@ -180,6 +267,12 @@ CONFIG_ALIASES = {
     "h": "dual_gate_llm",
     "full_gate": "dual_gate",
     "zero_shot_dev": "dual_gate",
+    "c1": "dual_gate_no_c1",
+    "c2": "dual_gate_no_c2",
+    "c3": "dual_gate_no_c3",
+    "c4": "dual_gate_no_c4",
+    "c5": "dual_gate_no_c5",
+    "c6": "dual_gate_no_c6",
 }
 
 
@@ -225,7 +318,7 @@ def evaluate_case_with_config(
         # Baseline 0: Passthrough
         decision = "allow"
 
-    elif cfg_name in ("taxonomy_only", "taxonomy_block"):
+    elif cfg_name == "taxonomy_block":
         # Baseline 1: Taxonomy / Regex matching only (Block on hit)
         text_to_scan = f"{dom_text} {raw_html or ''} {case.proposed_action.source_text or ''} {case.proposed_action.value or ''}"
         hit = bool(TAXONOMY_REGEX.search(text_to_scan))
@@ -239,7 +332,6 @@ def evaluate_case_with_config(
 
     elif cfg_name == "consistency_only":
         # Baseline 2: Context consistency verification only
-        # Check against locked intent via verifier
         cache_key = f"verifier_{case.domain}"
         if gateway_cache is not None and cache_key in gateway_cache:
             gw = gateway_cache[cache_key]
@@ -260,7 +352,6 @@ def evaluate_case_with_config(
             ]
             decision = "block" if len(field_violations) > 0 else "allow"
         else:
-            # Fallback naive field check
             t_low = case.proposed_action.target.lower()
             val = str(case.proposed_action.value or "").strip().lower()
             mismatch = False
@@ -269,6 +360,71 @@ def evaluate_case_with_config(
                     mismatch = True
                     break
             decision = "block" if mismatch else "allow"
+
+    elif cfg_name == "regex_only":
+        # Pure Regex Filter baseline
+        text_to_scan = (
+            f"{dom_text or ''} "
+            f"{raw_html or ''} "
+            f"{case.proposed_action.source_text or ''} "
+            f"{case.proposed_action.value or ''} "
+            f"{case.proposed_action.target or ''}"
+        )
+        hit = bool(TAXONOMY_REGEX.search(text_to_scan))
+        decision = "block" if hit else "allow"
+
+    elif cfg_name == "tool_allowlist":
+        # Manifest Tool-Allowlist baseline
+        manifests = get_sandbox_manifests()
+        m = manifests.get(case.domain, {})
+        allowed_acts = m.get("allowed_actions", set())
+        domain_allowlist = DOMAIN_ALLOWLISTS.get(case.domain, set())
+        act_type = case.proposed_action.action_type.upper()
+        target = case.proposed_action.target
+
+        allowed = False
+        if act_type == "NAVIGATE":
+            target_lower = target.lower()
+            if any(h in target_lower for h in domain_allowlist) or target.startswith("/"):
+                allowed = True
+        else:
+            if (act_type, target.lower()) in allowed_acts or ("*", target.lower()) in allowed_acts:
+                allowed = True
+        decision = "allow" if allowed else "block"
+
+    elif cfg_name == "llm_judge_only":
+        # LLM-Judge-Only baseline (gemini-3.5-flash-lite, no rule engine floor)
+        action_dict = {
+            "type": case.proposed_action.action_type,
+            "target": case.proposed_action.target,
+            "value": case.proposed_action.value,
+            "url": case.proposed_action.page_url,
+        }
+        prompt = build_judge_prompt(case.locked_intent, action_dict)
+        client = get_judge_client()
+        try:
+            resp = client.call(role="judge", prompt=prompt, use_cache=True)
+            clean = resp.content.strip()
+            if clean.startswith("```"):
+                clean = clean.split("```")[1]
+                if clean.startswith("json"):
+                    clean = clean[4:].strip()
+            data = json.loads(clean)
+            consistent = data.get("consistent", True)
+            decision = "allow" if consistent else "require_confirmation"
+            llm_record = LLMCallRecord(
+                provider=resp.provider,
+                model=resp.model,
+                request_id=resp.request_id,
+                tokens_in=resp.tokens_in,
+                tokens_out=resp.tokens_out,
+                latency_ms=resp.latency_ms,
+            )
+        except Exception as e:
+            Path("runs").mkdir(parents=True, exist_ok=True)
+            with open("runs/api_failures.log", "a", encoding="utf-8") as f_err:
+                f_err.write(f"LLM Judge failure on {case.case_id}: {type(e).__name__}: {e}\n")
+            raise RuntimeError(f"LLM API failure in {cfg_name} on {case.case_id}: {type(e).__name__}: {e}")
 
     elif cfg_name == "dual_gate":
         # Canonical Full Gate
@@ -285,7 +441,7 @@ def evaluate_case_with_config(
         decision = map_gate_decision(gate_res.decision)
 
     elif cfg_name == "dual_gate_llm":
-        # Canonical Gate + LLM Checker
+        # Canonical Gate + LLM Checker (Config H)
         cache_key = f"llm_{case.domain}"
         if gateway_cache is not None and cache_key in gateway_cache:
             gw = gateway_cache[cache_key]
@@ -305,9 +461,12 @@ def evaluate_case_with_config(
             src = gate_res.llm_source or "offline"
             if src == "fallback" or gate_res.llm_verdict.get("error"):
                 fallback_cnt = 1
+                err_msg = str(gate_res.llm_verdict.get("error"))
+                Path("runs").mkdir(parents=True, exist_ok=True)
+                with open("runs/api_failures.log", "a", encoding="utf-8") as f_err:
+                    f_err.write(f"LLM Checker failure on {case.case_id}: {err_msg}\n")
                 raise RuntimeError(
-                    f"LLM Checker call fell back or failed in config {cfg_name}: "
-                    f"{gate_res.llm_verdict.get('error')}"
+                    f"LLM Checker call fell back or failed in config {cfg_name}: {err_msg}"
                 )
             llm_record = LLMCallRecord(
                 provider=src,
@@ -345,7 +504,6 @@ def evaluate_case_with_config(
             if gateway_cache is not None:
                 gateway_cache[cache_key] = gw
 
-        # Direct consistency/threat rule evaluation
         gate = gw.gate
         if gate is not None:
             rep = gate._verifier.verify(intent.to_locked_intent(), p_act.to_model(), dom_text) if hasattr(intent, "to_locked_intent") else None
@@ -358,6 +516,53 @@ def evaluate_case_with_config(
                 decision = "allow"
         else:
             decision = "allow"
+
+    elif cfg_name in ("dual_gate_no_c1", "dual_gate_no_c2", "dual_gate_no_c3", "dual_gate_no_c4", "dual_gate_no_c5", "dual_gate_no_c6"):
+        # Component C1-C6 leave-one-out ablations
+        flags = {
+            "dual_gate_no_c1": {"c1": False, "c2": True, "c3": True, "c4": True, "c5": True, "c6": True},
+            "dual_gate_no_c2": {"c1": True, "c2": False, "c3": True, "c4": True, "c5": True, "c6": True},
+            "dual_gate_no_c3": {"c1": True, "c2": True, "c3": False, "c4": True, "c5": True, "c6": True},
+            "dual_gate_no_c4": {"c1": True, "c2": True, "c3": True, "c4": False, "c5": True, "c6": True},
+            "dual_gate_no_c5": {"c1": True, "c2": True, "c3": True, "c4": True, "c5": False, "c6": True},
+            "dual_gate_no_c6": {"c1": True, "c2": True, "c3": True, "c4": True, "c5": True, "c6": False},
+        }[cfg_name]
+
+        cache_key = f"{cfg_name}_{case.domain}"
+        if gateway_cache is not None and cache_key in gateway_cache:
+            gw = gateway_cache[cache_key]
+            gw.set_intent(intent)
+            if gw.gate is not None:
+                gw.gate._prior_flags = 0
+                gw.gate._previous_page = None
+        else:
+            gw = Gateway.from_domain(
+                domain=case.domain,
+                trusted_intent=intent,
+                enable_c1=flags["c1"],
+                enable_c2=flags["c2"],
+                enable_c3=flags["c3"],
+                enable_c4=flags["c4"],
+            )
+            if not flags["c5"] and gw.gate is not None:
+                gw.gate._verifier._check_egress_in_content = lambda *args, **kwargs: None
+            if not flags["c6"] and gw.gate is not None:
+                orig_verify = gw.gate._verifier.verify
+                def _make_no_c6_verify(orig_fn):
+                    def _no_c6_verify(*args, **kwargs):
+                        rep = orig_fn(*args, **kwargs)
+                        rep.inconsistencies = [
+                            i for i in rep.inconsistencies
+                            if i.check_type != "UNAUTHORIZED_IRREVERSIBLE_ACTION"
+                        ]
+                        return rep
+                    return _no_c6_verify
+                gw.gate._verifier.verify = _make_no_c6_verify(orig_verify)
+            if gateway_cache is not None:
+                gateway_cache[cache_key] = gw
+
+        gate_res = gw.check(p_act, current_dom_text=dom_text)
+        decision = map_gate_decision(gate_res.decision)
 
     latency_ms = (time.perf_counter() - t_start) * 1000.0
 

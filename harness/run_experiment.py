@@ -35,20 +35,34 @@ RUNS_DIR = ROOT_DIR / "runs"
 
 MAIN_CONFIGS = [
     "no_gateway",
-    "taxonomy_only",
+    "taxonomy_block",
+    "taxonomy_warn",
     "consistency_only",
+    "regex_only",
+    "llm_judge_only",
+    "tool_allowlist",
     "dual_gate",
     "dual_gate_llm",
 ]
 
 ALL_CONFIGS_WITH_ABLATIONS = [
     "no_gateway",
-    "taxonomy_only",
+    "taxonomy_block",
+    "taxonomy_warn",
     "consistency_only",
+    "regex_only",
+    "llm_judge_only",
+    "tool_allowlist",
     "dual_gate",
     "dual_gate_llm",
     "dual_gate_no_characterizer",
     "dual_gate_no_risk_engine",
+    "dual_gate_no_c1",
+    "dual_gate_no_c2",
+    "dual_gate_no_c3",
+    "dual_gate_no_c4",
+    "dual_gate_no_c5",
+    "dual_gate_no_c6",
 ]
 
 
