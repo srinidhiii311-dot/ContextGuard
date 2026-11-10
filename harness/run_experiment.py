@@ -215,6 +215,10 @@ def main():
     # Set environment split tag so all LLM client calls include split in cache keys
     import os
     os.environ["CONTEXTGUARD_SPLIT"] = args.split
+    assert os.environ.get("CONTEXTGUARD_SPLIT") == args.split, (
+        f"CONTEXTGUARD_SPLIT environment variable ({os.environ.get('CONTEXTGUARD_SPLIT')}) "
+        f"must match CLI argument --split ({args.split})"
+    )
 
     # Determine configurations to run
     configs_to_run: List[str] = []

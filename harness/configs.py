@@ -544,6 +544,18 @@ def evaluate_case_with_config(
                 enable_c3=flags["c3"],
                 enable_c4=flags["c4"],
             )
+            if not flags["c2"] and gw.gate is not None:
+                orig_c2_verify = gw.gate._verifier.verify
+                def _make_no_c2_verify(orig_fn):
+                    def _no_c2_verify(*args, **kwargs):
+                        rep = orig_fn(*args, **kwargs)
+                        rep.inconsistencies = [
+                            i for i in rep.inconsistencies
+                            if not (i.check_type == "NAVIGATION_BOUNDARY" and i.field_name == "form_submit")
+                        ]
+                        return rep
+                    return _no_c2_verify
+                gw.gate._verifier.verify = _make_no_c2_verify(orig_c2_verify)
             if not flags["c5"] and gw.gate is not None:
                 gw.gate._verifier._check_egress_in_content = lambda *args, **kwargs: None
             if not flags["c6"] and gw.gate is not None:
