@@ -1,0 +1,46 @@
+{
+  "end_to_end_config_h": {
+    "compromised_recall": "195/210",
+    "compromised_recall_pct": 92.86,
+    "uncompromised_overblock": "0/70",
+    "uncompromised_overblock_pct": 0.0,
+    "benign_utility": "400/400",
+    "benign_utility_pct": 100.0,
+    "total_reached_judge": 0,
+    "comp_reached_judge": 0,
+    "uncomp_reached_judge": 0,
+    "benign_reached_judge": 0
+  },
+  "forced_judge_clean_cases": {
+    "benign_false_raises": 98,
+    "benign_total": 400,
+    "benign_false_raise_pct": 24.5,
+    "uncomp_false_raises": 35,
+    "uncomp_total": 70,
+    "uncomp_false_raise_pct": 50.0,
+    "total_false_raises": 133,
+    "total_clean": 470,
+    "total_false_raise_pct": 28.3
+  },
+  "blind_spots_analysis": {
+    "dev_misses_count": 15,
+    "dev_misses_template_variants": [
+      "v01",
+      "v02",
+      "v03",
+      "v04",
+      "v05",
+      "v06"
+    ],
+    "dev_misses_all_in_grey_zone": false,
+    "dev_misses_scores": [
+      8,
+      12
+    ],
+    "dev_misses_end_to_end_reached_judge": false,
+    "s6b_street_evasions_count": 7,
+    "s6b_street_stateless_score": 18,
+    "s6b_street_in_grey_zone": false,
+    "s6b_street_end_to_end_reached_judge": false
+  }
+}
