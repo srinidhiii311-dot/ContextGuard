@@ -220,6 +220,11 @@ def main():
         f"must match CLI argument --split ({args.split})"
     )
 
+    # Set dedicated audit log per split to prevent pollution across test and dev runs
+    audit_file = Path(f"runs/{args.split}/audit_log.jsonl")
+    audit_file.parent.mkdir(parents=True, exist_ok=True)
+    os.environ["GATEWAY_AUDIT_LOG_PATH"] = str(audit_file)
+
     # Determine configurations to run
     configs_to_run: List[str] = []
     if args.all_configs:

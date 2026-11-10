@@ -121,6 +121,19 @@ CONFIG_SPECS: Dict[str, GatewayConfigSpec] = {
             "enable_llm_checker": False,
         },
     ),
+    "taxonomy_only": GatewayConfigSpec(
+        name="taxonomy_only",
+        code="B1",
+        description="Static attack taxonomy regex matching where a match produces an outright block.",
+        flags={
+            "enable_verifier": False,
+            "enable_taxonomy": True,
+            "enable_characterizer": False,
+            "enable_risk_engine": False,
+            "enable_policy_engine": False,
+            "enable_llm_checker": False,
+        },
+    ),
     "taxonomy_warn": GatewayConfigSpec(
         name="taxonomy_warn",
         code="B1_warn",
@@ -220,37 +233,37 @@ CONFIG_SPECS: Dict[str, GatewayConfigSpec] = {
     "dual_gate_no_c1": GatewayConfigSpec(
         name="dual_gate_no_c1",
         code="Abl_NoC1",
-        description="Ablation: Full gate without C1 In-Context Injection Defense.",
+        description="Ablation: Full gate without C1 raw HTML scan.",
         flags={"c1": False},
     ),
     "dual_gate_no_c2": GatewayConfigSpec(
         name="dual_gate_no_c2",
         code="Abl_NoC2",
-        description="Ablation: Full gate without C2 Semantic Intent Alignment.",
+        description="Ablation: Full gate without C2 SUBMIT destination check.",
         flags={"c2": False},
     ),
     "dual_gate_no_c3": GatewayConfigSpec(
         name="dual_gate_no_c3",
         code="Abl_NoC3",
-        description="Ablation: Full gate without C3 DOM Structural Invariant Enforcement.",
+        description="Ablation: Full gate without C3 fail-closed unknown field check.",
         flags={"c3": False},
     ),
     "dual_gate_no_c4": GatewayConfigSpec(
         name="dual_gate_no_c4",
         code="Abl_NoC4",
-        description="Ablation: Full gate without C4 Behavioral Anomaly Detection & False-Positive Filter.",
+        description="Ablation: Full gate without C4 marker-only cap to ALLOW_WITH_FLAG.",
         flags={"c4": False},
     ),
     "dual_gate_no_c5": GatewayConfigSpec(
         name="dual_gate_no_c5",
         code="Abl_NoC5",
-        description="Ablation: Full gate without C5 Data Egress & Exfiltration Filter.",
+        description="Ablation: Full gate without C5 egress filter.",
         flags={"c5": False},
     ),
     "dual_gate_no_c6": GatewayConfigSpec(
         name="dual_gate_no_c6",
         code="Abl_NoC6",
-        description="Ablation: Full gate without C6 Irreversible Action Authorization.",
+        description="Ablation: Full gate without C6 irreversible action authorization.",
         flags={"c6": False},
     ),
 }

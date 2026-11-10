@@ -380,7 +380,7 @@ claims:
       id: ablation_no_c1_recall
     column: value
   tolerance: 0.1
-  notes: 'No C1 (origin/destination) recall 195/210; Δ vs canon: 0.0% (p=1.0000)'
+  notes: 'No C1 (raw HTML scan) recall 195/210; Δ vs canon: 0.0% (p=1.0000)'
 - id: ablation_no_c2_recall
   value: 92.86
   target_value: 92.86
@@ -397,7 +397,7 @@ claims:
       id: ablation_no_c2_recall
     column: value
   tolerance: 0.1
-  notes: 'No C2 (dates/times) recall 195/210; Δ vs canon: 0.0% (p=1.0000)'
+  notes: 'No C2 (SUBMIT destination check) recall 195/210; Δ vs canon: 0.0% (p=1.0000)'
 - id: ablation_no_c3_recall
   value: 76.19
   target_value: 76.19
@@ -414,7 +414,7 @@ claims:
       id: ablation_no_c3_recall
     column: value
   tolerance: 0.1
-  notes: 'No C3 (passenger/payee) recall 160/210; Δ vs canon: +16.67% (95% CI [+6.67%,
+  notes: 'No C3 (fail-closed unknown field) recall 160/210; Δ vs canon: +16.67% (95% CI [+6.67%,
     +27.62%], p=0.0012)'
 - id: ablation_no_c4_recall
   value: 100.0
@@ -432,7 +432,7 @@ claims:
       id: ablation_no_c4_recall
     column: value
   tolerance: 0.1
-  notes: 'No C4 (navigation/action) recall 210/210; Δ vs canon: -7.14% (95% CI [-16.67%,
+  notes: 'No C4 (marker-only cap to ALLOW_WITH_FLAG) recall 210/210; Δ vs canon: -7.14% (95% CI [-16.67%,
     0.0%], p=0.0866)'
 - id: ablation_no_c4_overblock
   value: 100.0
