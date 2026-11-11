@@ -1,0 +1,3 @@
+config_a,config_b,rate_a_pct,rate_b_pct,delta_obs_pct,delta_mean_pct,ci_low_pct,ci_high_pct,p_value_boot,n_clusters,n_resamples
+dual_gate,consistency_only,93.16,71.05,22.11,22.18,10.0,35.79,0.0001,38,10000
+dual_gate,dual_gate_no_risk_engine,93.16,86.32,6.84,6.84,0.0,15.79,0.0914,38,10000

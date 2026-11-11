@@ -1,0 +1,3 @@
+config_a,config_b,n_common,both_stopped,neither_stopped,gained_by_b (b),lost_by_b (c),odds_ratio,risk_diff_pct,p_value,rank,p_raw,p_adj,alpha_threshold,significant
+dual_gate,consistency_only,190,135,13,0,42,0.0,-22.11,4.547473508864641e-13,1,0.0,0.0,0.025,True
+dual_gate,dual_gate_no_risk_engine,190,164,13,0,13,0.0,-6.84,0.000244140625,2,0.000244,0.000244,0.05,True
