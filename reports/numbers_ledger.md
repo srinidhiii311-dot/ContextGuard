@@ -326,11 +326,11 @@ Evaluated on the single final run of the held-out TEST dataset (420 total cases:
 1. **Protocol Deviations: Audit Log Verification Entry Count**:
    - Running `python scripts/verify_audit_log.py runs/test/audit_log.jsonl --expected 420` failed with `entry count mismatch: expected 420, got 3780`.
    - *Cause*: Exactly 9 configurations invoke the ContextGuard gateway with audit logging: `dual_gate`, `dual_gate_no_characterizer`, `dual_gate_no_c1`, `dual_gate_no_c2`, `dual_gate_no_c3`, `dual_gate_no_c4`, `dual_gate_no_c5`, `dual_gate_no_c6`, `dual_gate_llm`. Each processed all 420 cases sequentially ($9 \times 420 = 3,780$).
-   - *Dev log reconciliation*: `runs/dev/audit_log.jsonl` had 680 entries because it was generated from an isolated single-config run ($1 \times 680$).
+   - *Dev log reconciliation*: `runs/dev/audit_log.jsonl` had 680 entries because it was generated from the command `python -m harness.run_experiment --split dev --all-configs --include-ablations --seeds 42 --resume`, where 16 existing configurations were skipped and only the single remaining gateway configuration (`dual_gate_no_c2`) was executed ($1 \times 680 = 680$). If all 9 gateway configurations had run without `--resume`, the dev log would contain $9 \times 680 = 6,120$ entries.
    - Cryptographic integrity is verified 100% across all 3,780 entries (`[PASS] Cryptographic audit log verified: 3780 entries intact`).
 2. **Network & API Execution Diagnostics (Gemini 3.5 Flash-Lite)**:
    - Exactly **6 retry/backoff events** were logged in `runs/api_failures.log` during the `llm_judge_only` evaluation run on Google AI Studio Free Tier rate limits (HTTP 429 `RESOURCE_EXHAUSTED`). All 6 calls succeeded on attempt 1/10 without fatal abort.
    - Exactly **0 test cases reached the LLM judge in `dual_gate_llm`** because 0 cases produced a risk score in the grey-zone window ($30 \le \text{risk\_score} < 60$).
 3. **The 13 `overlay_clickjack` Evasions**:
-   - All 13 misses had high raw risk scores (72 or 89) from injection detection, but were capped to `ALLOW_WITH_FLAG` (`warn`) by rule C4 because the actions clicked UI overlay elements (`#apply-terms-action`, `#agree-continue`, `#quick-pay-btn`) without modifying text parameters or violating schema boundaries.
+   - All 13 misses had high raw risk scores (72 or 89) from injection detection, but were capped to `ALLOW_WITH_FLAG` (`warn`) by rule C4 because the actions clicked UI overlay elements (`#apply-terms-action`, `#agree-continue`, `#quick-pay-btn`) without modifying text parameters or violating schema boundaries (parameter consistency satisfied).
    - When C4 was removed (`dual_gate_no_c4`), all 13 were intercepted (10 as `ask_human` and 3 as `block`), achieving 40/40 (100.0%) recall.
