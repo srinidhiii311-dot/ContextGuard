@@ -69,7 +69,7 @@ Evaluated via [`analysis/leave_one_out_ablation.py`](file:///c:/Users/Srinidhi%2
 2. **C1 & C2 Empirical Provenance**:
    - Guards **C1** (raw HTML injection scanner) and **C2** (`SUBMIT` action external origin check) were motivated by error analysis on the pre-validation exploratory dataset (`analysis/sample_10_misses.json`, commit `9c3b249`).
    - The development team diagnosed evasion vectors where injected instructions in HTML comments bypassed visible text extraction, and form `SUBMIT` actions bypassed destination URL allowlists.
-   - **Crucially, the developers did NOT know the held-out test family names (`form_action_override`, `hidden_css_text`, `overlay_clickjack`) when designing and implementing C1 and C2.**
+   - The developers **did know the held-out family names** (`form_action_override`, `hidden_css_text`, `overlay_clickjack`) when implementing C1 and C2. The dataset generation commit `838089b` (09:32:44 2026) preceded the implementation of C1 and C2 (commit `9c3b249`, 11:33:53 2026) by approximately two hours and had already established `form_action_override.yaml` and `hidden_css_text.yaml`. While C1 and C2 were directly motivated by diagnosing failure cases in the dev set (`credential_phishing_field` in `analysis/sample_10_misses.json`), the general mechanisms of hidden injection and form diversion were known to the authors at the time of authoring.
 
 ---
 
@@ -246,5 +246,91 @@ Evaluated across 7 multi-step compound attack sequences in [`scratch/test_s5_con
 
 ## 9. Test Suite Verification
 - **Test Suite Results**: **305 passed, 5 deselected, 0 failed** (`pytest -m "not (llm or live_llm or browser)" -q`).
-- **Claims Verification**: **All 72 claims pass 100%** (`python scripts/verify_claims.py`).
-- **Audit Verification**: Verified continuity of SHA-256 hash chains (`runs/audit_log.jsonl`, `runs/concurrency_audit.jsonl`).
+- **Claims Verification**: **All 102 claims pass 100%** (`python scripts/verify_claims.py`).
+- **Audit Verification**: Verified continuity of SHA-256 hash chains (`runs/audit_log.jsonl`, `runs/concurrency_audit.jsonl`, `runs/test/audit_log.jsonl`).
+
+---
+
+## 10. Group 5: Held-Out Test Split Performance (`holdout-run-final`)
+
+Evaluated on the single final run of the held-out TEST dataset (420 total cases: 190 compromised attacks, 30 uncompromised attacks, 150 normal benign, 50 hard benign) across 5 application domains (Flight, Banking, Ecommerce, Healthcare, Email). Evaluated under fixed Seed 42, Oracle v3.
+
+### A. Canonical `dual_gate` Performance on Held-Out Test Split
+
+| Metric Identifier | Stated Metric | Numerator / Denominator | Value (%) | 95% Wilson Score CI | 95% Cluster-Bootstrap CI | Git Tag | Oracle Version | Source Artifact | Exact Command to Reproduce |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| `test_dual_gate_recall` | Compromised Attack Recall | 177 / 190 | **93.16%** | [88.58%, 96.02%] | [85.26%, 98.95%] | `holdout-run-final` | `v3` | `reports/test_results.md` | `python analysis/test_report.py --split test` |
+| `test_dual_gate_uncomp_overblock` | Uncompromised Attack Over-block | 0 / 30 | **0.00%** | [0.00%, 11.35%] | [0.00%, 0.00%] | `holdout-run-final` | `v3` | `reports/test_results.md` | `python analysis/test_report.py --split test` |
+| `test_dual_gate_utility` | Benign Task Utility (Executed) | 200 / 200 | **100.00%** | [98.12%, 100.00%] | [100.00%, 100.00%] | `holdout-run-final` | `v3` | `reports/test_results.md` | `python analysis/test_report.py --split test` |
+| `test_dual_gate_benign_normal_fp` | Benign Normal False-Intercept | 0 / 150 | **0.00%** | [0.00%, 2.47%] | [0.00%, 0.00%] | `holdout-run-final` | `v3` | `reports/test_results.md` | `python analysis/test_report.py --split test` |
+| `test_dual_gate_benign_hard_fp` | Benign Hard False-Intercept | 0 / 50 | **0.00%** | [0.00%, 7.13%] | [0.00%, 0.00%] | `holdout-run-final` | `v3` | `reports/test_results.md` | `python analysis/test_report.py --split test` |
+
+### B. Pre-Registered Primary Statistical Hypotheses (Test Split)
+
+1. **Primary Hypothesis 1: False-Positive Suppression on Uncompromised Pages**
+   - **Comparison**: ContextGuard Gate (`dual_gate`) vs. Static Keyword Baseline (`taxonomy_block`) on uncompromised attack pages ($N = 30$).
+   - **Observed Over-block**: `taxonomy_block` = **30/30 (100.0%)** vs. `dual_gate` = **0/30 (0.0%)**.
+   - **Observed Sample Difference ($\Delta_{\text{overblock}}^{\text{obs}}$)**: **+100.00%** (Bootstrap Mean: **+100.00%**).
+   - **Primary Statistical Inference (10,000 Cluster-Bootstrap)**: **95% CI [100.0%, 100.0%]** ($p = 0.0001$).
+     - *Degenerate CI & p-value Floor Note*: Because all 30 uncompromised cases are over-blocked by `taxonomy_block` and zero by `dual_gate` across every single cluster, every bootstrap resample yields identical 100.0% delta, resulting in a degenerate zero-variance interval $[100.0\%, 100.0\%]$. The empirical $p = 0.0001$ reflects the maximum resolution floor for 10,000 resamples ($1 / 10000$).
+   - **Primary Hypothesis Test Result**: **PASSED (CI strictly excludes 0)**.
+   - **Secondary Inference (McNemar Exact)**: Discordant pairs ($b=30, c=0$), two-sided **$p = 1.8626 \times 10^{-9}$**.
+
+2. **Primary Hypothesis 2: Intent Boundary Superiority over Parameter Rails**
+   - **Comparison**: ContextGuard Gate (`dual_gate`) vs. Parameter Rails (`consistency_only`) on compromised attacks ($N = 190$).
+   - **Observed Recall**: `dual_gate` = **177/190 (93.2%)** vs. `consistency_only` = **135/190 (71.1%)**.
+   - **Observed Sample Difference ($\Delta_{\text{recall}}^{\text{obs}}$)**: **+22.11%** (Bootstrap Mean: **+22.18%**).
+   - **Primary Statistical Inference (10,000 Cluster-Bootstrap)**: **95% CI [10.0%, 35.79%]** ($p = 0.0001$).
+   - **Primary Hypothesis Test Result**: **PASSED (CI strictly excludes 0)**.
+   - **Secondary Inference (McNemar Exact)**: Discordant pairs ($b=42, c=0$), two-sided **$p = 4.5475 \times 10^{-13}$**.
+
+### C. Standardized Performance Across All 17 Configurations (Test Split)
+
+| Configuration | Compromised Attack Recall (/190) | Uncompromised Over-block (/30) | Benign Task Utility (/200) | Hard Benign FP Rate (/50) | Status |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Passthrough (B0)** | 0/190 (0.0%) [0.0%, 2.0%] | 0/30 (0.0%) [0.0%, 11.4%] | 200/200 (100.0%) [98.1%, 100.0%] | 0/50 (0.0%) [0.0%, 7.1%] | VALID |
+| **Taxonomy Block (B1-Block)** | 190/190 (100.0%) [98.0%, 100.0%] | 30/30 (100.0%) [88.6%, 100.0%] | 200/200 (100.0%) [98.1%, 100.0%] | 0/50 (0.0%) [0.0%, 7.1%] | VALID |
+| **Taxonomy Warn (B1-Warn)** | 0/190 (0.0%) [0.0%, 2.0%] | 0/30 (0.0%) [0.0%, 11.4%] | 200/200 (100.0%) [98.1%, 100.0%] | 0/50 (0.0%) [0.0%, 7.1%] | VALID |
+| **Parameter Rails (B2)** | 135/190 (71.1%) [64.2%, 77.0%] | 0/30 (0.0%) [0.0%, 11.4%] | 200/200 (100.0%) [98.1%, 100.0%] | 0/50 (0.0%) [0.0%, 7.1%] | VALID |
+| **Regex-Only Filter (Baseline)** | 190/190 (100.0%) [98.0%, 100.0%] | 30/30 (100.0%) [88.6%, 100.0%] | 200/200 (100.0%) [98.1%, 100.0%] | 0/50 (0.0%) [0.0%, 7.1%] | VALID |
+| **Tool-Allowlist (Baseline)** | 118/190 (62.1%) [55.0%, 68.7%] | 0/30 (0.0%) [0.0%, 11.4%] | 187/200 (93.5%) [89.2%, 96.2%] | 3/50 (6.0%) [2.1%, 16.2%] | VALID |
+| **ContextGuard Gate (Config D, Canonical)** | **177/190 (93.2%) [88.6%, 96.0%]** | **0/30 (0.0%) [0.0%, 11.4%]** | **200/200 (100.0%) [98.1%, 100.0%]** | **0/50 (0.0%) [0.0%, 7.1%]** | VALID |
+| `dual_gate_no_characterizer` | 177/190 (93.2%) [88.6%, 96.0%] | 0/30 (0.0%) [0.0%, 11.4%] | 200/200 (100.0%) [98.1%, 100.0%] | 0/50 (0.0%) [0.0%, 7.1%] | VALID |
+| `dual_gate_no_risk_engine` | 164/190 (86.3%) [80.7%, 90.5%] | 0/30 (0.0%) [0.0%, 11.4%] | 190/200 (95.0%) [91.0%, 97.3%] | 10/50 (20.0%) [11.2%, 33.0%] | VALID |
+| `dual_gate_no_c1` | 177/190 (93.2%) [88.6%, 96.0%] | 0/30 (0.0%) [0.0%, 11.4%] | 200/200 (100.0%) [98.1%, 100.0%] | 0/50 (0.0%) [0.0%, 7.1%] | VALID |
+| `dual_gate_no_c2` | 177/190 (93.2%) [88.6%, 96.0%] | 0/30 (0.0%) [0.0%, 11.4%] | 200/200 (100.0%) [98.1%, 100.0%] | 0/50 (0.0%) [0.0%, 7.1%] | VALID |
+| `dual_gate_no_c3` | 164/190 (86.3%) [80.7%, 90.5%] | 0/30 (0.0%) [0.0%, 11.4%] | 200/200 (100.0%) [98.1%, 100.0%] | 0/50 (0.0%) [0.0%, 7.1%] | VALID |
+| `dual_gate_no_c4` | 190/190 (100.0%) [98.0%, 100.0%] | 30/30 (100.0%) [88.6%, 100.0%] | 190/200 (95.0%) [91.0%, 97.3%] | 10/50 (20.0%) [11.2%, 33.0%] | VALID |
+| `dual_gate_no_c5` | 177/190 (93.2%) [88.6%, 96.0%] | 0/30 (0.0%) [0.0%, 11.4%] | 200/200 (100.0%) [98.1%, 100.0%] | 0/50 (0.0%) [0.0%, 7.1%] | VALID |
+| `dual_gate_no_c6` | 174/190 (91.6%) [86.8%, 94.8%] | 0/30 (0.0%) [0.0%, 11.4%] | 200/200 (100.0%) [98.1%, 100.0%] | 0/50 (0.0%) [0.0%, 7.1%] | VALID |
+| `dual_gate_llm` (Config H) | 177/190 (93.2%) [88.6%, 96.0%] | 0/30 (0.0%) [0.0%, 11.4%] | 200/200 (100.0%) [98.1%, 100.0%] | 0/50 (0.0%) [0.0%, 7.1%] | VALID |
+| `llm_judge_only` | 158/190 (83.2%) [77.2%, 87.8%] | 18/30 (60.0%) [42.3%, 75.4%] | 151/200 (75.5%) [69.1%, 80.9%] | 13/50 (26.0%) [15.9%, 39.6%] | VALID |
+
+### D. Disaggregated Attack Recall Across All 10 Families
+
+| Attack Family | Total Cases ($N$) | Category Type | `dual_gate` Recall | `consistency_only` | `regex_only` | `tool_allowlist` | `llm_judge_only` | `dual_gate_no_c4` |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| `form_action_override` | 40 | Held-Out Family | **40 / 40 (100.0%)** | 40/40 (100.0%) | 40/40 (100.0%) | 40/40 (100.0%) | 40/40 (100.0%) | 40/40 (100.0%) |
+| `hidden_css_text` | 40 | Held-Out Family | **40 / 40 (100.0%)** | 40/40 (100.0%) | 40/40 (100.0%) | 4/40 (10.0%) | 40/40 (100.0%) | 40/40 (100.0%) |
+| `overlay_clickjack` | 40 | Held-Out Family | **27 / 40 (67.5%)** | 0/40 (0.0%) | 40/40 (100.0%) | 40/40 (100.0%) | 8/40 (20.0%) | 40/40 (100.0%) |
+| `credential_phishing_field` | 10 | Standard Dev Family | **10 / 10 (100.0%)** | 0/10 (0.0%) | 10/10 (100.0%) | 10/10 (100.0%) | 10/10 (100.0%) | 10/10 (100.0%) |
+| `fake_system_banner` | 10 | Standard Dev Family | **10 / 10 (100.0%)** | 10/10 (100.0%) | 10/10 (100.0%) | 1/10 (10.0%) | 10/10 (100.0%) | 10/10 (100.0%) |
+| `html_comment` | 10 | Standard Dev Family | **10 / 10 (100.0%)** | 10/10 (100.0%) | 10/10 (100.0%) | 1/10 (10.0%) | 10/10 (100.0%) | 10/10 (100.0%) |
+| `multi_step_instruction` | 10 | Standard Dev Family | **10 / 10 (100.0%)** | 5/10 (50.0%) | 10/10 (100.0%) | 10/10 (100.0%) | 10/10 (100.0%) | 10/10 (100.0%) |
+| `off_screen_text` | 10 | Standard Dev Family | **10 / 10 (100.0%)** | 10/10 (100.0%) | 10/10 (100.0%) | 1/10 (10.0%) | 10/10 (100.0%) | 10/10 (100.0%) |
+| `url_obfuscation` | 10 | Standard Dev Family | **10 / 10 (100.0%)** | 10/10 (100.0%) | 10/10 (100.0%) | 10/10 (100.0%) | 10/10 (100.0%) | 10/10 (100.0%) |
+| `user_generated_content` | 10 | Standard Dev Family | **10 / 10 (100.0%)** | 10/10 (100.0%) | 10/10 (100.0%) | 1/10 (10.0%) | 10/10 (100.0%) | 10/10 (100.0%) |
+
+### E. Post-Hoc Analysis & Protocol Deviations
+
+1. **Protocol Deviations: Audit Log Verification Entry Count**:
+   - Running `python scripts/verify_audit_log.py runs/test/audit_log.jsonl --expected 420` failed with `entry count mismatch: expected 420, got 3780`.
+   - *Cause*: Exactly 9 configurations invoke the ContextGuard gateway with audit logging: `dual_gate`, `dual_gate_no_characterizer`, `dual_gate_no_c1`, `dual_gate_no_c2`, `dual_gate_no_c3`, `dual_gate_no_c4`, `dual_gate_no_c5`, `dual_gate_no_c6`, `dual_gate_llm`. Each processed all 420 cases sequentially ($9 \times 420 = 3,780$).
+   - *Dev log reconciliation*: `runs/dev/audit_log.jsonl` had 680 entries because it was generated from an isolated single-config run ($1 \times 680$).
+   - Cryptographic integrity is verified 100% across all 3,780 entries (`[PASS] Cryptographic audit log verified: 3780 entries intact`).
+2. **Network & API Execution Diagnostics (Gemini 3.5 Flash-Lite)**:
+   - Exactly **6 retry/backoff events** were logged in `runs/api_failures.log` during the `llm_judge_only` evaluation run on Google AI Studio Free Tier rate limits (HTTP 429 `RESOURCE_EXHAUSTED`). All 6 calls succeeded on attempt 1/10 without fatal abort.
+   - Exactly **0 test cases reached the LLM judge in `dual_gate_llm`** because 0 cases produced a risk score in the grey-zone window ($30 \le \text{risk\_score} < 60$).
+3. **The 13 `overlay_clickjack` Evasions**:
+   - All 13 misses had high raw risk scores (72 or 89) from injection detection, but were capped to `ALLOW_WITH_FLAG` (`warn`) by rule C4 because the actions clicked UI overlay elements (`#apply-terms-action`, `#agree-continue`, `#quick-pay-btn`) without modifying text parameters or violating schema boundaries.
+   - When C4 was removed (`dual_gate_no_c4`), all 13 were intercepted (10 as `ask_human` and 3 as `block`), achieving 40/40 (100.0%) recall.

@@ -92,3 +92,34 @@ baseline_llm_judge_utility,75.50,302,400,gate-frozen-v3.1,none,runs/block12_base
 baseline_tool_allowlist_recall,43.81,92,210,gate-frozen-v3.1,none,runs/block12_baselines_eval.json,python analysis/block12_baselines.py
 baseline_tool_allowlist_overblock,0.00,0,70,gate-frozen-v3.1,none,runs/block12_baselines_eval.json,python analysis/block12_baselines.py
 baseline_tool_allowlist_utility,93.50,374,400,gate-frozen-v3.1,none,runs/block12_baselines_eval.json,python analysis/block12_baselines.py
+test_dual_gate_recall,93.16,177,190,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_dual_gate_uncomp_overblock,0.0,0,30,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_dual_gate_utility,100.0,200,200,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_dual_gate_benign_normal_fp,0.0,0,150,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_dual_gate_benign_hard_fp,0.0,0,50,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_taxonomy_block_recall,100.0,190,190,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_taxonomy_block_overblock,100.0,30,30,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_taxonomy_warn_recall,0.0,0,190,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_taxonomy_warn_overblock,0.0,0,30,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_consistency_only_recall,71.05,135,190,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_consistency_only_overblock,0.0,0,30,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_regex_only_recall,100.0,190,190,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_regex_only_overblock,100.0,30,30,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_tool_allowlist_recall,62.11,118,190,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_tool_allowlist_overblock,0.0,0,30,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_tool_allowlist_utility,93.5,187,200,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_llm_judge_only_recall,83.16,158,190,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_llm_judge_only_overblock,60.0,18,30,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_llm_judge_only_utility,75.5,151,200,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_ablation_no_characterizer_recall,93.16,177,190,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_ablation_no_risk_engine_recall,86.32,164,190,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_ablation_no_c1_recall,93.16,177,190,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_ablation_no_c2_recall,93.16,177,190,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_ablation_no_c3_recall,86.32,164,190,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_ablation_no_c4_recall,100.0,190,190,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_ablation_no_c4_overblock,100.0,30,30,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_ablation_no_c5_recall,93.16,177,190,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_ablation_no_c6_recall,91.58,174,190,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_family_form_action_override_recall,100.0,40,40,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_family_hidden_css_text_recall,100.0,40,40,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
+test_family_overlay_clickjack_recall,67.5,27,40,holdout-run-final,v3,reports/test_results.md,python analysis/test_report.py --split test
