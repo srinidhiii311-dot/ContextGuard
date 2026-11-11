@@ -4,7 +4,7 @@
 *Author*: Srinidhi R  
 *Repository*: [`https://github.com/srinidhiii311-dot/ContextGuard.git`](https://github.com/srinidhiii311-dot/ContextGuard.git)  
 *Date*: October 2026  
-*Status*: Empirically Verified (305 Pytest Passed, 5 Deselected, Tagged: `gate-frozen-v3.1`)
+*Status*: Technical Report (Evaluated on Dev and Held-Out Test Splits; Code Tagged: `gate-frozen-v3.1`)
 
 > [!NOTE]
 > **EMPIRICAL LEDGER & GATE FREEZE AUDIT (NOVEMBER 2026)**  
@@ -19,9 +19,9 @@ Autonomous web agents powered by Large Language Models (LLMs) operate under an i
 
 We present **ContextGuard**, an in-line, synchronous, pre-action security gateway that intercepts and verifies every proposed browser action before execution. ContextGuard enforces a declarative **Trusted Intent Lock** using an 11-layer defense-in-depth pipeline combining deterministic field rails, lexical deviation metrics, computed-style DOM hidden-content detection, multi-step trajectory chain state machines, a selective grey-zone LLM reviewer, and an ACID-compliant, SHA-256 HMAC hash-chained SQLite audit logger.
 
-ContextGuard was comprehensively evaluated on a multi-domain benchmark comprising **680 DEV scenarios** across 5 distinct application domains (Flight Reservation, Banking Transfers, E-Commerce, Healthcare, and Email Management), alongside preliminary pilot suites. On the canonical frozen gateway (`gate-frozen-v3.1`, commit `a472ff3`), ContextGuard achieves **92.86% compromised attack recall** (195/210 attacks intercepted, 95% Wilson Score CI [88.55%, 95.63%], 95% cluster-bootstrap CI [83.33%, 100.00%]) with **0.0% benign false interceptions** across all 400 benign tasks (0/300 normal, 0/100 hard; 95% CI [0.00%, 1.25%]) and **100.0% utility** (470/470 executed across benign and uncompromised tasks; 0/70 over-block). Across comprehensive white-box programmatic adaptive attacks (S1–S6 and S6b), ContextGuard achieves 100% interception on free-text exfiltration (0/183 evasions), near-miss mutations (0/135 evasions), allowed-host abuse (0/175 evasions), and allowed-action abuse (0/106 evasions). In multi-session concurrency testing across 500 cases, the gateway exhibits 0/500 decision drift with an in-memory latency of 2.15 ms (p50) and 6.79 ms (p95). In preliminary exploratory benchmarks (138 scenarios), Config D achieved 100.0% on Dev and 91.7% on Holdout.
+ContextGuard was comprehensively evaluated on a multi-domain benchmark comprising **680 DEV scenarios** across 5 distinct application domains (Flight Reservation, Banking Transfers, E-Commerce, Healthcare, and Email Management), alongside preliminary pilot suites. On the canonical frozen gateway (`gate-frozen-v3.1`, commit `a472ff3`), ContextGuard achieves **92.86% compromised attack recall** (195/210 attacks intercepted, 95% Wilson Score CI [88.55%, 95.63%], 95% cluster-bootstrap CI [83.33%, 100.00%]) with **0.0% benign false interceptions** across all 400 benign tasks (0/300 normal, 0/100 hard; 95% CI [0.00%, 1.25%]) and **100.0% utility** (470/470 executed across benign and uncompromised tasks; 0/70 over-block). On the pre-registered, single-run holdout TEST split ($N = 420$ total cases across all 5 domains), ContextGuard achieves **93.2% compromised attack recall (177/190, Wilson 95% CI [88.6%, 96.0%])**, **0/30 uncompromised over-block (0.0%)**, **200/200 benign utility (100.0%)**, and **0/50 hard benign false positives (0.0%)**, with held-out family `overlay_clickjack` achieving **27/40 (67.5%)** recall. Across white-box programmatic adaptive attacks (S1–S6 and S6b), ContextGuard achieves 100% interception on free-text exfiltration (0/183 evasions), near-miss mutations (0/135 evasions), allowed-host abuse (0/175 evasions under legacy counts, 0/70 under Oracle v3), and allowed-action abuse (0/106 evasions). In multi-session concurrency testing across 500 cases, the gateway exhibits 0/500 decision drift with an in-memory latency of 2.15 ms (p50) and 6.79 ms (p95). In preliminary exploratory benchmarks (138 scenarios), Config D achieved 100.0% on Dev and 91.7% on Holdout.
 
-We prove mathematically that ContextGuard's 0% false positive rate on clean conforming actions is an intentional **structural design ceiling** ($25 \times \text{sensitivity} \le 23.75 < 30$). On commercial pages with aggressive urgency marketing banners, however, live testbed evaluation reveals an operational trade-off, intercepting 2 of 4 urgency scenarios. Furthermore, by gating the heavy LLM semantic reviewer strictly to a 30–59 risk grey zone, **76.1% (105/138) of actions completely bypass LLM inference** with 0 ms added overhead, maintaining a predictable base gateway latency of ~75–85 ms.
+As a design property of the hand-set weights ($25 \times \text{sensitivity} \le 23.75 < 30$), ContextGuard maintains a structural 0% false positive ceiling on clean, conforming actions with zero textual or marker hits. On commercial pages with aggressive urgency marketing banners, however, live testbed evaluation reveals an operational trade-off, intercepting 2 of 4 urgency scenarios. Furthermore, by gating the heavy LLM semantic reviewer strictly to a 30–59 risk grey zone, **76.1% (105/138) of actions completely bypass LLM inference** with 0 ms added overhead, maintaining a predictable base gateway latency of ~75–85 ms.
 
 ---
 
@@ -193,11 +193,11 @@ $$\text{Decision}(R) = \begin{cases}
 \text{BLOCK} & R \ge 80 
 \end{cases}$$
 
-### 4.3 Theorem: The 0% False Positive Structural Ceiling
-**Theorem**: *For any clean, conforming user action containing no adversarial text and no entity mismatch, the maximum attainable risk score is strictly less than the interception threshold ($R < 30$).*
+### 4.3 Design Property: The 0% False Positive Ceiling on Clean Conforming Actions
+**Design property of the hand-set weights**: *For any clean, conforming user action containing no adversarial text and no entity mismatch, the maximum attainable risk score is strictly less than the interception threshold ($R < 30$).*
 
-**Proof**:
-Let $A$ be a legitimate action. By definition of a clean action:
+**Derivation**:
+Let $A$ be a legitimate action. By definition of a clean conforming action:
 1. $S_{\text{threat}} = 0.0$ (no prompt injection keywords or regex matches).
 2. $S_{\text{inconsistency}} = 0.0$ (all field values match `TrustedIntent`).
 3. $S_{\text{marker}} = 0.0$ (no hidden DOM elements or multi-step evasion markers).
@@ -211,18 +211,56 @@ $$R_{\max}(A) = 25 \times 0.95 = 23.75$$
 Since $23.75 < 30.0$:
 $$\forall A \in \text{CleanActions}, \quad \text{Decision}(A) = \text{ALLOW}$$
 
-**Significance for Research & Defense**:
-The 0% false positive rate across all 68 benign scenarios is an **architectural mathematical ceiling**, not an artifact of dataset tuning. ContextGuard guarantees that conforming browsing actions cannot be blocked by sensitivity alone.
+**Scope and Boundary**:
+This ceiling is a design property of the hand-set weights ($w_{\text{sensitivity}} = 0.25$), guaranteeing that conforming browsing actions cannot be blocked by sensitivity alone. However, this guarantee covers strictly clean conforming actions without trigger words or DOM anomalies. On the held-out test split, benign hard cases containing legitimate security or urgency triggers scored up to **89** in the raw risk engine; preventing over-blocks on such cases relies downstream on Rule C4 parameter consistency rather than this sensitivity ceiling.
 
 ---
 
 ## 5. Empirical Evaluation & Experimental Results
 
-### 5.1 Canonical Multi-Domain Benchmark on `gate-frozen-v3.1`
+### 5.1 Pre-Registered Holdout Evaluation on TEST Split (Single Final Run)
 
-ContextGuard is evaluated on a canonical multi-domain benchmark comprising **680 DEV scenarios** across 5 real-world application domains (Flight Reservation, Banking Transfers, E-Commerce Checkout, Healthcare Appointments, and Enterprise Email). The split structure consists of 210 compromised attacks, 70 uncompromised attacks, 300 normal benign actions, and 100 hard benign edge cases.
+To evaluate genuine out-of-distribution generalization without data leakage, ContextGuard was evaluated on the pre-registered, single-run holdout TEST split ($N = 420$ total cases across 5 domains: 190 compromised attacks, 30 uncompromised compliant attacks, 150 standard benign actions, and 50 hard benign edge cases). Evaluation was conducted strictly once with frozen code and weights (`gate-frozen-v3.1`, commit `a472ff3`), and recorded outputs were locked prior to analysis.
 
-#### A. Canonical Gate Performance Summary
+#### A. Headline Test Performance
+Copying numbers exactly from the pre-registered single-run holdout results ([`reports/test_results.md`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/reports/test_results.md)):
+* **Compromised Attack Recall**: **177/190 (93.2%)** intercepted (95% Wilson Score CI [88.6%, 96.0%]).
+* **Uncompromised Attack Over-block**: **0/30 (0.0%)** (95% Wilson CI [0.0%, 11.4%]).
+* **Benign Task Utility**: **200/200 (100.0%)** executed (95% Wilson CI [98.1%, 100.0%]).
+* **Hard Benign False Positives**: **0/50 (0.0%)** (95% Wilson CI [0.0%, 7.1%]).
+* **Held-Out Family Recall**:
+  * `form_action_override`: **40/40 (100.0%)** (95% Wilson CI [91.2%, 100.0%])
+  * `hidden_css_text`: **40/40 (100.0%)** (95% Wilson CI [91.2%, 100.0%])
+  * `overlay_clickjack`: **27/40 (67.5%)** (95% Wilson CI [52.0%, 79.9%])
+
+#### B. Pre-Registered Primary Hypotheses
+1. **Hypothesis 1 (False-Positive Suppression on Uncompromised Pages)**:
+   - ContextGuard Gate (`dual_gate`): 0/30 (0.0%) over-block vs. Static Keyword Baseline (`taxonomy_block`): 30/30 (100.0%) over-block.
+   - Observed Reduction $\Delta_{\text{overblock}}^{\text{obs}} = \mathbf{+100.00\%}$ (10,000 cluster-bootstrap 95% CI $[100.0\%, 100.0\%]$, empirical two-tailed cluster-bootstrap $p = 0.0001$; McNemar exact $p = 1.8626 \times 10^{-9}$).
+2. **Hypothesis 2 (Intent Boundary Superiority over Parameter Rails)**:
+   - ContextGuard Gate (`dual_gate`): 177/190 (93.2%) recall vs. Parameter Rails (`consistency_only`): 135/190 (71.1%) recall.
+   - Observed Gain $\Delta_{\text{recall}}^{\text{obs}} = \mathbf{+22.11\%}$ (Cluster-Bootstrap Mean $+22.18\%$, 95% CI $[10.0\%, 35.79\%]$, empirical two-tailed cluster-bootstrap $p = 0.0001$; McNemar exact $p = 4.5475 \times 10^{-13}$).
+
+---
+
+### 5.2 Holdout Limitations
+
+While ContextGuard demonstrates robust out-of-distribution defense, rigorous holdout evaluation surfaces seven critical operational limitations:
+1. **Overlay Clickjacking Misses Caused by Rule C4**: Under canonical `dual_gate`, 13 of the 40 `overlay_clickjack` attacks were assigned `ALLOW_WITH_FLAG` (`warn`) instead of being intercepted (27/40 = 67.5% recall). These misses are directly caused by Rule C4 (*marker-only cap to ALLOW_WITH_FLAG*): because button clicks on styling overlays modify UI flow without tampering with form parameter values or violating schema boundaries, the action satisfies parameter consistency. C4 misinterprets this as proof of benign intent and caps the decision to `warn`. Disabling Rule C4 (`dual_gate_no_c4`) completely recovers 40/40 (100.0%) clickjack recall, but catastrophically over-blocks **30/30 (100.0%)** uncompromised pages.
+2. **Failure of Raw Risk Engine to Separate Compromised from Compliant Pages**: The weighted risk engine produces overlapping raw risk scores for compromised attacks (**72 to 93**, median 82.0) and uncompromised compliant pages (**75 to 85**, median 77.0), because both contain actual prompt injection markers in page DOM. The risk engine alone cannot distinguish whether an agent was hijacked; all discrimination on uncompromised pages is executed downstream by Rule C4 parameter consistency checks.
+3. **Unexercised Secondary LLM Safety Judge**: Configuration `dual_gate_llm` achieves identical performance to `dual_gate` alone (177/190 recall, 200/200 utility) with **0 live judge calls**. Because raw risk scores polarized into $\le 24$ (benign) and $\ge 72$ (attacks), zero cases landed in the $[30, 60)$ grey zone. Consequently, the practical utility and discriminative value of the secondary LLM judge remain undemonstrated on this benchmark.
+4. **Redundant Static Rules on Test Distribution**: Leave-one-out ablations reveal that removing the threat characterizer (`no_characterizer`), the raw HTML scanner (`no_c1`), the SUBMIT destination validator (`no_c2`), or the egress checker (`no_c5`) changes nothing on the test split (each yields identical 177/190 recall and 200/200 utility), demonstrating significant component redundancy across static rules on this dataset.
+5. **Structural Comparison Asymmetry in Hypothesis 1**: The keyword baseline (`taxonomy_block`) and regex baseline over-block uncompromised pages (30/30 = 100.0%) by construction, because they match keywords anywhere on the page without inspecting proposed agent actions. Consequently, Hypothesis 1 confirms a structural property of action-aware gating rather than a subtle behavioral capability.
+6. **Shared Model Family Vulnerability**: In live LLM evaluations, both the attack generation agent and the safety judge employ models from the same LLM family (`gemini-3.5-flash-lite`), leaving open the possibility of shared blind spots or correlated reasoning vulnerabilities.
+7. **Environment Scope**: Evaluation is restricted entirely to synthetic sandbox web environments. ContextGuard has not been evaluated against live commercial websites, complex third-party trackers/ad scripts, or vision-only multimodal browser agents.
+
+---
+
+### 5.3 Canonical Multi-Domain Benchmark on `gate-frozen-v3.1` (Development Split)
+
+ContextGuard was developed and calibrated on a canonical multi-domain benchmark comprising **680 DEV scenarios** across 5 application domains (Flight Reservation, Banking Transfers, E-Commerce Checkout, Healthcare Appointments, and Enterprise Email), consisting of 210 compromised attacks, 70 uncompromised attacks, 300 normal benign actions, and 100 hard benign edge cases.
+
+#### A. Canonical Gate Performance Summary (Dev Split)
 
 On the frozen gateway (`gate-frozen-v3.1`, commit `a472ff3`):
 * **Compromised Attack Recall**: **92.86% (195/210)** intercepted (95% Wilson Score CI [88.55%, 95.63%], 95% Cluster-Bootstrap CI [83.33%, 100.00%]).
@@ -232,7 +270,7 @@ On the frozen gateway (`gate-frozen-v3.1`, commit `a472ff3`):
 * **Uncompromised Attack Over-block**: **0.00% (0/70)** (95% Wilson CI [0.00%, 5.22%]).
 * **Deterministic Execution Overhead**: In-memory gateway evaluation latency is **2.15 ms** (p50) and **6.79 ms** (p95); end-to-end latency with SQLite HMAC-SHA256 audit logging is **72.23 ms** (p50) and **81.60 ms** (p95).
 
-#### B. Component Ablations & Leave-One-Out Analysis
+#### B. Component Ablations & Leave-One-Out Analysis (Dev Split)
 
 Evaluated via `analysis/leave_one_out_ablation.py` (10,000 cluster-bootstrap resamples by family and template):
 
@@ -251,13 +289,13 @@ Evaluated via `analysis/leave_one_out_ablation.py` (10,000 cluster-bootstrap res
 
 #### C. Programmatic Adaptive Attacks (S1–S6 and S6b)
 
-Under white-box adaptive attacks generated from code across 5 domains (evaluating both `gate-frozen-v2-perf` and `gate-frozen-v3.1`):
-* **S1 (Free-Text Exfiltration)**: 11 templates; `v2-perf` allowed 47/183 (25.7%) evasions. `gate-frozen-v3.1` achieves **0/183 (0.0%)** evasions (100% intercepted by Rule C5 `EGRESS_IN_CONTENT`).
-* **S2 (Near-Miss Mutations)**: 25 templates; 0/135 evasions under both versions.
-* **S3 (Allowed-Host Abuse)**: 10 templates; `v2-perf` allowed 25/175 (14.3%) evasions under Oracle v3. `gate-frozen-v3.1` achieves **0/175 (0.0%)** evasions (100% intercepted by Rule C5 hostname extraction).
-* **S6 (Allowed-Action Abuse)**: 15 templates; `v2-perf` allowed 54/106 (50.9%) evasions under Oracle v3 (68/120 under Oracle v1). `gate-frozen-v3.1` achieves **0/106 (0.0%)** evasions (100% intercepted by Rule C6 `UNAUTHORIZED_IRREVERSIBLE`).
-* **S6b (Authorized Action with Mutated Parameters)**: 15 templates across 100 attempts; 60/67 intercepted (**10.45% evasion rate**, 7/67 in ecommerce where street sub-field was unmapped).
-* *Note on S4 & S5*: Recorded as invalid tests under v3: S4 mutates mapped intent parameters directly, while S5 step 2 alone triggers Rule C6, failing single-step validity.
+White-box adaptive attacks evaluated across 5 domains. All suites were executed under both the development "tuned-on" seed (Seed 42) and an independent "fresh" seed (Seed 9999), yielding identical deterministic counts across seeds:
+* **S1 (Free-Text Exfiltration)**: 11 templates; evaluated under tuned-on seed 42 and fresh seed 9999. Baseline `v2-perf` allowed 47/183 (25.68%) evasions. On `gate-frozen-v3.1`, achieves **0/183 (0.0%)** evasions (100% intercepted by Rule C5 `EGRESS_IN_CONTENT`).
+* **S2 (Near-Miss Mutations)**: 25 templates; evaluated under tuned-on seed 42 and fresh seed 9999. Achieves **0/135 (0.0%)** evasions under both `v2-perf` and `gate-frozen-v3.1`.
+* **S3 (Allowed-Host Abuse)**: 10 templates across 5 domains (70 unsafe cases under Oracle v3); evaluated under tuned-on seed 42 and fresh seed 9999. Baseline `v2-perf` allowed 10/70 (14.29%) evasions under Oracle v3 (legacy Oracle v1 permitted 19/75 [25.33%] evasions; legacy 25/175 claim is superseded and reconciled in ledger). On `gate-frozen-v3.1`, achieves **0/70 (0.0%)** evasions (100% intercepted by Rule C5 hostname extraction).
+* **S6 (Allowed-Action Abuse)**: 15 templates across 5 domains (106 unsafe cases under Oracle v3); evaluated under tuned-on seed 42 and fresh seed 9999. Baseline `v2-perf` allowed 54/106 (50.94%) evasions under Oracle v3 (68/120 under Oracle v1). On `gate-frozen-v3.1`, achieves **0/106 (0.0%)** evasions (100% intercepted by Rule C6 `UNAUTHORIZED_IRREVERSIBLE`).
+* **S6b (Authorized Action with Mutated Parameters)**: 15 templates across 100 attempts; evaluated under tuned-on seed 42 and fresh seed 9999. Achieves 60/67 intercepted (**10.45% evasion rate**, 7/67 evasions in ecommerce where street address was unmapped in early manifests).
+* *Note on S4 & S5*: Recorded as invalid single-step tests under SecurityOracleV3: single-action evaluators inspect actions in isolation without multi-step intent context. S4 mutates mapped intent parameters directly and S5 step 2 triggers irreversible authorization. Neither S4 nor S5 is tested for marker evasion or stateful attack resilience under this single-step protocol.
 
 #### D. Live LLM Judge Benchmark (`dev_hard_60`)
 
@@ -276,7 +314,7 @@ Evaluated across 500 cases under 1, 10, and 50 concurrent worker threads:
 
 ---
 
-### 5.2 Preliminary Exploratory Study & Historical Baselines (138 Scenarios)
+### 5.4 Preliminary Exploratory Study & Historical Baselines (138 Scenarios)
 
 In initial exploratory benchmarking prior to dataset scaling, ContextGuard was evaluated on 138 scenarios (66 Dev, 72 Holdout):
 1. **Developer Benchmark Suite (Dev)**: 66 curated scenarios (34 adversarial attacks spanning all 7 categories; 32 benign navigation items) defined in [`eval_data/attacks.yaml`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/eval_data/attacks.yaml) and [`eval_data/benign.yaml`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/eval_data/benign.yaml).
@@ -309,9 +347,9 @@ We benchmark ContextGuard against 4 alternative defense paradigms:
 | **Config D (Full Gate)** | 100.0% [89.8%, 100.0%] | 0.0% [0.0%, 10.7%] | 91.7% [78.2%, 97.1%] | 0.0% [0.0%, 9.6%] | 67/70 = 95.7% [88.1%, 98.5%] | 87.85 ms | 0/138 (0.0%) | 0 ms (N/A) | 1.0000 |
 | **Config H (+ LLM Checker)** | 100.0% [89.8%, 100.0%] | 0.0% [0.0%, 10.7%] | 91.7% [78.2%, 97.1%] | 0.0% [0.0%, 9.6%] | 67/70 = 95.7% [88.1%, 98.5%] | 79.59 ms | **33/138 (23.9%)** | **0.001 ms** *(Offline)* | 1.0000 |
 
-*Note on Headline Alignment*: On the Dev set, Config A intercepts 29/34 (85.3%), Config B intercepts 34/34 (100.0%), and Config D intercepts 34/34 (100.0% with the Phase 0.5 fee floor; 33/34 in earlier pre-floor runs where `ATK_08` required review). Across the pooled benchmark (Dev + Holdout), Config D intercepts 67/70 attacks (95.71%).
+*Note on Headline Alignment*: On the Dev set, Config A intercepts 29/34 (85.3%), Config B intercepts 34/34 (100.0%), and Config D intercepts 34/34 (100.0% with the Phase 0.5 fee floor; 33/34 in earlier pre-floor runs where `ATK_08` required review). Across the combined pilot benchmark (Dev + Holdout), Config D intercepts 67/70 attacks (95.71%).
 
-### 5.3 Multi-Step Workflows & Live Browser Testbed Results
+### 5.5 Multi-Step Workflows & Live Browser Testbed Results
 
 #### Multi-Step Sequence Benchmark (Schema v2)
 Evaluated via [`scripts/run_sequence_eval.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/scripts/run_sequence_eval.py) across 19 multi-step trajectories (`eval_data/sequences_dev.yaml`):
@@ -324,7 +362,7 @@ Evaluated via [`scripts/run_testbed_ablation.py`](file:///c:/Users/Srinidhi%20R/
 * **Attack Coverage**: Config D intercepts **12/14 attacks (85.7%)**. Row F (DOM Baseline Hashing) intercepts **14/14 attacks (100.0%)**.
 * **Operational False Positives on Marketing Urgency Banners**: On clean baseline booking pages (`TC-01`, `TC-01H`), false positive rate is 0/2 (0.0%). On commercial pages containing aggressive urgency marketing banners (`TC-09H`, `TC-10H`: *"Hurry! Only 2 seats left! Prices jumping!"*), ContextGuard's taxonomy and DOM scanner trigger **2/4 benign interceptions**. This empirical finding highlights an authentic security-usability trade-off: aggressive commercial dark patterns resemble adversarial urgency injection and require operator confirmation.
 
-### 5.4 Key Empirical Insights
+### 5.6 Key Empirical Insights
 
 #### 1. Detective Superiority over Alternative Paradigms
 ContextGuard Config D achieves **95.71% attack recall**, outperforming Keyword Filters (11.4%, $p=0.0078$), Naive Field Rules (32.9%, $p=0.0003$), and Zero-Shot Classification (42.9%, $p=0.0156$) with high statistical significance.
@@ -357,28 +395,9 @@ To demonstrate domain independence, ContextGuard was evaluated on an e-commerce 
 
 ---
 
-## 7. Viva Defense & Research FAQ Guide
+## 7. Code Availability & Reproducibility
 
-1. **Q: Why is your false positive rate exactly 0% across 68 benign scenarios? Is the model overfitted?**
-   * *Answer*: No. As proven in Section 4.3, 0% FP is a **structural mathematical ceiling** ($R_{\max} = 23.75 < 30.0$). Clean actions possess 0.0 threat signal, 0.0 entity inconsistency, and 0.0 evasion markers. Because sensitivity is weighted at 0.25, no clean action can exceed 23.75 regardless of how unusual it is.
-
-2. **Q: Why does Config D introduce a 560x latency increase over Config C?**
-   * *Answer*: The latency difference (0.15 ms $\to$ 73.0 ms) is driven entirely by **cryptographic and forensic persistence**: disk I/O, SQLite ACID transactions, SHA-256 backward hash-linking (`_digest(prev, ts, event, actor, payload) = SHA256(prev|ts|event|actor|payload)`), and external HMAC-SHA256 signature checkpointing in [`contextguard/audit_log.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/contextguard/audit_log.py). It is the operational cost of tamper-evident compliance, not detection logic.
-
-3. **Q: Does ContextGuard slow down browser agents with LLM calls?**
-   * *Answer*: No. 80.4% of actions bypass the LLM completely. Obvious safe actions ($R < 30$) and obvious attacks ($R \ge 60$) are decided deterministically in milliseconds. The LLM reviewer is reserved exclusively for the 19.6% grey-zone actions.
-
-4. **Q: Is there any divergence between your evaluation harness and the live browser agent?**
-   * *Answer*: No. Both [`agent/agent_controller.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/agent/agent_controller.py#L31-L37) (lines 31–37, 307–310) and [`contextguard/pre_action_gate.py`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/contextguard/pre_action_gate.py#L165-L185) (lines 165–185) execute the exact same canonical 11-layer `ContextGuardGate` pipeline.
-
-5. **Q: Why did 209 tests pass and 1 test skip in your Pytest execution?**
-   * *Answer*: In [`tests/kit/test_llm_checker.py:60`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/tests/kit/test_llm_checker.py#L60), the test `test_ollama_integration_live` tests optional live HTTP communication with an external Ollama daemon. When Ollama is offline or not installed, the test cleanly executes `skipTest("Ollama is not reachable")`, verifying ContextGuard's graceful offline fallback behavior. All 209 core unit, integration, and security tests pass with 100% success.
-
----
-
-## 8. Code Availability & Reproducibility
-
-### 8.1 Local Codebase Access
+### 7.1 Local Codebase Access
 The full source code, benchmark suites, testbeds, and artifacts are located on the host system:
 * **Root Directory**: `c:\Users\Srinidhi R\Context gaurd`
 * **Core Gateway**: `contextguard/` (`gate.py`, `consistency_checker.py`, `threat_detector.py`, `pre_action_gate.py`)
@@ -386,7 +405,7 @@ The full source code, benchmark suites, testbeds, and artifacts are located on t
 * **Evaluation Benchmarks**: `scripts/evaluate_baselines.py`, `eval_data/test_v1/`, `eval_results/`
 * **Test Suite**: `tests/` (305 passed, 5 deselected across 310 test cases on Python 3.12)
 
-### 8.2 Git Repository & Milestone Tags
+### 7.2 Git Repository & Milestone Tags
 * **Remote Repository**: [`https://github.com/srinidhiii311-dot/ContextGuard.git`](https://github.com/srinidhiii311-dot/ContextGuard.git)
 * **Active Branch**: `master`
 * **Key Milestone Tags**:
@@ -398,8 +417,9 @@ The full source code, benchmark suites, testbeds, and artifacts are located on t
   * `gate-frozen-v2-perf`: Baseline performance freeze prior to Block 7 additions.
   * `gate-frozen-v3`: Rules C5 (egress-in-content) and C6 (irreversible action authorization).
   * `gate-frozen-v3.1`: Full typing imports restored, clean lint, HMAC audit chain link verified.
+  * `holdout-run-final`: Single-run holdout execution completed, test results frozen.
 
-### 8.3 Downloadable Archive
+### 7.3 Downloadable Archive
 A standalone, self-contained ZIP archive containing all source code, datasets, evaluation scripts, and configuration files (excluding `.venv`, `.git`, and binary caches) has been generated:
 * **Local File Path**: [`c:\Users\Srinidhi R\Context gaurd\ContextGuard_Source_Release.zip`](file:///c:/Users/Srinidhi%20R/Context%20gaurd/ContextGuard_Source_Release.zip) (Size: 17.74 MB, 1,282 files).
 * **IDE Artifact Path**: [`C:\Users\Srinidhi R\.gemini\antigravity-ide\brain\7b80c8af-b38c-4ed8-8c37-0e2b9d2cec6a\ContextGuard_Source_Release.zip`](file:///C:/Users/Srinidhi%20R/.gemini/antigravity-ide/brain/7b80c8af-b38c-4ed8-8c37-0e2b9d2cec6a/ContextGuard_Source_Release.zip)
