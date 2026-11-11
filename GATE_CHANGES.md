@@ -78,4 +78,29 @@ Following the Block 7c adaptive attack audit, `gate-frozen-v3` incorporates two 
 - **Task Completion Proxy (Utility)**: 100.0% (400/400) [95% CI: 99.0%, 100.0%]
 - **All 14 unit tests in `test_c5_egress_in_content.py` and `test_c6_irreversible_authorization.py`**: PASSED
 
+---
+
+## 5. `gate-frozen-v3.1` — Typing Imports & CI Hygiene
+
+### A. Files and Diff Overview
+The diff between `gate-frozen-v3` and `gate-frozen-v3.1` across `contextguard/` (`git diff gate-frozen-v3..gate-frozen-v3.1 -- contextguard/`) contains strictly type-annotation imports across three files:
+1. `contextguard/consistency_checker.py`: Added `Tuple` to `from typing import Any, Dict, List, Optional, Tuple`.
+2. `contextguard/llm_checker.py`: Added `Any` to `from typing import Any, Callable, Dict, List, Optional, Tuple`.
+3. `contextguard/policy_engine.py`: Added `List` to `from typing import Any, Dict, List, Optional`.
+
+### B. Rules Changed
+- **Zero rule changes**: No gate logic, policy rules, thresholds, consistency checks, or decision algorithms were modified. The gateway logic is identical between `gate-frozen-v3` and `gate-frozen-v3.1`.
+
+### C. Reason Recorded
+- Commit message for `a472ff3`: *"ci: hygiene, typing imports, hash-chain audit test, tag gate-frozen-v3.1"*. The changes were made for static typing hygiene and CI lint compatibility.
+
+### D. Dev Numbers Before and After
+Because no gate logic changed, performance metrics on the 680-case dev split are identical between `gate-frozen-v3` and `gate-frozen-v3.1`:
+- **Compromised Attack Recall**: Before: 92.86% (195/210) $\to$ After: 92.86% (195/210)
+- **Uncompromised Over-Block Rate**: Before: 0.0% (0/70) $\to$ After: 0.0% (0/70)
+- **Benign Normal False Intercept Rate**: Before: 0.0% (0/300) $\to$ After: 0.0% (0/300)
+- **Benign Hard False Intercept Rate**: Before: 0.0% (0/100) $\to$ After: 0.0% (0/100)
+- **Benign Task Utility**: Before: 100.0% (400/400) $\to$ After: 100.0% (400/400)
+
+
 
