@@ -149,42 +149,45 @@ python -m harness.run_experiment --split test --final --all-configs --include-ab
 
 ### Generated Artifacts (18 Output Files):
 Execution strictly follows the ordered sequence (15 offline deterministic configs first, 2 LLM configs last):
-1. `runs/no_gateway_42.jsonl`
-2. `runs/taxonomy_block_42.jsonl`
-3. `runs/taxonomy_warn_42.jsonl`
-4. `runs/consistency_only_42.jsonl`
-5. `runs/regex_only_42.jsonl`
-6. `runs/tool_allowlist_42.jsonl`
-7. `runs/dual_gate_42.jsonl`
-8. `runs/dual_gate_no_characterizer_42.jsonl`
-9. `runs/dual_gate_no_risk_engine_42.jsonl`
-10. `runs/dual_gate_no_c1_42.jsonl`
-11. `runs/dual_gate_no_c2_42.jsonl`
-12. `runs/dual_gate_no_c3_42.jsonl`
-13. `runs/dual_gate_no_c4_42.jsonl`
-14. `runs/dual_gate_no_c5_42.jsonl`
-15. `runs/dual_gate_no_c6_42.jsonl`
-16. `runs/dual_gate_llm_42.jsonl` (Grey zone LLM judge evaluation)
-17. `runs/llm_judge_only_42.jsonl` (Direct LLM judge evaluation)
-- `runs/test/audit_log.jsonl` (HMAC SHA-256 hash-chained audit records for test split)
+1. `runs/test/no_gateway_42.jsonl`
+2. `runs/test/taxonomy_block_42.jsonl`
+3. `runs/test/taxonomy_warn_42.jsonl`
+4. `runs/test/consistency_only_42.jsonl`
+5. `runs/test/regex_only_42.jsonl`
+6. `runs/test/tool_allowlist_42.jsonl`
+7. `runs/test/dual_gate_42.jsonl`
+8. `runs/test/dual_gate_no_characterizer_42.jsonl`
+9. `runs/test/dual_gate_no_risk_engine_42.jsonl`
+10. `runs/test/dual_gate_no_c1_42.jsonl`
+11. `runs/test/dual_gate_no_c2_42.jsonl`
+12. `runs/test/dual_gate_no_c3_42.jsonl`
+13. `runs/test/dual_gate_no_c4_42.jsonl`
+14. `runs/test/dual_gate_no_c5_42.jsonl`
+15. `runs/test/dual_gate_no_c6_42.jsonl`
+16. `runs/test/dual_gate_llm_42.jsonl` (Grey zone LLM judge evaluation)
+17. `runs/test/llm_judge_only_42.jsonl` (Direct LLM judge evaluation)
+- `runs/test/audit_log.jsonl` (HMAC SHA-256 hash-chained audit records for test split, exactly 420 entries)
 
 ---
 
 ## 6. Post-Run Verification Checklist
 
 Immediately upon completion of the test command:
-1. Verify audit log cryptographic continuity:
+1. Verify audit log cryptographic continuity and entry count:
    ```powershell
-   python scripts/verify_audit_log.py runs/test/audit_log.jsonl
+   python scripts/verify_audit_log.py runs/test/audit_log.jsonl --expected 420
    ```
 2. Verify claims ledger consistency:
    ```powershell
    python scripts/verify_claims.py
    ```
-3. Generate final holdout evaluation report in `reports/test_results.md`.
+3. Generate final holdout evaluation report in `reports/test_results.md`:
+   ```powershell
+   python analysis/test_report.py --split test
+   ```
 4. Git commit all generated run records and tag the commit:
    ```powershell
-   git add runs/*_42.jsonl runs/test/audit_log.jsonl reports/test_results.md
+   git add runs/test/*_42.jsonl runs/test/audit_log.jsonl reports/test_results.md
    git commit -m "docs(test): holdout evaluation results on test split (single final run)"
    git tag holdout-run-final
    ```

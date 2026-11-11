@@ -253,10 +253,17 @@ def main():
 
     produced_run_files: List[Path] = []
     start_total = time.time()
+    output_dir = RUNS_DIR / "test" if args.split == "test" else RUNS_DIR
 
     for seed in args.seeds:
         for cfg in configs_to_run:
-            run_file = run_single_config(cases=cases, config=cfg, seed=seed, resume=args.resume)
+            run_file = run_single_config(
+                cases=cases,
+                config=cfg,
+                seed=seed,
+                output_dir=output_dir,
+                resume=args.resume,
+            )
             produced_run_files.append(run_file)
 
     total_time = time.time() - start_total
@@ -273,8 +280,8 @@ def main():
         from analysis.stats import generate_comparative_stats_report
 
         print("Computing evaluation metrics and comparative hypothesis tests...")
-        metrics_df = generate_metrics_report(split=args.split, configs=configs_to_run, seeds=args.seeds)
-        generate_comparative_stats_report(split=args.split, configs=configs_to_run, seeds=args.seeds)
+        metrics_df = generate_metrics_report(split=args.split, configs=configs_to_run, seeds=args.seeds, runs_dir=output_dir)
+        generate_comparative_stats_report(split=args.split, configs=configs_to_run, seeds=args.seeds, runs_dir=output_dir)
     except Exception as e:
         print(f"Note: automatic report generation encountered: {e}")
 
