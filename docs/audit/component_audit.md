@@ -359,4 +359,162 @@ def __init__(
 
 ---
 
+## 12. Corrections
+
+### 12a. `risk_predictor` and `risk_model.joblib` Usage and Gate Influence
+
+The audit noted `contextguard/models/risk_model.joblib` and `contextguard/ml/risk_model.py` as potentially influencing runtime decisions. A thorough code inspection confirms that the ML model has **zero influence** on any security gate decisions.
+
+- **Model definition and load**: `contextguard/ml/risk_model.py`:
+  - Line 21:
+    ```python
+    MODEL_PATH = Path(__file__).parent.parent / "models" / "risk_model.joblib"
+    ```
+  - Lines 37–39:
+    ```python
+    import joblib
+    bundle = joblib.load(self.model_path)
+    self.model = bundle["model"]
+    ```
+  - Line 110:
+    ```python
+    risk_predictor = MLRiskModel()
+    ```
+- **Where imported**:
+  - `contextguard/orchestrator.py` line 21:
+    ```python
+    from contextguard.ml.risk_model import risk_predictor
+    ```
+  - `tests/test_isolated_contextguard.py` line 23:
+    ```python
+    from contextguard.ml.risk_model import risk_predictor
+    ```
+- **Where executed**:
+  - `contextguard/orchestrator.py` lines 145–147 inside `observe_post_action()`:
+    ```python
+    # 3. ML Risk Model inference
+    t0 = time.perf_counter()
+    risk_score, confidence, top_features = risk_predictor.predict(features)
+    ml_latency_ms = (time.perf_counter() - t0) * 1000
+    ```
+  - Followed by recording in lines 154–159:
+    ```python
+    pred_id = ContextGuardRuntimeDAO.record_model_prediction(
+        session_id=self.session_id,
+        step_number=self.step,
+        predicted_risk=risk_score,
+        confidence=confidence,
+        top_features=top_features,
+    )
+    ```
+- **Gate Decision Influence**: **None (0%)**. `observe_post_action()` is strictly a post-action telemetry and logging routine invoked after actions have already executed. `risk_predictor` is not imported, referenced, or called anywhere in `contextguard/gate.py` (`ContextGuardGate`), `contextguard/pre_action_gate.py` (`PreActionGate`), or `eval_adapter.py`. Gate decisions in production and benchmarks rely exclusively on the deterministic rule-based and signal fusion components in `contextguard.risk_engine.WeightedRiskEngine`.
+
+### 12b. Roles of `contextguard/hidden_content.py:59` and `agent/web_agent.py:186`
+
+The Summary Table previously stated that `getBoundingClientRect` occurred only in HUD drag JavaScript strings. In reality, the two occurrences serve completely distinct purposes:
+
+1. **`contextguard/hidden_content.py` line 59** (Security Pipeline — Hidden Text Detection):
+   ```javascript
+   const cs = getComputedStyle(el);
+   if (!reasons.length) {
+     const r = el.getBoundingClientRect();
+     if (parseFloat(cs.fontSize) <= 1) reasons.push('font-size:~0');
+     else if (r.width < 2 || r.height < 2) reasons.push('zero-size');
+     else if (r.right + scrollX < 0 || r.bottom + scrollY < 0 ||
+              r.left + scrollX > document.documentElement.scrollWidth + 50) reasons.push('off-screen');
+     else if (parseFloat(cs.textIndent) < -999) reasons.push('text-indent');
+     else if (cs.color === bgOf(el)) reasons.push('same-colour-as-background');
+   }
+   ```
+   **Purpose**: Active security scanning. `BROWSER_SCAN_JS` executes inside the browser DOM to measure rendered element geometry via `el.getBoundingClientRect()`. It flags adversarial evasions using zero-size containers (`width < 2 || height < 2`) and off-screen coordinates (`r.right + scrollX < 0`).
+
+2. **`agent/web_agent.py` line 186** (UI Dragging Overlay — Non-Security):
+   ```javascript
+   header.addEventListener('mousedown', function(e) {
+       if (e.target.tagName === 'BUTTON') return;
+       isDragging = true;
+       startX = e.clientX;
+       startY = e.clientY;
+       const rect = card.getBoundingClientRect();
+       startLeft = rect.left;
+       startTop = rect.top;
+       card.style.right = 'auto';
+       card.style.bottom = 'auto';
+       card.style.left = startLeft + 'px';
+       card.style.top = startTop + 'px';
+       header.style.cursor = 'grabbing';
+       e.preventDefault();
+   });
+   ```
+   **Purpose**: UI viewport interaction. `HUD_INJECTION_SCRIPT` attaches to `#cg-hud-header` to enable mouse dragging of the user-facing HUD status overlay (`#cg-hud-card`). `card.getBoundingClientRect()` records initial top/left offsets for dragging arithmetic. It plays no role in threat detection or policy enforcement.
+
+### 12c. Exact Line in `backend/browser_agent/agent.py` Calling Gate/Observer
+
+Section 1c previously stated that `backend/browser_agent/agent.py` constructs `ContextGuardGate` directly per step. The actual implementation uses the observer singleton:
+
+- Import at line 28:
+  ```python
+  from backend.contextguard.observer import observer
+  ```
+- Evaluation call at line 221:
+  ```python
+  # 3. Blind ContextGuard Evaluation
+  verdict = observer.evaluate(event, self.intent)
+  ```
+The agent constructs a `BrowserEvent` and passes it along with `self.intent` directly to `observer.evaluate(...)`.
+
+### 12d. Correction to `PreActionGate` Mechanics and Parameter Signature Mismatch
+
+Section 1b and Section 2 previously suggested that `PreActionGate` alters decisions via an additional threshold layer (e.g. mapping risk 60–74 to PAUSE). That description was inaccurate.
+
+1. **Deterministic Decision Mapping**:
+   In `contextguard/pre_action_gate.py` lines 175–183:
+   ```python
+   canonical_dec_map = {
+       Decision.BLOCK: "BLOCK",
+       Decision.PAUSE_TASK: "PAUSE",
+       Decision.REQUIRE_CONFIRMATION: "PAUSE",
+       Decision.ALLOW_WITH_FLAG: "WARN",
+       Decision.FLAG: "WARN",
+       Decision.ALLOW: "ALLOW",
+   }
+   canonical_dec = canonical_dec_map.get(canonical_res.decision, "ALLOW")
+   ```
+   `canonical_dec_map` unconditionally maps `REQUIRE_CONFIRMATION` to `"PAUSE"` and `BLOCK` to `"BLOCK"`, regardless of whether the risk score is 60 or 74.
+
+2. **Real Differences from Canonical Gate**:
+   - **Extra heuristic checks**: `PreActionGate.evaluate_action()` runs its own preliminary string and context checks before consulting the canonical gate:
+     - Target keyword checks (`pay`, `checkout`, `cvv`, `ssn`, `password`, `commit`).
+     - External URL navigation boundary checks (`netloc` not in `base_domain`).
+     - Entity mismatch checks against locked task context (`cabin_class`, `passengers`, `origin`, `destination`).
+     - Premature booking commit checks (`confirm` or `pay` on `search` or `results` pages).
+   - **Stricter-of-two decision**: Lines 186–198 evaluate `rule_dec` based on `self.block_threshold` (90.0) and `self.pause_threshold` (75.0), and take the stricter of `canonical_dec` and `rule_dec`:
+     ```python
+     if severity_order.get(canonical_dec, 0) >= severity_order.get(rule_dec, 0):
+         decision = canonical_dec
+     else:
+         decision = rule_dec
+     ```
+
+3. **Positional Parameter Bug Proof**:
+   In `contextguard/pre_action_gate.py` line 173:
+   ```python
+   canonical_res = canonical_gate.check(proposed, current_page_name)
+   ```
+   The signature of `ContextGuardGate.check` (`contextguard/gate.py` line 625) is:
+   ```python
+   def check(self, action: ProposedAction, current_dom_text: str, snapshot: Any = None, browser_page: Any = None, session_id: Optional[str] = None) -> GateResult:
+   ```
+   `PreActionGate` passes `current_page_name` (e.g. `"flight_results"`) as the second positional argument where `current_dom_text` is expected. As verified by test script `verify_pre_action_gate_dom.py`, the canonical gate receives only the page name string and never receives the page DOM text, preventing DOM-level threat detectors (e.g. C1 prompt injection scanner) from inspecting page content.
+
+### 12e. Dev Benchmark Command Correction
+
+Section 10 and the Summary Table cited `python harness/run_dataset_ablation.py --config A --split dev`. This script does not exist on disk (`[Errno 2] No such file or directory`). The actual repository benchmark command that produces the 680-case development split metrics (195/210 compromised intercepted, 0/70 uncompromised blocked, 0/400 benign blocked) is:
+```bash
+python analysis/leave_one_out_ablation.py
+```
+with ground truth results stored in `analysis/leave_one_out_ablation.json` under configuration `dual_gate`.
+
+---
+
 *Audit produced from code read on branch `improve/guarded-browser` at commit `ed1c4af`. No code was modified.*
