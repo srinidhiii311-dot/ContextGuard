@@ -6,18 +6,31 @@ Exposes the synchronous ContextGuard pre-action gate over REST and WebSockets:
   - POST /v1/action/verify   : Synchronously verifies proposed action (<500ms NFR1, FR6, FR7, FR10, FR19)
   - GET  /v1/task/{id}/status: Returns current gate metrics, counters, and locked intent
   - GET  /v1/task/{id}/audit : Returns complete traceable audit trail (FR21, FR23)
+
+Phase 0 security additions
+  - require_gate_token Depends() guard on /action/verify and sensitive reads
+  - issue_session_token called from /task/init; token returned once to the wrapper
+  - strip_internals applied before returning verify response to caller
+  - action_nonce binding for REQUIRE_CONFIRMATION approvals
 """
 
 from __future__ import annotations
 
+import hashlib
 import time
 import uuid
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from agent.task_parser import parse_task
+from backend.api.gate_auth import (
+    gate_auth_enabled,
+    issue_session_token,
+    require_gate_token,
+    strip_internals,
+)
 from backend.database.db import get_audit_log, get_conn, insert_task, now_iso
 from backend.websocket.manager import ws_manager
 from contextguard.gate import ContextGuardGate, Decision, ProposedAction, TrustedIntent
@@ -69,6 +82,12 @@ class TaskInitResponse(BaseModel):
     status: str = "LOCKED"
     trusted_intent: Dict[str, Any]
     created_at: str
+    # Phase 0: session token held only by the browser-wrapper; never forwarded to the agent
+    session_token: Optional[str] = Field(
+        None,
+        description="Per-session bearer token. Present only when gate_auth_enabled=True. "
+                    "Hold in the wrapper process only; never send to the agent.",
+    )
 
 
 class ActionVerifyRequest(BaseModel):
@@ -167,11 +186,16 @@ def init_task(payload: TaskInitRequest) -> TaskInitResponse:
         status="LOCKED",
         trusted_intent=intent.to_dict(),
         created_at=created_at,
+        # Phase 0: issue a per-session token held only by the browser wrapper
+        session_token=issue_session_token(task_id) if gate_auth_enabled else None,
     )
 
 
 @router.post("/action/verify", response_model=ActionVerifyResponse)
-def verify_action(payload: ActionVerifyRequest) -> ActionVerifyResponse:
+def verify_action(
+    payload: ActionVerifyRequest,
+    _validated_task_id: str = Depends(require_gate_token),
+) -> ActionVerifyResponse:
     """
     Step 2.1 & 2.2 (FR6, FR7, FR10, FR19, NFR1 <500ms):
     Synchronous security pipeline gate. Evaluates proposed action against
@@ -226,7 +250,7 @@ def verify_action(payload: ActionVerifyRequest) -> ActionVerifyResponse:
         "audit_id": gate_result.audit_id,
     })
 
-    return ActionVerifyResponse(
+    full_response = ActionVerifyResponse(
         audit_id=gate_result.audit_id,
         task_id=payload.task_id,
         step_number=gate_result.step_number,
@@ -243,6 +267,14 @@ def verify_action(payload: ActionVerifyRequest) -> ActionVerifyResponse:
         processing_ms=gate_result.processing_ms,
         total_latency_ms=round(total_latency_ms, 2),
     )
+
+    # Phase 0: strip internal scoring details before returning to the caller.
+    # The agent only needs decision + allowed + reason + audit_id.
+    # Exposing rule IDs, confidence and factor_breakdown lets an adversary
+    # tune evasion against the specific rules that fired.
+    if gate_auth_enabled:
+        return ActionVerifyResponse(**strip_internals(full_response.model_dump()))
+    return full_response
 
 
 @router.get("/task/{task_id}/status", response_model=TaskStatusResponse)

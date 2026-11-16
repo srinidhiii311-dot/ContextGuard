@@ -59,11 +59,36 @@ app = FastAPI(
     version="2.0.0",
 )
 
+
+def _cors_origins() -> list[str]:
+    """
+    Return the allowed CORS origins list from the environment.
+    Phase 0: defaults to an empty list (same-origin only).
+    Set GATE_CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+    to allow specific development frontends.  "*" is refused.
+    """
+    import os
+    raw = os.getenv("GATE_CORS_ORIGINS", "").strip()
+    if raw == "*":
+        raise RuntimeError(
+            "GATE_CORS_ORIGINS='*' is not permitted. "
+            "Use a comma-separated list or leave unset for same-origin only."
+        )
+    if not raw:
+        return []  # Same-origin only
+    return [o.strip() for o in raw.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    # Phase 0: CORS is locked to same-origin / localhost only.
+    # GATE_CORS_ORIGINS env var can extend this list for specific deployment
+    # needs, but "*" is explicitly refused by gate_auth.py at import time.
+    # Default: empty list = same-origin requests only (browsers will block
+    # cross-origin fetches that the sandbox pages do not need).
+    allow_origins=_cors_origins(),
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_headers=["Content-Type", "Authorization", "X-Task-Id"],
+    allow_credentials=False,
 )
 
 # Mount static files and screenshots

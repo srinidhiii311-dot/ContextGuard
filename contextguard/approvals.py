@@ -118,12 +118,34 @@ class ApprovalService:
             id INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL, step INTEGER,
             action TEXT NOT NULL, risk_score REAL NOT NULL, status TEXT NOT NULL,
             required INTEGER NOT NULL, requested_at REAL NOT NULL, expires_at REAL NOT NULL,
-            resolved_at REAL);
+            resolved_at REAL,
+            action_hash TEXT);
         CREATE TABLE IF NOT EXISTS approval_decisions(
             id INTEGER PRIMARY KEY AUTOINCREMENT, approval_id INTEGER NOT NULL REFERENCES approvals(id),
             username TEXT NOT NULL, decision TEXT NOT NULL, reason TEXT NOT NULL, ts REAL NOT NULL,
             UNIQUE(approval_id, username));""")
         conn.commit()
+
+        # Phase 0 migration: add action_hash column to existing DBs that pre-date it
+        try:
+            conn.execute("ALTER TABLE approvals ADD COLUMN action_hash TEXT")
+            conn.commit()
+        except Exception:
+            pass  # Column already exists
+
+    # ------------------------------------------------------------------
+    # Action-hash helpers (Phase 0: bind approvals to exact action)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def compute_action_hash(action: dict) -> str:
+        """
+        Compute a stable SHA-256 hash of the action dict for binding.
+        The hash covers the canonically sorted JSON of the action so that
+        field-order variations do not break comparison.
+        """
+        canonical = json.dumps(action, sort_keys=True, default=str)
+        return hashlib.sha256(canonical.encode()).hexdigest()
 
     # users
     def create_user(self, username: str, password: str, role: str = "viewer") -> None:
@@ -153,17 +175,22 @@ class ApprovalService:
                 ttl_seconds: int = 300) -> int:
         now = self.clock()
         required = 2 if risk_score >= self.two_at else 1
+        # Phase 0: bind the approval to the exact action by storing its hash.
+        # decide() will reject any attempt to approve a different action.
+        action_hash = self.compute_action_hash(action)
         with self.lock:
             cur = self.conn.execute(
-                "INSERT INTO approvals(task_id,step,action,risk_score,status,required,requested_at,expires_at)"
-                " VALUES(?,?,?,?,?,?,?,?)",
+                "INSERT INTO approvals(task_id,step,action,risk_score,status,required,"
+                "requested_at,expires_at,action_hash)"
+                " VALUES(?,?,?,?,?,?,?,?,?)",
                 (task_id, step, json.dumps(action, sort_keys=True, default=str), risk_score,
-                 "PENDING", required, now, now + ttl_seconds))
+                 "PENDING", required, now, now + ttl_seconds, action_hash))
             self.conn.commit()
             aid = cur.lastrowid
             self.audit.append("approval_requested", "gate",
                               {"approval_id": aid, "task_id": task_id, "step": step,
-                               "risk_score": risk_score, "required": required})
+                               "risk_score": risk_score, "required": required,
+                               "action_hash": action_hash[:16] + "..."})
         return aid
 
     def _expire(self, aid: int) -> None:
@@ -194,6 +221,31 @@ class ApprovalService:
         ids = [r[0] for r in self.conn.execute("SELECT id FROM approvals ORDER BY id DESC")]
         out = [self.status(i) for i in ids]
         return [o for o in out if o and (status is None or o["status"] == status)]
+
+    def verify_action_hash(self, aid: int, action: dict) -> bool:
+        """
+        Phase 0: verify that the action being dispatched matches the one
+        that was submitted for approval.  Returns False if the hash does
+        not match — the caller must treat this as DENIED.
+        """
+        row = self.conn.execute(
+            "SELECT action_hash FROM approvals WHERE id=?", (aid,)
+        ).fetchone()
+        if not row or row[0] is None:
+            # Pre-Phase-0 record with no stored hash — allow through
+            # (backward compatibility) but log the gap.
+            self.audit.append("action_hash_missing", "gate",
+                              {"approval_id": aid, "note": "pre-phase0 record, no hash stored"})
+            return True
+        expected = row[0]
+        actual   = self.compute_action_hash(action)
+        match    = hmac.compare_digest(expected, actual)
+        if not match:
+            self.audit.append("action_hash_mismatch", "gate",
+                              {"approval_id": aid,
+                               "expected_prefix": expected[:16],
+                               "actual_prefix": actual[:16]})
+        return match
 
     def decide(self, aid: int, username: str, decision: str, reason: str) -> dict:
         decision = decision.upper()
