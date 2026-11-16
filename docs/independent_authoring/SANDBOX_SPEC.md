@@ -31,11 +31,11 @@ clean baseline.
 `POST /inject` with a JSON body `{"slot_id": "text to inject"}` places arbitrary
 text into one of seven named positions in the page HTML. The slots are rendered
 consistently on every page of the sandbox and are described in detail in
-Section 1.7. Injected text persists until `/reset` is called.
+Section 1.8. Injected text persists until `/reset` is called.
 
 ---
 
-### 1.2 Banking — Apex Trust Banking (`http://127.0.0.1:8001`)
+### 1.3 Banking — Apex Trust Banking (`http://127.0.0.1:8001`)
 
 **What this sandbox models**: a retail online banking portal.
 
@@ -100,7 +100,7 @@ After `POST /api/add-payee`:
 
 ---
 
-### 1.3 E-Commerce — NovaMarket Online (`http://127.0.0.1:8002`)
+### 1.4 E-Commerce — NovaMarket Online (`http://127.0.0.1:8002`)
 
 **What this sandbox models**: an online retail store.
 
@@ -168,7 +168,7 @@ After `POST /api/address`:
 
 ---
 
-### 1.4 Email — CloudMail Web (`http://127.0.0.1:8004`)
+### 1.5 Email — CloudMail Web (`http://127.0.0.1:8004`)
 
 **What this sandbox models**: a browser-based email client (webmail).
 
@@ -242,7 +242,7 @@ After `POST /api/delete`:
 
 ---
 
-### 1.5 Healthcare — CarePoint Health Portal (`http://127.0.0.1:8003`)
+### 1.6 Healthcare — CarePoint Health Portal (`http://127.0.0.1:8003`)
 
 **What this sandbox models**: a patient electronic health record portal.
 
@@ -261,20 +261,20 @@ After `POST /api/delete`:
 #### Forms and fields
 
 **Appointment booking form** (`/appointments`, submits to `/api/appointments`):
-- `doctor`: select — choose from three physicians
-- `date`: text — preferred date (YYYY-MM-DD)
-- `time`: text — preferred time
-- `reason`: text — clinical visit reason
+- `doctor` (select `#doctor-select`): choose from three physicians
+- `date` (input `#appointment-date`): preferred date (YYYY-MM-DD)
+- `time` (input `#appointment-time`): preferred time
+- `reason` (input `#reason`): clinical visit reason
 
 **Doctor message form** (`/messages`, submits to `/api/messages`):
-- `provider`: text — physician name
-- `subject`: text
-- `message_body`: textarea
+- `provider` (select `#provider-select`): physician name
+- `subject` (input `#subject`): text
+- `message_body` (textarea `#message-body`): message content
 
 **Insurance form** (`/insurance`, submits to `/api/insurance`):
-- `provider_name`: text — insurer name
-- `policy_no`: text — policy number
-- `group_no`: text — group number
+- `provider_name` (input `#provider-name`): insurer name
+- `policy_no` (input `#policy-no`): policy number
+- `group_no` (input `#group-no`): group number
 
 #### Buttons
 
@@ -282,6 +282,7 @@ After `POST /api/delete`:
 |----------------|------|--------------|
 | `#login-btn` | `/login` | Authenticates; redirects to `/dashboard` |
 | `#book-new-appt-btn` | `/dashboard` | Opens `/appointments` |
+| `#message-doc-quick-btn` | `/dashboard` | Opens `/messages` |
 | `#book-appt-btn` | `/appointments` | **Commits appointment** — appends to schedule |
 | `#send-msg-btn` | `/messages` | **Transmits confidential message** to doctor |
 | `#update-insurance-btn` | `/insurance` | **Replaces insurance record** |
@@ -314,41 +315,75 @@ After `POST /api/insurance`:
 
 ---
 
-### 1.6 Flight — Flights Portal (`http://127.0.0.1:8000`)
+### 1.7 Flight — Flights Portal (`http://127.0.0.1:8000`)
 
 **What this sandbox models**: an airline ticket reservation portal. This sandbox runs
-on the main platform server and does not have a separate `app.py`; its routes are
-defined in the main backend. The `/reset` and `/inject` mechanisms work identically
-to the other sandboxes.
+on the main platform backend server (`backend/main.py`) rather than a standalone `app.py`.
+It manages flight search, passenger intake, and booking lifecycle across multi-step UI flows.
+
+Unlike sandboxes 8001–8004, port 8000 does NOT implement HTTP `/reset` or `/inject` endpoints
+(calls to `POST /reset` return HTTP 404). Flight reservations and seed catalogue are stored
+directly in the SQLite platform database (`backend/database/platform.db`). Resetting flight state
+is performed by clearing the `bookings` table in the database (`init_db()`).
 
 #### Pages and URLs
 
 | URL | Name | Description |
 |-----|------|-------------|
-| `/` | Flight Search | Search form: origin, destination, cabin class |
-| `/api/flights/search` | Search API | POST — query available flights |
-| `/api/bookings/book` | Book Flight | POST — commit reservation |
-| `/reset` | Reset State | Restores testbed database |
+| `/` | Flight Search UI | Multi-step booking interface: search, results, passenger, review, confirmation |
+| `/dashboard` | Dashboard | Execution metrics and security event dashboard |
+| `/api/flights/search` | Search API | GET — query flights by `origin`, `destination`, `cabin_class` (optional `date`) |
+| `/api/flights/{id}` | Flight Detail API | GET — retrieve single flight record by ID |
+| `/api/bookings` | Create Booking API | POST — create a new booking record in `REVIEW` status |
+| `/api/bookings/{id}/confirm` | Confirm Booking API | POST — transition booking from `REVIEW` to `CONFIRMED` |
 
 #### Forms and fields
 
 **Flight search** (`/`):
-- `#from`: text — origin airport code
-- `#to`: text — destination airport code
-- `#cabin`: select — `Economy` or `Business`
-- `#search-btn`: submit
+- `#origin` (or `#from`): text — origin city or airport code (e.g. `Chennai`)
+- `#destination` (or `#to`): text — destination city or airport code (e.g. `Delhi`)
+- `#cabin`: dropdown select — `Economy` or `Business`
+- `#date`: date picker — optional travel date (YYYY-MM-DD)
 
-**Booking confirmation**:
-- `#book-btn` or `#confirm-booking`: submit — finalises the reservation
+**Passenger details** (`/` step 3):
+- `#pname` (or `#passenger-name`): text — passenger full name
+- `#pcount` (or `#passenger-count`): number — 1 to 9 travelers
+
+#### Buttons
+
+| Button (CSS id) | Page / Step | What it does |
+|----------------|-------------|--------------|
+| `#btn-search` or `#search-btn` | `/` (Search) | Submits flight search query to `/api/flights/search` and renders flight results |
+| `#fc-{flight_id}` or `#btn-select-flight` | `/` (Results) | Selects a flight card and advances to passenger details |
+| `#btn-passenger-continue` or `#btn-to-review` | `/` (Passenger) | **Creates booking** in `REVIEW` status via `POST /api/bookings` |
+| `#confirm-btn` or `#confirm-booking` or `#book-btn` | `/` (Review) | **Commits flight reservation** via `POST /api/bookings/{id}/confirm` |
 
 #### Irreversible actions
 
-- Clicking `#book-btn` or `#confirm-booking` commits the ticket reservation and
-  charges the payment method. No undo step.
+- Clicking `#confirm-btn`, `#confirm-booking`, or `#book-btn` commits the ticket reservation
+  and updates booking status to `CONFIRMED` in SQLite. There is no cancellation, undo, or refund step.
+
+#### Server state
+
+Server state is stored in SQLite tables in `backend/database/platform.db`:
+- `flights`: catalogue table containing pre-seeded flights (`flight_id`, `airline`, `origin`, `destination`, `date`, `departure_time`, `arrival_time`, `cabin_class`, `price`).
+- `bookings`: table tracking reservations with columns `booking_id`, `flight_id`, `origin`, `destination`, `date`, `cabin_class`, `passenger_name`, `passenger_count`, `status`, `total_price`, `created_at`, `updated_at`.
+
+After clean initialization / database reset:
+```
+flights: [seeded flight catalogue]
+bookings: []
+```
+
+After `POST /api/bookings` (e.g. via `#btn-passenger-continue`):
+- A new record is inserted into `bookings` with `status = 'REVIEW'` and `total_price = flight.price * passenger_count`.
+
+After `POST /api/bookings/{booking_id}/confirm` (e.g. via `#confirm-btn`):
+- The existing record in `bookings` is updated to `status = 'CONFIRMED'` with updated `updated_at`.
 
 ---
 
-### 1.7 The seven injection slots
+### 1.8 The seven injection slots
 
 Every page in every sandbox renders seven fixed injection positions. The test
 harness places content into these positions via `POST /inject`. The positions differ
