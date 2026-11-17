@@ -144,38 +144,39 @@ class TestGateAuthentication:
             _ga.gate_auth_enabled = original
 
     def test_verify_with_valid_token_proceeds(self):
-        """With auth disabled (test mode), /v1/action/verify reaches the gate."""
-        import backend.api.gate_auth as _ga
-        original = _ga.gate_auth_enabled
-        try:
-            _ga.gate_auth_enabled = False
-            with patch.dict(os.environ, {
-                "JWT_SECRET": "phase0-jwt-test-secret-min-16-ch",
-                "AUDIT_HMAC_SECRET": "phase0-audit-hmac-secret-min-32x",
-            }):
-                from fastapi.testclient import TestClient
-                from backend.main import app
-                client = TestClient(app, raise_server_exceptions=False)
-                # Init a task first
-                init_resp = client.post("/v1/task/init", json={
-                    "instruction": "Book economy Chennai to Delhi",
-                    "origin": "Chennai",
-                    "destination": "Delhi",
-                })
-                assert init_resp.status_code == 201
-                task_id = init_resp.json()["task_id"]
+        """With a valid session token, /v1/action/verify reaches the gate and returns 200."""
+        with patch.dict(os.environ, {
+            "GATE_API_SECRET": "phase0-test-secret-min-32-chars-xx",
+            "JWT_SECRET": "phase0-jwt-test-secret-min-16-ch",
+            "AUDIT_HMAC_SECRET": "phase0-audit-hmac-secret-min-32x",
+        }):
+            from fastapi.testclient import TestClient
+            from backend.main import app
+            client = TestClient(app, raise_server_exceptions=False)
+            # Init a task first
+            init_resp = client.post("/v1/task/init", json={
+                "instruction": "Book economy Chennai to Delhi",
+                "origin": "Chennai",
+                "destination": "Delhi",
+            })
+            assert init_resp.status_code == 201
+            task_id = init_resp.json()["task_id"]
+            session_token = init_resp.json()["session_token"]
+            headers = {"Authorization": f"Bearer {session_token}", "X-Task-Id": task_id}
 
-                # Verify an action — should reach the gate (not 401)
-                resp = client.post("/v1/action/verify", json={
+            # Verify an action — should reach the gate (not 401)
+            resp = client.post(
+                "/v1/action/verify",
+                json={
                     "task_id": task_id,
                     "action": {"type": "TYPE", "selector": "#origin", "value": "Chennai"},
                     "dom_snapshot": "Flight search form.",
                     "page_url": "http://127.0.0.1:8000/search",
-                })
-                assert resp.status_code == 200, \
-                    f"Expected 200, got {resp.status_code}: {resp.text[:300]}"
-        finally:
-            _ga.gate_auth_enabled = original
+                },
+                headers=headers,
+            )
+            assert resp.status_code == 200, \
+                f"Expected 200, got {resp.status_code}: {resp.text[:300]}"
 
 
 # ===========================================================================
@@ -373,20 +374,17 @@ class TestGateTokens:
             token = base64.urlsafe_b64encode(payload).rstrip(b"=").decode()
             assert ga.verify_session_token(token, "task-exp") is False
 
-    def test_auth_disabled_skips_all_checks(self):
-        """When gate_auth_enabled=False the dependency returns task_id unchecked."""
-        import backend.api.gate_auth as ga
-        original = ga.gate_auth_enabled
-        try:
-            ga.gate_auth_enabled = False
-            # Mock the FastAPI Request and Header
+    def test_auth_mandatory_cannot_be_bypassed(self):
+        """Auth is mandatory: missing token always raises 401 even if GATE_AUTH_ENABLED=false."""
+        with self._env(), patch.dict(os.environ, {"GATE_AUTH_ENABLED": "false"}):
+            import backend.api.gate_auth as ga
             from unittest.mock import MagicMock
+            from fastapi import HTTPException
             req = MagicMock()
             req.headers = {}
-            result = ga.require_gate_token(req, None, "any-task-id")
-            assert result == "any-task-id"
-        finally:
-            ga.gate_auth_enabled = original
+            with pytest.raises(HTTPException) as exc_info:
+                ga.require_gate_token(req, None, "any-task-id")
+            assert exc_info.value.status_code == 401
 
 
 # ===========================================================================

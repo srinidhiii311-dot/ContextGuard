@@ -39,8 +39,8 @@ from fastapi import Header, HTTPException, Request, status
 # Configuration
 # ---------------------------------------------------------------------------
 
-# Set gate_auth_enabled=False only in tests / local dev; never in production.
-gate_auth_enabled: bool = os.getenv("GATE_AUTH_ENABLED", "true").lower() not in ("0", "false", "no")
+# Auth is mandatory on every route (GATE_AUTH_ENABLED bypass removed).
+gate_auth_enabled: bool = True
 
 _SECRET_MIN_LEN = 32
 _TOKEN_TTL_SEC  = int(os.getenv("GATE_TOKEN_TTL", "3600"))
@@ -60,9 +60,9 @@ _ALLOWED_ORIGINS: frozenset[str] = (
 
 
 def _get_secret() -> str:
-    """Return GATE_API_SECRET from the environment.  Raises if absent or too short when auth is on."""
+    """Return GATE_API_SECRET from the environment. Raises if absent or too short."""
     secret = os.getenv("GATE_API_SECRET", "")
-    if gate_auth_enabled and len(secret) < _SECRET_MIN_LEN:
+    if len(secret) < _SECRET_MIN_LEN:
         raise RuntimeError(
             f"GATE_API_SECRET must be at least {_SECRET_MIN_LEN} characters. "
             "Set it in the environment before starting the server."
@@ -155,22 +155,16 @@ def require_gate_token(
     x_task_id: Optional[str] = Header(None, alias="X-Task-Id"),
 ) -> str:
     """
-    FastAPI Depends() guard for /v1/* endpoints.
+    FastAPI Depends() guard for /v1/* endpoints. Mandatory on all protected routes.
 
     Validates:
       1. Origin/Referer header (DNS-rebinding check).
-      2. Authorization: Bearer <token> header present.
-      3. Token is valid for the task_id supplied in X-Task-Id.
+      2. Authorization: Bearer <token> header present and non-empty (401 on failure).
+      3. Token is valid, unexpired, and matches task_id (403 on failure).
 
     Returns the validated task_id on success.
-    Raises HTTP 401/403 on any failure.
-
-    When gate_auth_enabled=False (local dev), skips all checks and returns
-    the X-Task-Id header value unchanged.
+    Raises HTTP 401 on missing/empty bearer token, HTTP 403 on invalid/expired/mismatched token.
     """
-    if not gate_auth_enabled:
-        return x_task_id or ""
-
     _check_origin(request)
 
     if not authorization or not authorization.startswith("Bearer "):
@@ -181,19 +175,34 @@ def require_gate_token(
         )
 
     token = authorization.removeprefix("Bearer ").strip()
-    task_id = x_task_id or ""
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Bearer token cannot be empty.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
+    path_task_id = None
+    if hasattr(request, "path_params") and request.path_params:
+        path_task_id = request.path_params.get("task_id")
+
+    if x_task_id and path_task_id and x_task_id != path_task_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="X-Task-Id header does not match path parameter task_id.",
+        )
+
+    task_id = x_task_id or path_task_id or ""
     if not task_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="X-Task-Id header is required alongside the Authorization header.",
+            detail="Task ID is required (via X-Task-Id header or URL path).",
         )
 
     if not verify_session_token(token, task_id):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session token.",
-            headers={"WWW-Authenticate": "Bearer"},
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid, expired, or task-mismatched session token.",
         )
 
     return task_id

@@ -110,15 +110,15 @@ class ActionVerifyResponse(BaseModel):
     step_number: int
     decision: str
     allowed: bool
-    risk_score: int
-    risk_tier: str
+    risk_score: Optional[int] = None
+    risk_tier: Optional[str] = None
     attack_type: Optional[str] = None
     characterization_label: Optional[str] = None
-    confidence: float = 0.0
-    deviation_signal: float = 0.0
+    confidence: Optional[float] = None
+    deviation_signal: Optional[float] = None
     reason: str
-    factor_breakdown: Dict[str, Any]
-    processing_ms: Dict[str, float]
+    factor_breakdown: Optional[Dict[str, Any]] = None
+    processing_ms: Optional[Dict[str, float]] = None
     total_latency_ms: float
 
 
@@ -187,11 +187,11 @@ def init_task(payload: TaskInitRequest) -> TaskInitResponse:
         trusted_intent=intent.to_dict(),
         created_at=created_at,
         # Phase 0: issue a per-session token held only by the browser wrapper
-        session_token=issue_session_token(task_id) if gate_auth_enabled else None,
+        session_token=issue_session_token(task_id),
     )
 
 
-@router.post("/action/verify", response_model=ActionVerifyResponse)
+@router.post("/action/verify", response_model=ActionVerifyResponse, response_model_exclude_none=True)
 def verify_action(
     payload: ActionVerifyRequest,
     _validated_task_id: str = Depends(require_gate_token),
@@ -272,13 +272,14 @@ def verify_action(
     # The agent only needs decision + allowed + reason + audit_id.
     # Exposing rule IDs, confidence and factor_breakdown lets an adversary
     # tune evasion against the specific rules that fired.
-    if gate_auth_enabled:
-        return ActionVerifyResponse(**strip_internals(full_response.model_dump()))
-    return full_response
+    return ActionVerifyResponse(**strip_internals(full_response.model_dump()))
 
 
 @router.get("/task/{task_id}/status", response_model=TaskStatusResponse)
-def get_task_status(task_id: str) -> TaskStatusResponse:
+def get_task_status(
+    task_id: str,
+    _validated_task_id: str = Depends(require_gate_token),
+) -> TaskStatusResponse:
     """Returns runtime execution counters and locked intent for a task."""
     gate = get_gate(task_id)
     if not gate:
@@ -301,6 +302,7 @@ def get_task_status(task_id: str) -> TaskStatusResponse:
 def get_task_audit_trail(
     task_id: str,
     limit: int = Query(100, ge=1, le=1000),
+    _validated_task_id: str = Depends(require_gate_token),
 ) -> List[Dict[str, Any]]:
     """Returns traceable append-only audit trail records for a task (FR21, FR23)."""
     from pathlib import Path
