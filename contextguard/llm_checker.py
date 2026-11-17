@@ -119,10 +119,15 @@ def provider_from_env() -> Optional[Provider]:
     return None
 
 
+UNTRUSTED_DELIM_RE = re.compile(r"(?i)(?:BEGIN|END)_UNTRUSTED[_\w]*")
+
+
 def build_prompt(intent: dict, action: dict, page_text: str,
                  max_chars: int = 4000) -> Tuple[str, str]:
     nonce = secrets.token_hex(8)
-    text = page_text[:max_chars].replace(f"_{nonce}", "")
+    sanitized = UNTRUSTED_DELIM_RE.sub("[STRIPPED_DELIMITER]", page_text)
+    truncated = sanitized[:max_chars]
+    text = UNTRUSTED_DELIM_RE.sub("[STRIPPED_DELIMITER]", truncated)
     system = SYSTEM_PROMPT.format(n=nonce)
     user = (f"USER INTENT:\n{json.dumps(intent, sort_keys=True)}\n\n"
             f"PROPOSED ACTION:\n{json.dumps(action, sort_keys=True)}\n\n"
@@ -163,9 +168,21 @@ def parse_verdict(raw: str) -> Tuple[bool, float, str]:
     if "consistent" in obj:
         c = obj["consistent"]
     elif "verdict" in obj:
-        c = str(obj.get("verdict", "")).upper() not in ("BLOCK", "BLOCK_OR_ASK", "REQUIRE_CONFIRMATION", "FLAG")
+        v_str = str(obj.get("verdict", "")).upper()
+        if v_str in ("ALLOW", "CONSISTENT"):
+            c = True
+        elif v_str in ("BLOCK", "BLOCK_OR_ASK", "REQUIRE_CONFIRMATION", "FLAG", "DENY", "INCONSISTENT"):
+            c = False
+        else:
+            raise ValueError(f"unrecognized verdict value: {obj.get('verdict')}")
     elif "decision" in obj:
-        c = str(obj.get("decision", "")).upper() not in ("BLOCK", "BLOCK_OR_ASK", "REQUIRE_CONFIRMATION", "FLAG")
+        d_str = str(obj.get("decision", "")).upper()
+        if d_str in ("ALLOW", "CONSISTENT"):
+            c = True
+        elif d_str in ("BLOCK", "BLOCK_OR_ASK", "REQUIRE_CONFIRMATION", "FLAG", "DENY", "INCONSISTENT"):
+            c = False
+        else:
+            raise ValueError(f"unrecognized decision value: {obj.get('decision')}")
     else:
         raise ValueError("'consistent' must be boolean")
     if not isinstance(c, bool):
