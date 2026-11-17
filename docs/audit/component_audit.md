@@ -277,15 +277,12 @@ The `frontend/pages/` directory has 7 subdirectories (`audit/`, `instruction/`, 
 ## 10. Command that reproduces development numbers
 
 ```bash
-python harness/run_dataset_ablation.py \
-    --config A \
-    --split dev \
-    --out runs/dev_config_A_<timestamp>.jsonl
+python analysis/leave_one_out_ablation.py
 ```
 
 Or via the benchmark harness:
 ```bash
-python -m harness.run_case --config A --split dev
+python -m harness.run_experiment --split dev --configs dual_gate --seeds 42
 ```
 
 The numbers 195/210 (attack recall), 0/70 (over-block), 0/400 (false positives) come from the `dev` split of the multi-domain dataset evaluated under Config A through H with `gate-frozen-v3.1`.
@@ -353,7 +350,7 @@ def __init__(
 | **README "Single-Domain" contradiction** | README abstract says 5 domains; limitation section (line 236) says "focused on airline reservation" | The limitation text is out of date from an earlier version | Update limitation section to reflect current 5-domain scope | `test_block3_datasets.py::test_every_domain_has_both_attack_and_benign` |
 | **Dashboard views** | `dashboard.html` reads real API data via fetch; `frontend/pages/` subdirectories are all empty | `frontend/pages/` empty dirs create dead-end routes | Either populate or remove empty page dirs from project | No test; manual check |
 | **Approvals fail-closed** | Timeout→DENIED, unauthorized→PermissionError, duplicate→ValueError, dual-approver enforced | No test for partial approval (1 of 2 approvers approved) followed by timeout | Add test: `test_partial_approval_then_timeout` | `tests/kit/test_audit_and_approvals.py` |
-| **Dev benchmark command** | `python harness/run_dataset_ablation.py --config A --split dev` | No single canonical one-liner documented in README for reproducing dev numbers | Add "Reproduce dev benchmark" section to README | `test_block5_experiments.py::test_mini_evaluation_pipeline` |
+| **Dev benchmark command** | `python analysis/leave_one_out_ablation.py` | Command produces 195/210 comp, 0/70 uncomp, 0/400 benign FP; results stored in `analysis/leave_one_out_ablation.json` | Document canonical command in README | `analysis/leave_one_out_ablation.py` |
 | **C5/C6 implementation** | C5: `EGRESS_IN_CONTENT` in `consistency_checker.py`; C6: `UNAUTHORIZED_IRREVERSIBLE_ACTION` in `consistency_checker.py` | C5/C6 are always-on (not gated by constructor flags); no per-call override possible | None for security; document as design choice (always-on is intentional for C5/C6) | `test_c5_egress_in_content.py`, `test_c6_irreversible_authorization.py` |
 | **Gate construction — flag survey** | `leave_one_out_ablation.py` is the only file varying C3/C4; all production paths use defaults | C3/C4 default state is implicitly relied on everywhere but never asserted | Add a test asserting default gate construction has C1–C4 all True | `test_config_loading.py` or new `test_gate_defaults` |
 
@@ -514,6 +511,191 @@ Section 10 and the Summary Table cited `python harness/run_dataset_ablation.py -
 python analysis/leave_one_out_ablation.py
 ```
 with ground truth results stored in `analysis/leave_one_out_ablation.json` under configuration `dual_gate`.
+
+---
+
+## 13. Intent path and dev command
+
+### 13a. Real Dev Benchmark Command and Source Citations
+
+The development benchmark metrics (195/210 compromised attack recall, 0/70 uncompromised over-block, 0/400 benign false positives, and 400/400 benign utility) are produced by:
+
+```bash
+python analysis/leave_one_out_ablation.py
+```
+
+#### Exact Citations Naming the Command
+1. **`claims.yaml` line 11** (and lines 28, 45, 62, 79):
+   ```yaml
+   source_file: analysis/leave_one_out_ablation.json
+   command: python analysis/leave_one_out_ablation.py
+   ```
+2. **`eval_results/numbers_ledger.csv` line 2** (and lines 3, 4, 5, 6):
+   ```csv
+   dev_v3_1_recall,92.86,195,210,gate-frozen-v3.1,v3,analysis/leave_one_out_ablation.json,python analysis/leave_one_out_ablation.py
+   ```
+3. **`reports/numbers_ledger.md` line 30** (and lines 31, 32, 33, 34):
+   ```markdown
+   | `dev_v3_1_recall` | Compromised Attack Recall | 195 / 210 | **92.86%** | [88.55%, 95.63%] | [83.33%, 100.00%] | `gate-frozen-v3.1` | `v3` | `analysis/leave_one_out_ablation.json` | `python -u analysis/leave_one_out_ablation.py` |
+   ```
+4. **`analysis/leave_one_out_ablation.py` lines 2, 20, 424**:
+   ```python
+   # analysis/leave_one_out_ablation.py — Dev Baselines & Leave-One-Out Ablations with Cluster Bootstrap
+   # - Writes analysis/leave_one_out_ablation.json
+   run_full_ablation()
+   ```
+5. **`harness/run_experiment.py` lines 10, 256**:
+   ```python
+   python -m harness.run_experiment --split dev --configs dual_gate no_gateway --seeds 42
+   ```
+   *Note*: `harness/run_experiment.py` writes output files directly to `runs/<config>_<seed>.jsonl` (`RUNS_DIR`), whereas `analysis/leave_one_out_ablation.py` writes strictly to `analysis/leave_one_out_ablation.json` and respects `$env:GATEWAY_AUDIT_LOG_PATH`.
+
+#### Verified Dev Execution Results
+When executed on the development split with `$env:GATEWAY_AUDIT_LOG_PATH = "C:\Users\Srinidhi R\scratch_a2\audit_scratch.jsonl"`:
+- **Compromised Intercepted**: **195 / 210** (92.86%)
+- **Uncompromised Blocked**: **0 / 70** (0.00%)
+- **Benign Blocked**: **0 / 400** (0.00% — Norm FP: 0/300, Hard FP: 0/100; Benign Utility: 400/400 = 100.0%)
+- **Audit Logs**: 0 bytes written to `runs/`; all audit entries redirected to scratch audit path.
+
+---
+
+### 13b. Exact Call Chain from Case Record to Gate Intent
+
+#### 1. Canonical Dev Command (`analysis/leave_one_out_ablation.py`)
+In `analysis/leave_one_out_ablation.py`:
+1. **Case loading** (`analysis/leave_one_out_ablation.py:199`):
+   ```python
+   cases.append(EvaluationCase.model_validate(json.loads(line)))
+   ```
+   Each case has its intent stored in the `case.locked_intent` dictionary.
+2. **Evaluation dispatch** (`analysis/leave_one_out_ablation.py:225`):
+   ```python
+   dec = evaluate_case(c, cfg, gw_cache)
+   ```
+3. **Intent construction** (`analysis/leave_one_out_ablation.py:68`):
+   ```python
+   intent = build_trusted_intent_from_dict(case.domain, case.locked_intent)
+   ```
+4. **Typed intent builder** (`harness/run_case.py:18-38` imported via `harness/configs.py:44`):
+   ```python
+   def build_trusted_intent_from_dict(domain: str, locked_dict: Dict[str, Any]) -> TrustedIntent:
+       d = domain.lower().strip()
+       extra = dict(locked_dict)
+       if d == "flight":
+           return TrustedIntent(
+               origin=locked_dict.get("origin", "Chennai"),
+               destination=locked_dict.get("destination", "Delhi"),
+               cabin_class=locked_dict.get("cabin_class", "Economy"),
+               passenger_count=int(locked_dict.get("passenger_count", 1)),
+               travel_date=locked_dict.get("travel_date"),
+               contact_email=locked_dict.get("contact_email"),
+               extra_fields=extra,
+           )
+       elif d == "email":
+           ...
+       else:
+           return TrustedIntent(extra_fields=extra)
+   ```
+5. **Gateway instantiation & intent binding** (`analysis/leave_one_out_ablation.py:145, 150`):
+   ```python
+   gw = Gateway.from_domain(domain=case.domain, trusted_intent=intent, ...)
+   # or
+   gw.set_intent(intent)
+   ```
+6. **Gateway loader injection** (`gateway/loader.py:142, 231-237`):
+   ```python
+   self.gate = ContextGuardGate(trusted_intent=trusted_intent, ...)
+   # or
+   self.gate.trusted_intent = trusted_intent
+   ```
+7. **Gate consumption** (`contextguard/gate.py:463-465, 691`):
+   `self.trusted_intent` is bound to `session.intent` and passed to `self._verifier.trusted_intent`.
+
+#### 2. Across All Paper Baselines and Configurations
+
+| Baseline / Config | How Intent is Built | Reaches `eval_adapter._build_intent` Fallback? | File : Line Reference |
+| :--- | :--- | :---: | :--- |
+| **B0 (`no_gateway`)** | No intent needed (unconditional passthrough `allow`) | **No** | `harness/configs.py:330-333` |
+| **B1 (`taxonomy_block`)** | Scans visible text/HTML/action with `TAXONOMY_REGEX`; no gate intent used | **No** | `analysis/leave_one_out_ablation.py:84-86`, `harness/configs.py:335-339` |
+| **B1b (`taxonomy_warn`)** | Scans visible text/HTML/action with `TAXONOMY_REGEX`; no gate intent used | **No** | `analysis/leave_one_out_ablation.py:88-91`, `harness/configs.py:341-345` |
+| **B2 (`consistency_only`)** | Calls `build_trusted_intent_from_dict(case.domain, case.locked_intent)` directly | **No** | `analysis/leave_one_out_ablation.py:68, 98`, `harness/configs.py:312, 351` |
+| **B3 (`tool_allowlist`)** | Checks action target against `DOMAIN_ALLOWLISTS[case.domain]`; no gate intent | **No** | `harness/configs.py:377-380` |
+| **LLM-Judge (`llm_judge_only`)** | Calls `build_judge_prompt(case.locked_intent, action_dict)` reading `locked_intent` directly | **No** | `analysis/block12_baselines.py:73`, `harness/configs.py:408` |
+| **Regex-Only (`regex_only`)** | Regex string scan; no gate intent used | **No** | `harness/configs.py:365-373` |
+| **Config A (`dual_gate`)** | Calls `build_trusted_intent_from_dict(case.domain, case.locked_intent)` | **No** | `analysis/leave_one_out_ablation.py:68, 150`, `harness/configs.py:312` |
+| **Config B (`no_risk_engine`)** | Calls `build_trusted_intent_from_dict(case.domain, case.locked_intent)` | **No** | `analysis/leave_one_out_ablation.py:68, 114`, `harness/configs.py:312` |
+| **Config C (`no_characterizer`)** | Calls `build_trusted_intent_from_dict(case.domain, case.locked_intent)` | **No** | `analysis/leave_one_out_ablation.py:68, 150`, `harness/configs.py:312` |
+| **Config D (`no_c1`..`no_c6`)** | Calls `build_trusted_intent_from_dict(case.domain, case.locked_intent)` | **No** | `analysis/leave_one_out_ablation.py:68, 150`, `harness/configs.py:312` |
+| **Config E (`dual_gate_chain`)** | Calls `build_trusted_intent_from_dict(case.domain, case.locked_intent)` with chain detector | **No** | `harness/configs.py:312, 388` |
+| **Config H (`dual_gate_llm`)** | Calls `build_trusted_intent_from_dict(case.domain, case.locked_intent)` with LLM checker | **No** | `harness/configs.py:312, 395` |
+
+---
+
+### 13c. Measurement: Fallback Hits per Configuration
+
+A wrapper around `eval_adapter._build_intent` was executed over the full 680 dev cases (`attacks/dev/cases.jsonl` + `benign/dev/cases.jsonl`) using the canonical execution path with `$env:GATEWAY_AUDIT_LOG_PATH` configured:
+
+| Configuration | Total Cases | `eval_adapter._build_intent` Calls | Fallback Hits |
+| :--- | :---: | :---: | :---: |
+| `dual_gate (Config A)` | 680 | 0 | **0** |
+| `taxonomy_block (B1)` | 680 | 0 | **0** |
+| `taxonomy_warn (B1b)` | 680 | 0 | **0** |
+| `consistency_only (B2)` | 680 | 0 | **0** |
+| `dual_gate_no_risk_engine (Config B)` | 680 | 0 | **0** |
+| `dual_gate_no_characterizer (Config C)` | 680 | 0 | **0** |
+| `dual_gate_no_c1 (Config D1)` | 680 | 0 | **0** |
+| `dual_gate_no_c2 (Config D2)` | 680 | 0 | **0** |
+| `dual_gate_no_c3 (Config D3)` | 680 | 0 | **0** |
+| `dual_gate_no_c4 (Config D4)` | 680 | 0 | **0** |
+| `dual_gate_no_c5 (Config D5)` | 680 | 0 | **0** |
+| `dual_gate_no_c6 (Config D6)` | 680 | 0 | **0** |
+
+*Root Cause Analysis*: `eval_adapter._build_intent` checks `item.get("intent") or item.get("trusted_intent")`. All 680 dev cases store intent under `locked_intent`. If dev cases were passed directly to `eval_adapter._build_intent`, 680/680 (100%) would fall back to Chennai/Delhi (`eval_data/default_intent.yaml`). However, the dev benchmark pipeline never calls `eval_adapter._build_intent`; it calls `build_trusted_intent_from_dict(case.domain, case.locked_intent)`, directly reading `locked_intent` with zero fallback occurrences.
+
+---
+
+### 13d. Analysis of `backend/browser_agent/agent.py` and `backend/contextguard/observer.py`
+
+#### 1. Decision Logic in `observer.evaluate`
+`backend/browser_agent/agent.py:221` calls:
+```python
+verdict = observer.evaluate(event, self.intent)
+```
+In `backend/contextguard/observer.py:30–55`:
+- **Does it call `ContextGuardGate`?** **NO.** `ContextGuardGate` is NOT imported, instantiated, or called anywhere in `observer.py`.
+- **Decision Logic Used Instead**:
+  1. **Feature Extraction** (`observer.py:38`):
+     ```python
+     features = FeatureExtractor.compute_all_features(event, trusted_intent)
+     ```
+  2. **Rule Evaluation** (`observer.py:41`):
+     ```python
+     rule_risk, threat_type, reasoning = RuleEngine.evaluate(features)
+     ```
+  3. **ML Risk Prediction** (`observer.py:44`):
+     ```python
+     ml_risk = ml_classifier.predict_risk(features)
+     ```
+  4. **Risk Combination** (`observer.py:48–51`):
+     ```python
+     if rule_risk >= 80.0:
+         combined_risk = max(rule_risk, round(rule_risk * 0.7 + ml_risk * 0.3, 1))
+     else:
+         combined_risk = round(rule_risk * 0.7 + ml_risk * 0.3, 1)
+     ```
+  5. **Policy Decision** (`observer.py:54`):
+     ```python
+     decision = PolicyEngine.decide(combined_risk)
+     ```
+
+#### 2. Threshold Comparison
+`observer.evaluate` does **NOT** use the same thresholds as `ContextGuardGate` or `PreActionGate`:
+
+| Pipeline | Engine / Class | ALLOW | WARN / SUSPICIOUS | PAUSE / REQUIRE_CONFIRMATION | BLOCK |
+| :--- | :--- | :---: | :---: | :---: | :---: |
+| **`browser_agent` (Observer)** | `backend.contextguard.policy.PolicyEngine` (lines 17–29) | `< 35.0` | `35.0 <= risk < 65.0` | `65.0 <= risk < 80.0` | `>= 80.0` |
+| **Benchmark Gate** | `contextguard.risk_engine.WeightedRiskEngine` (lines 49–50) | `< 30.0` (SAFE) | `30.0 <= risk < 60.0` (SUSPICIOUS) | `>= 60.0` (HIGH_RISK) | `>= 85.0` (or booking-critical) |
+| **`web_agent` (PreActionGate)** | `contextguard.pre_action_gate.PreActionGate` (lines 53–54) | `< 40.0` | `40.0 <= risk < 75.0` | `>= 75.0` (or consequential `>= 60`) | `>= 90.0` (or consequential `>= 80`) |
 
 ---
 
