@@ -92,7 +92,8 @@ class BrowserAgent:
         else:
             intent_dict = self.intent.to_dict() if hasattr(self.intent, "to_dict") else dict(self.intent)
             gate_intent = GateTrustedIntent.from_dict(intent_dict)
-            self.gate = ContextGuardGate(trusted_intent=gate_intent, task_id=self.session_id)
+            from gateway.loader import Gateway
+            self.gate = Gateway.from_domain("flight", trusted_intent=gate_intent, task_id=self.session_id).gate
 
     async def run(self) -> Dict[str, Any]:
         """Runs the autonomous booking flow across all steps."""
