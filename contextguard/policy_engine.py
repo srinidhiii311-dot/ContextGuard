@@ -45,9 +45,9 @@ class PolicyEngine:
 
     def __init__(
         self,
-        allow_threshold: float = 35.0,
+        allow_threshold: float = 30.0,
         warn_threshold: float = 60.0,
-        pause_threshold: float = 80.0,
+        pause_threshold: float = 85.0,
         escalation_threshold: int = 2,
     ) -> None:
         self.allow_threshold = float(allow_threshold)

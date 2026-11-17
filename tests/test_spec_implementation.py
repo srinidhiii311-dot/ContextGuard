@@ -282,6 +282,7 @@ class TestContextGuardSpecImplementation(unittest.TestCase):
         )
         verdict_benign = observer.evaluate(benign_event, intent)
         self.assertEqual(verdict_benign.decision, "ALLOW")
+        self.assertTrue(verdict_benign.advisory)
         self.assertLess(verdict_benign.risk_score, 35.0)
 
         # Injected Cabin Tamper (Prompt Injection) -> BLOCK, risk >= 80
@@ -296,6 +297,7 @@ class TestContextGuardSpecImplementation(unittest.TestCase):
         )
         verdict_tamper = observer.evaluate(tamper_event, intent)
         self.assertEqual(verdict_tamper.decision, "BLOCK")
+        self.assertTrue(verdict_tamper.advisory)
         self.assertGreaterEqual(verdict_tamper.risk_score, 80.0)
         self.assertIn("Cabin class override", verdict_tamper.reasoning)
 
@@ -310,17 +312,95 @@ class TestContextGuardSpecImplementation(unittest.TestCase):
         )
         verdict_nav = observer.evaluate(nav_event, intent)
         self.assertEqual(verdict_nav.decision, "BLOCK")
+        self.assertTrue(verdict_nav.advisory)
         self.assertEqual(verdict_nav.threat_type, "external_untrusted_navigation")
 
+    def test_04b_observer_advisory_observer_block_gate_allow_proceeds(self):
+        """Observer says BLOCK (advisory), but gate says ALLOW -> action proceeds."""
+        import asyncio
+        from unittest.mock import MagicMock
+        from backend.browser_agent.agent import BrowserAgent
+        from contextguard.gate import GateResult, Decision as GateDecision
+
+        intent = TrustedIntent(origin="Chennai", destination="Bangalore", cabin_class="Economy", passenger_count=1)
+        mock_gate = MagicMock()
+        mock_gate.check.return_value = GateResult(
+            decision=GateDecision.ALLOW,
+            reason="Explicit gate allow",
+            risk_score=10,
+        )
+
+        agent = BrowserAgent(
+            session_id="sess-adv-allow",
+            session_token="tok_test_allow",
+            trusted_intent=intent,
+            speed=0.01,
+            gate=mock_gate,
+        )
+        with unittest.mock.patch("backend.browser_agent.agent.observer.evaluate") as mock_obs:
+            mock_obs.return_value = MagicMock(
+                decision="BLOCK",
+                risk_score=95.0,
+                threat_type="prompt_injection",
+                reasoning="Injected override detected by observer",
+                latency_ms=1.0,
+                feature_breakdown={},
+                advisory=True,
+            )
+            result = asyncio.run(agent.run())
+
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(result["final_decision"], "ALLOW")
+        self.assertEqual(result["total_steps"], 10)
+
+    def test_04c_observer_advisory_gate_block_observer_allow_halts(self):
+        """Gate says BLOCK, but observer says ALLOW (advisory) -> action halts and does not execute."""
+        import asyncio
+        from unittest.mock import MagicMock
+        from backend.browser_agent.agent import BrowserAgent
+        from contextguard.gate import GateResult, Decision as GateDecision
+
+        intent = TrustedIntent(origin="Chennai", destination="Bangalore", cabin_class="Economy", passenger_count=1)
+        mock_gate = MagicMock()
+        mock_gate.check.return_value = GateResult(
+            decision=GateDecision.BLOCK,
+            reason="Blocked by pre-action gate",
+            risk_score=95,
+            attack_type="malicious_intent",
+        )
+
+        agent = BrowserAgent(
+            session_id="sess-adv-block",
+            session_token="tok_test_block",
+            trusted_intent=intent,
+            speed=0.01,
+            gate=mock_gate,
+        )
+        with unittest.mock.patch("backend.browser_agent.agent.observer.evaluate") as mock_obs:
+            mock_obs.return_value = MagicMock(
+                decision="ALLOW",
+                risk_score=10.0,
+                threat_type=None,
+                reasoning="Observer found no issue",
+                latency_ms=1.0,
+                feature_breakdown={},
+                advisory=True,
+            )
+            result = asyncio.run(agent.run())
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["final_decision"], "BLOCK")
+        self.assertEqual(result["halted_step"], 1)
+
     def test_05_policy_thresholds(self):
-        """Verify policy engine mappings: ALLOW < 35, WARN < 65, PAUSE < 80, BLOCK >= 80."""
+        """Verify policy engine mappings: ALLOW < 30, WARN < 60, PAUSE < 85, BLOCK >= 85."""
         self.assertEqual(PolicyEngine.decide(15.0), "ALLOW")
-        self.assertEqual(PolicyEngine.decide(34.9), "ALLOW")
-        self.assertEqual(PolicyEngine.decide(35.0), "WARN")
-        self.assertEqual(PolicyEngine.decide(64.9), "WARN")
-        self.assertEqual(PolicyEngine.decide(65.0), "PAUSE")
-        self.assertEqual(PolicyEngine.decide(79.9), "PAUSE")
-        self.assertEqual(PolicyEngine.decide(80.0), "BLOCK")
+        self.assertEqual(PolicyEngine.decide(29.9), "ALLOW")
+        self.assertEqual(PolicyEngine.decide(30.0), "WARN")
+        self.assertEqual(PolicyEngine.decide(59.9), "WARN")
+        self.assertEqual(PolicyEngine.decide(60.0), "PAUSE")
+        self.assertEqual(PolicyEngine.decide(84.9), "PAUSE")
+        self.assertEqual(PolicyEngine.decide(85.0), "BLOCK")
         self.assertEqual(PolicyEngine.decide(95.0), "BLOCK")
 
     def test_06_api_endpoints_contracts(self):

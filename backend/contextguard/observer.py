@@ -90,6 +90,7 @@ class ContextGuardObserver:
                 "injection_risk": features["injection_risk"],
                 "field_tampering_risk": features["field_tampering_risk"],
             },
+            advisory=True,
         )
 
 

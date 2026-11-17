@@ -29,6 +29,12 @@ from backend.contextguard.observer import observer
 from backend.db.models import SessionControllerDAO
 from backend.events.bus import event_bus
 from shared.schemas.schemas import BrowserEvent, ProposedAction, TrustedIntent
+from contextguard.gate import (
+    ContextGuardGate,
+    Decision as GateDecision,
+    ProposedAction as GateProposedAction,
+    TrustedIntent as GateTrustedIntent,
+)
 
 SCREENSHOTS_DIR = Path(__file__).parent.parent.parent / "screenshots"
 SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -70,6 +76,7 @@ class BrowserAgent:
         base_url: str = "http://127.0.0.1:8000/app",
         speed: float = 1.2,
         headless: bool = False,
+        gate: Optional[ContextGuardGate] = None,
     ) -> None:
         self.session_id = session_id
         self.session_token = session_token
@@ -80,6 +87,12 @@ class BrowserAgent:
         self.seq = 0
         self.current_url = self.base_url
         self.is_running = True
+        if gate is not None:
+            self.gate = gate
+        else:
+            intent_dict = self.intent.to_dict() if hasattr(self.intent, "to_dict") else dict(self.intent)
+            gate_intent = GateTrustedIntent.from_dict(intent_dict)
+            self.gate = ContextGuardGate(trusted_intent=gate_intent, task_id=self.session_id)
 
     async def run(self) -> Dict[str, Any]:
         """Runs the autonomous booking flow across all steps."""
@@ -217,11 +230,22 @@ class BrowserAgent:
                 rendered_step=current_page_name,
             )
 
-            # 3. Blind ContextGuard Evaluation
+            # 3. Advisory ContextGuard Observer Evaluation (telemetry & monitoring only)
             verdict = observer.evaluate(event, self.intent)
-            final_decision = verdict.decision
 
-            # 4. Broadcast event + verdict to WebSocket
+            # 4. Canonical Pre-Action Gate Verification (authoritative enforcement)
+            gate_proposed = GateProposedAction(
+                action_type=proposed.type,
+                target=proposed.target,
+                value=proposed.value,
+                page_url=step_url,
+                task_id=self.session_id,
+                session_id=self.session_id,
+            )
+            gate_res = self.gate.check(gate_proposed, current_dom_text=dom_text, session_id=self.session_id)
+            final_decision = gate_res.decision.value
+
+            # 5. Broadcast event + advisory verdict + gate result to WebSocket
             event_bus.broadcast_sync(self.session_id, {
                 "seq": self.seq,
                 "ts": event.ts,
@@ -233,21 +257,24 @@ class BrowserAgent:
                 "risk_score": verdict.risk_score,
                 "threat_type": verdict.threat_type,
                 "decision": verdict.decision,
-                "reasoning": verdict.reasoning,
+                "advisory": getattr(verdict, "advisory", True),
+                "gate_decision": gate_res.decision.value,
+                "gate_risk_score": gate_res.risk_score,
+                "reasoning": gate_res.reason or verdict.reasoning,
                 "latency_ms": verdict.latency_ms,
                 "feature_breakdown": verdict.feature_breakdown,
                 "screenshot_ref": rel_screenshot_ref,
             })
 
-            # 5. Enforce Policy Decision
-            if verdict.decision == "BLOCK":
+            # 6. Authoritative Policy Enforcement via Gate
+            if gate_res.decision == GateDecision.BLOCK:
                 # Immediately halt agent loop and freeze session state
-                session_state_store.halt_session(self.session_id, verdict.reasoning)
+                session_state_store.halt_session(self.session_id, gate_res.reason)
                 SessionControllerDAO.update_session_status(self.session_id, "blocked", final_decision="BLOCK")
                 event_bus.broadcast_sync(self.session_id, {
                     "type": "session_blocked",
                     "session_id": self.session_id,
-                    "reason": verdict.reasoning,
+                    "reason": gate_res.reason,
                     "rendered_step": current_page_name,
                 })
                 self.is_running = False
@@ -256,17 +283,17 @@ class BrowserAgent:
                     "status": "blocked",
                     "final_decision": "BLOCK",
                     "halted_step": self.seq,
-                    "threat_type": verdict.threat_type,
+                    "threat_type": gate_res.attack_type,
                 }
 
-            elif verdict.decision == "PAUSE":
+            elif gate_res.decision in (GateDecision.REQUIRE_CONFIRMATION, GateDecision.PAUSE_TASK):
                 # Operator resolution required: block on asyncio.Event until resume/deny
                 SessionControllerDAO.update_session_status(self.session_id, "paused", final_decision="PAUSE")
                 pause_event = register_pause_handler(self.session_id)
                 event_bus.broadcast_sync(self.session_id, {
                     "type": "session_paused",
                     "session_id": self.session_id,
-                    "reason": verdict.reasoning,
+                    "reason": gate_res.reason,
                     "rendered_step": current_page_name,
                 })
 
@@ -303,7 +330,7 @@ class BrowserAgent:
                         "halted_step": self.seq,
                     }
 
-            elif verdict.decision == "WARN":
+            elif gate_res.decision in (GateDecision.ALLOW_WITH_FLAG, GateDecision.FLAG):
                 # Non-blocking: warning logged and surfaced, agent proceeds
                 pass
 

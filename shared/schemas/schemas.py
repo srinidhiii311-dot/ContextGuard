@@ -67,6 +67,7 @@ class Verdict(BaseModel):
     reasoning: str                               # human readable explanation
     latency_ms: float = 0.0
     feature_breakdown: Optional[Dict[str, float]] = None
+    advisory: bool = True
 
 
 class SessionCreateRequest(BaseModel):

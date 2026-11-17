@@ -455,6 +455,7 @@ class AutonomousWebAgent:
                     action=proposed_action,
                     current_url=current_url,
                     current_page_name=current_page_name,
+                    page_text=dom_text,
                 )
                 results["precheck_decisions"].append({
                     "step": step,

@@ -60,6 +60,7 @@ class ContextGuardSession:
         action: Dict[str, Any],
         current_url: str = "",
         current_page_name: str = "search",
+        page_text: str = "",
     ) -> PreCheckResult:
         """
         Step A: Pre-Action Safety Gate.
@@ -75,6 +76,7 @@ class ContextGuardSession:
             action=action,
             current_url=current_url,
             current_page_name=current_page_name,
+            page_text=page_text,
         )
 
         latency_ms = (time.perf_counter() - t0) * 1000

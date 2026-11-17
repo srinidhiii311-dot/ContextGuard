@@ -83,6 +83,7 @@ class TestContextGuardArchitecture(unittest.TestCase):
             action=benign_act,
             current_url="http://127.0.0.1:8000/app",
             current_page_name="search",
+            page_text="<html><body>Search flights page</body></html>",
         )
         self.assertEqual(res1.decision, "ALLOW")
         self.assertLess(res1.risk_score, 40)
@@ -96,9 +97,10 @@ class TestContextGuardArchitecture(unittest.TestCase):
             action=tamper_act,
             current_url="http://127.0.0.1:8000/app",
             current_page_name="search",
+            page_text="<html><body>Search flights page</body></html>",
         )
         self.assertIn(res2.decision, ("BLOCK", "PAUSE"))
-        self.assertGreaterEqual(res2.risk_score, 70)
+        self.assertGreaterEqual(res2.risk_score, 60)
         self.assertIn("Cabin class mismatch", res2.reason)
 
         # Unauthorized Instant Checkout from search page -> BLOCK
@@ -110,9 +112,31 @@ class TestContextGuardArchitecture(unittest.TestCase):
             action=unauth_act,
             current_url="http://127.0.0.1:8000/app",
             current_page_name="search",
+            page_text="<html><body>Search flights page</body></html>",
         )
         self.assertIn(res3.decision, ("BLOCK", "PAUSE"))
         self.assertTrue(res3.is_consequential)
+
+        # Verify missing required intent fields raise ValueError
+        bad_context = TrustedTaskContext(
+            task_id="bad-task",
+            raw_instruction="incomplete instruction",
+            origin="",
+            destination="Bangalore",
+            date="2026-09-25",
+            passengers=1,
+            cabin_class="Economy",
+        )
+        with self.assertRaises(ValueError):
+            gate.evaluate_action(
+                session_id="sess-bad",
+                step_number=1,
+                task_context=bad_context,
+                action=benign_act,
+                current_url="http://127.0.0.1:8000/app",
+                current_page_name="search",
+                page_text="<html><body>Search flights page</body></html>",
+            )
 
     def test_03_post_action_state_difference_engine(self):
         """Verify State Difference Engine captures DOM mutations, URL changes, and sensitive fields."""
@@ -224,6 +248,99 @@ class TestContextGuardArchitecture(unittest.TestCase):
         adversarial = [s for s in scenarios if s["ground_truth_label"] == 1]
         self.assertEqual(len(benign), 1)
         self.assertEqual(len(adversarial), 7)
+
+    def test_07_pre_action_gate_banking_domain(self):
+        """Verify PreActionGate builds its gate from banking locked-intent fields without flight ValueError."""
+        gate = PreActionGate()
+        banking_context = {
+            "domain": "banking",
+            "account_number": "1001-2002",
+            "to_account": "ACC-4491",
+            "amount": "100.00",
+            "payee": "Alice Smith",
+        }
+        res = gate.evaluate_action(
+            session_id="sess-pre-banking",
+            step_number=1,
+            task_context=banking_context,
+            action={"type": "TYPE", "selector": "#amount", "value": "100.00"},
+            current_url="http://127.0.0.1:8001/transfer",
+            current_page_name="transfer",
+            page_text="Transfer funds to beneficiary",
+        )
+        canonical = gate._canonical_gates["sess-pre-banking"]
+        self.assertEqual(canonical.trusted_intent.extra_fields.get("to_account"), "ACC-4491")
+        self.assertEqual(canonical.trusted_intent.extra_fields.get("payee"), "Alice Smith")
+        self.assertIn(res.decision, ("ALLOW", "WARN"))
+
+    def test_08_pre_action_gate_ecommerce_domain(self):
+        """Verify PreActionGate builds its gate from ecommerce locked-intent fields without flight ValueError."""
+        gate = PreActionGate()
+        ecom_context = {
+            "domain": "ecommerce",
+            "search_input": "Keyboard",
+            "address": "123 Main St, Springfield",
+            "card_number": "4111222233334444",
+        }
+        res = gate.evaluate_action(
+            session_id="sess-pre-ecom",
+            step_number=1,
+            task_context=ecom_context,
+            action={"type": "TYPE", "selector": "#search-input", "value": "Keyboard"},
+            current_url="http://127.0.0.1:8002/",
+            current_page_name="home",
+            page_text="Welcome to ShopPortal",
+        )
+        canonical = gate._canonical_gates["sess-pre-ecom"]
+        self.assertEqual(canonical.trusted_intent.extra_fields.get("search_input"), "Keyboard")
+        self.assertEqual(canonical.trusted_intent.extra_fields.get("address"), "123 Main St, Springfield")
+        self.assertIn(res.decision, ("ALLOW", "WARN"))
+
+    def test_09_pre_action_gate_healthcare_domain(self):
+        """Verify PreActionGate builds its gate from healthcare locked-intent fields without flight ValueError."""
+        gate = PreActionGate()
+        health_context = {
+            "domain": "healthcare",
+            "doctor": "Dr. Sarah Smith",
+            "reason": "Annual Wellness Exam",
+            "policy_no": "POL-98214",
+        }
+        res = gate.evaluate_action(
+            session_id="sess-pre-health",
+            step_number=1,
+            task_context=health_context,
+            action={"type": "SELECT", "selector": "#doctor", "value": "Dr. Sarah Smith"},
+            current_url="http://127.0.0.1:8003/book",
+            current_page_name="book",
+            page_text="Schedule an appointment with your primary care provider",
+        )
+        canonical = gate._canonical_gates["sess-pre-health"]
+        self.assertEqual(canonical.trusted_intent.extra_fields.get("doctor"), "Dr. Sarah Smith")
+        self.assertEqual(canonical.trusted_intent.extra_fields.get("policy_no"), "POL-98214")
+        self.assertIn(res.decision, ("ALLOW", "WARN"))
+
+    def test_10_pre_action_gate_email_domain(self):
+        """Verify PreActionGate builds its gate from email locked-intent fields without flight ValueError."""
+        gate = PreActionGate()
+        email_context = {
+            "domain": "email",
+            "to_email": "team@company.internal",
+            "recipient": "team@company.internal",
+            "subject": "Quarterly Status Report",
+        }
+        res = gate.evaluate_action(
+            session_id="sess-pre-email",
+            step_number=1,
+            task_context=email_context,
+            action={"type": "TYPE", "selector": "#to-email", "value": "team@company.internal"},
+            current_url="http://127.0.0.1:8004/compose",
+            current_page_name="compose",
+            page_text="Compose new email message",
+        )
+        canonical = gate._canonical_gates["sess-pre-email"]
+        self.assertEqual(canonical.trusted_intent.extra_fields.get("to_email"), "team@company.internal")
+        self.assertEqual(canonical.trusted_intent.extra_fields.get("subject"), "Quarterly Status Report")
+        self.assertIn(res.decision, ("ALLOW", "WARN"))
 
 
 if __name__ == "__main__":

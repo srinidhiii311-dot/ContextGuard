@@ -334,3 +334,52 @@ def test_every_pack_schema_field_is_read_by_gate():
     assert crit_mapping is not None
     assert crit_mapping["booking_critical"] is True
     assert crit_mapping["action_sensitivity"] >= 0.85
+
+
+def test_build_trusted_intent_never_leaks_flight_defaults_to_other_domains():
+    """
+    Step 2 verification: For banking, ecommerce, email, and healthcare,
+    verify that build_trusted_intent_from_dict yields the real domain fields
+    from locked_intent and never leaks the flight defaults (Chennai/Delhi).
+    """
+    import json
+    from harness.run_case import build_trusted_intent_from_dict
+
+    # 1. Synthetic checks for all non-flight domains
+    domain_samples = {
+        "banking": {"amount": "5000", "account_number": "1234-5678", "payee": "Alice"},
+        "ecommerce": {"search_input": "Laptop", "address": "456 Elm St", "card_number": "4111"},
+        "email": {"recipient": "boss@corp.com", "subject": "Urgent", "to_email": "boss@corp.com"},
+        "healthcare": {"doctor": "Dr. House", "reason": "Consultation", "policy_no": "MED-111"},
+    }
+
+    for domain, locked in domain_samples.items():
+        intent = build_trusted_intent_from_dict(domain, locked)
+        assert intent.origin != "Chennai", f"{domain} leaked 'Chennai' default for origin!"
+        assert intent.destination != "Delhi", f"{domain} leaked 'Delhi' default for destination!"
+        assert intent.extra_fields is not None
+        for k, v in locked.items():
+            assert intent.extra_fields.get(k) == v, f"{domain} missing field '{k}' in extra_fields!"
+
+    # 2. Dataset record validation: all non-flight cases in dev datasets
+    for split_path in [ROOT_DIR / "attacks" / "dev" / "cases.jsonl", ROOT_DIR / "benign" / "dev" / "cases.jsonl"]:
+        if not split_path.exists():
+            continue
+        with open(split_path, "r", encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                case = json.loads(line)
+                d = case.get("domain", "").lower().strip()
+                if d in ("banking", "ecommerce", "email", "healthcare"):
+                    locked = case.get("locked_intent", {})
+                    intent = build_trusted_intent_from_dict(d, locked)
+                    # Non-flight records must never get Chennai/Delhi defaults unless locked_intent literally specifies them
+                    if "origin" not in locked:
+                        assert intent.origin != "Chennai", f"Case {case.get('case_id')} in {d} leaked Chennai origin default"
+                    if "destination" not in locked:
+                        assert intent.destination != "Delhi", f"Case {case.get('case_id')} in {d} leaked Delhi destination default"
+                    # Real domain fields must be preserved in extra_fields
+                    for k, v in locked.items():
+                        assert intent.extra_fields.get(k) == v, f"Case {case.get('case_id')} in {d} missing extra_field '{k}'"
+
