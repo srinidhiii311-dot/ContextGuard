@@ -91,9 +91,9 @@ def test_expired_token_returns_403():
     import secrets as _sec
     nonce = _sec.token_hex(16)
     expiry = int(time.time()) - 100
-    msg = f"task-1:{nonce}:{expiry}".encode()
-    sig = hmac.new(TEST_SECRET.encode(), msg, hashlib.sha256).digest()
-    payload = msg + b"|" + sig
+    msg = f"task-1:{nonce}:{expiry}"
+    sig = hmac.new(TEST_SECRET.encode(), msg.encode(), hashlib.sha256).hexdigest()
+    payload = f"{msg}|{sig}".encode()
     expired_token = base64.urlsafe_b64encode(payload).rstrip(b"=").decode()
 
     with pytest.raises(HTTPException) as exc_info:
@@ -206,3 +206,68 @@ def test_action_verify_response_strip_internals_round_trip():
     dumped = stripped_resp.model_dump(exclude_none=True)
     for field in ("risk_score", "risk_tier", "factor_breakdown", "processing_ms"):
         assert field not in dumped, f"Internal field '{field}' must not appear in model_dump(exclude_none=True)"
+
+
+# ---------------------------------------------------------------------------
+# 6. High-volume token reliability & tampering regression (no TestClient)
+# ---------------------------------------------------------------------------
+
+def test_issue_and_verify_5000_tokens_zero_failures():
+    """
+    Issue and verify 5000 tokens for varied task IDs and assert 0 failures.
+    Catches intermittent signature delimiter collision bugs.
+    """
+    import uuid
+
+    task_id_patterns = [
+        "simple-task",
+        "task_with_underscores_123",
+        "flight-search-chennai-to-delhi-001",
+        "ecommerce.order.checkout.999",
+        "banking:transfer-internal",
+        "email_inbox_clean_sweep",
+        "healthcare_patient_record_lookup",
+        "t",
+        "very-long-task-id-" + "x" * 64,
+    ]
+
+    failures = []
+    for i in range(5000):
+        base_tid = task_id_patterns[i % len(task_id_patterns)]
+        task_id = f"{base_tid}-{i}-{uuid.uuid4().hex[:8]}"
+        token = ga.issue_session_token(task_id)
+        if not ga.verify_session_token(token, task_id):
+            failures.append((i, task_id, token))
+
+    assert len(failures) == 0, f"Expected 0 verification failures across 5000 tokens, got {len(failures)}"
+
+
+def test_tampered_signature_fails_verification():
+    """Verify that any tampering with the signature portion causes verify_session_token to fail."""
+    task_id = "test-tamper-target"
+    token = ga.issue_session_token(task_id)
+
+    # Decode payload
+    padded = token + "=" * (-len(token) % 4)
+    raw = bytearray(base64.urlsafe_b64decode(padded))
+
+    # Signature starts after the "|" delimiter
+    sep_idx = raw.rfind(b"|")
+    assert sep_idx != -1
+
+    # Tamper with the first character of the signature
+    raw_tampered = bytearray(raw)
+    raw_tampered[sep_idx + 1] = ord("0") if raw_tampered[sep_idx + 1] != ord("0") else ord("1")
+    tampered_token = base64.urlsafe_b64encode(bytes(raw_tampered)).rstrip(b"=").decode()
+    assert ga.verify_session_token(tampered_token, task_id) is False
+
+    # Tamper with the last character of the signature
+    raw_tampered_last = bytearray(raw)
+    raw_tampered_last[-1] = ord("a") if raw_tampered_last[-1] != ord("a") else ord("b")
+    tampered_token_last = base64.urlsafe_b64encode(bytes(raw_tampered_last)).rstrip(b"=").decode()
+    assert ga.verify_session_token(tampered_token_last, task_id) is False
+
+    # Truncate signature
+    truncated_raw = raw[:sep_idx + 10]
+    truncated_token = base64.urlsafe_b64encode(bytes(truncated_raw)).rstrip(b"=").decode()
+    assert ga.verify_session_token(truncated_token, task_id) is False

@@ -83,9 +83,9 @@ def issue_session_token(task_id: str) -> str:
     secret  = _get_secret()
     nonce   = secrets.token_hex(16)
     expiry  = int(time.time()) + _TOKEN_TTL_SEC
-    msg     = f"{task_id}:{nonce}:{expiry}".encode()
-    sig     = hmac.new(secret.encode(), msg, hashlib.sha256).digest()
-    payload = f"{task_id}:{nonce}:{expiry}".encode() + b"|" + sig
+    msg     = f"{task_id}:{nonce}:{expiry}"
+    sig_hex = hmac.new(secret.encode(), msg.encode(), hashlib.sha256).hexdigest()
+    payload = f"{msg}|{sig_hex}".encode()
     return base64.urlsafe_b64encode(payload).rstrip(b"=").decode()
 
 
@@ -96,10 +96,10 @@ def verify_session_token(token: str, task_id: str) -> bool:
     """
     secret = _get_secret()
     try:
-        padded  = token + "=" * (-len(token) % 4)
-        raw     = base64.urlsafe_b64decode(padded)
-        msg_part, sig = raw.rsplit(b"|", 1)
-        parts = msg_part.decode().split(":")
+        padded = token + "=" * (-len(token) % 4)
+        raw = base64.urlsafe_b64decode(padded)
+        msg_part, sig_hex = raw.decode("utf-8").rsplit("|", 1)
+        parts = msg_part.rsplit(":", 2)
         if len(parts) != 3:
             return False
         tid, _nonce, expiry_str = parts
@@ -107,8 +107,8 @@ def verify_session_token(token: str, task_id: str) -> bool:
             return False
         if int(expiry_str) < int(time.time()):
             return False
-        expected = hmac.new(secret.encode(), msg_part, hashlib.sha256).digest()
-        return hmac.compare_digest(sig, expected)
+        expected_hex = hmac.new(secret.encode(), msg_part.encode(), hashlib.sha256).hexdigest()
+        return hmac.compare_digest(sig_hex, expected_hex)
     except Exception:
         return False
 
