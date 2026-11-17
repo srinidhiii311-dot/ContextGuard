@@ -104,6 +104,124 @@ def test_1_parity_gate_vs_pre_action_gate_on_dev_records():
     assert len(mismatches) == 0, f"Found {len(mismatches)} parity mismatches:\n" + "\n".join(mismatches[:10])
 
 
+def test_1b_strong_full_parity_across_all_paths():
+    """
+    Wiring and consistency test (not independent validation):
+    Verifies full parity across canonical gate, PreActionGate, and BrowserAgent paths.
+    Compares decision, continuous risk score, and hard-rule set on 50 attacks and 50 benign records.
+    """
+    cases = []
+    # Limit applied per file: exactly 50 attacks and 50 benign
+    for path in ["attacks/dev/cases.jsonl", "benign/dev/cases.jsonl"]:
+        p = Path(path)
+        if not p.exists():
+            continue
+        with open(p, "r", encoding="utf-8") as f:
+            file_count = 0
+            for line in f:
+                if line.strip():
+                    cases.append(EvaluationCase.model_validate(json.loads(line)))
+                    file_count += 1
+                    if file_count >= 50:
+                        break
+
+    assert len(cases) == 100, f"Expected 100 dev cases (50 attack + 50 benign), found {len(cases)}"
+
+    dec_map = {
+        Decision.BLOCK: "BLOCK",
+        Decision.PAUSE_TASK: "PAUSE",
+        Decision.REQUIRE_CONFIRMATION: "PAUSE",
+        Decision.ALLOW_WITH_FLAG: "WARN",
+        Decision.FLAG: "WARN",
+        Decision.ALLOW: "ALLOW",
+    }
+
+    pre_gate = PreActionGate()
+
+    for idx, case in enumerate(cases):
+        intent = build_trusted_intent_from_dict(case.domain, case.locked_intent)
+        p_act = ProposedAction(
+            action_type=case.proposed_action.action_type,
+            target=case.proposed_action.target,
+            value=case.proposed_action.value,
+            page_url=case.proposed_action.page_url,
+            source_text=case.proposed_action.source_text,
+            raw_html=case.page_state.raw_html or "",
+        )
+
+        # 1. Canonical Gateway / Gate check
+        gw = Gateway.from_domain(case.domain, trusted_intent=intent)
+        c_res = gw.check(p_act, current_dom_text=case.page_state.visible_text)
+        expected_tier = dec_map.get(c_res.decision, "BLOCK")
+
+        # 2. PreActionGate check
+        ctx = dict(case.locked_intent) if isinstance(case.locked_intent, dict) else {}
+        ctx["domain"] = case.domain
+        p_res = pre_gate.evaluate_action(
+            session_id=f"strong-parity-{idx}",
+            step_number=1,
+            task_context=ctx,
+            action={
+                "type": case.proposed_action.action_type,
+                "target": case.proposed_action.target,
+                "value": case.proposed_action.value,
+                "source_text": case.proposed_action.source_text,
+                "raw_html": case.page_state.raw_html or "",
+            },
+            current_url=case.proposed_action.page_url,
+            current_page_name="page",
+            page_text=case.page_state.visible_text,
+        )
+
+        # Compare canonical gate vs PreActionGate
+        assert p_res.decision == expected_tier, (
+            f"Decision mismatch on {case.case_id} ({case.domain}): canonical={expected_tier} vs pre_gate={p_res.decision}"
+        )
+        assert p_res.risk_score == c_res.risk_score, (
+            f"Risk score mismatch on {case.case_id} ({case.domain}): canonical={c_res.risk_score} vs pre_gate={p_res.risk_score}"
+        )
+        canonical_hard_rules = set(
+            inc.check_type for inc in gw.gate._verifier.verify(
+                gw.gate.trusted_intent.to_locked_intent(), p_act.to_model(), case.page_state.visible_text
+            ).inconsistencies
+        )
+        assert set(p_res.matched_rules) == canonical_hard_rules, (
+            f"Rule mismatch on {case.case_id} ({case.domain}): canonical={canonical_hard_rules} vs pre_gate={p_res.matched_rules}"
+        )
+
+        # 3. Compare BrowserAgent path ONLY for flight cases
+        if case.domain == "flight":
+            agent_intent = SharedTrustedIntent(
+                origin=getattr(intent, "origin", ""),
+                destination=getattr(intent, "destination", ""),
+                departure_date=getattr(intent, "departure_date", ""),
+                return_date=getattr(intent, "return_date", ""),
+                max_price=float(getattr(intent, "max_price", 0.0) or 0.0),
+                cabin_class=getattr(intent, "cabin_class", "economy"),
+                passengers=int(getattr(intent, "passengers", 1) or 1),
+            )
+            agent = BrowserAgent(
+                session_id=f"strong-parity-agent-{idx}",
+                session_token="test-token",
+                trusted_intent=agent_intent,
+            )
+            agent_res = agent.gate.check(p_act, current_dom_text=case.page_state.visible_text)
+            assert agent_res.decision == c_res.decision, (
+                f"Agent decision mismatch on {case.case_id}: agent={agent_res.decision} vs canonical={c_res.decision}"
+            )
+            assert agent_res.risk_score == c_res.risk_score, (
+                f"Agent risk score mismatch on {case.case_id}: agent={agent_res.risk_score} vs canonical={c_res.risk_score}"
+            )
+            agent_hard_rules = set(
+                inc.check_type for inc in agent.gate._verifier.verify(
+                    agent.gate.trusted_intent.to_locked_intent(), p_act.to_model(), case.page_state.visible_text
+                ).inconsistencies
+            )
+            assert agent_hard_rules == canonical_hard_rules, (
+                f"Agent rule mismatch on {case.case_id}: agent={agent_hard_rules} vs canonical={canonical_hard_rules}"
+            )
+
+
 # ---------------------------------------------------------------------------
 # Test 2: Static AST Scan — No Code Path Calls Browser Action Without Gate
 # ---------------------------------------------------------------------------
@@ -159,7 +277,9 @@ def test_3_denied_action_never_reaches_browser():
         gate=mock_gate,
     )
 
-    result = asyncio.run(agent.run())
+    with patch("backend.browser_agent.agent.observer.evaluate") as mock_obs:
+        mock_obs.return_value = MagicMock(decision="ALLOW", risk_score=10.0, advisory=True)
+        result = asyncio.run(agent.run())
 
     assert result["status"] == "blocked"
     assert result["final_decision"] == "BLOCK"

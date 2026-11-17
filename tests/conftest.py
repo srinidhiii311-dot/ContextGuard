@@ -11,12 +11,26 @@ os.environ.setdefault("GATE_AUTH_ENABLED", "false")
 
 @pytest.fixture(autouse=True)
 def isolate_test_audit_log(tmp_path):
-    """Sets GATEWAY_AUDIT_LOG_PATH to a temporary file for every test to prevent polluting runs/."""
+    """Sets GATEWAY_AUDIT_LOG_PATH and LLM_LOG_PATH to temporary files for every test to prevent polluting runs/."""
     temp_audit_file = str(tmp_path / "test_audit.jsonl")
-    old_val = os.environ.get("GATEWAY_AUDIT_LOG_PATH")
+    temp_llm_file = str(tmp_path / "test_llm_calls.jsonl")
+    old_audit = os.environ.get("GATEWAY_AUDIT_LOG_PATH")
+    old_llm = os.environ.get("LLM_LOG_PATH")
+    old_llm_calls = os.environ.get("LLM_CALLS_LOG_PATH")
+
     os.environ["GATEWAY_AUDIT_LOG_PATH"] = temp_audit_file
+    os.environ["LLM_LOG_PATH"] = temp_llm_file
+    os.environ["LLM_CALLS_LOG_PATH"] = temp_llm_file
     yield temp_audit_file
-    if old_val is not None:
-        os.environ["GATEWAY_AUDIT_LOG_PATH"] = old_val
+    if old_audit is not None:
+        os.environ["GATEWAY_AUDIT_LOG_PATH"] = old_audit
     else:
         os.environ.pop("GATEWAY_AUDIT_LOG_PATH", None)
+    if old_llm is not None:
+        os.environ["LLM_LOG_PATH"] = old_llm
+    else:
+        os.environ.pop("LLM_LOG_PATH", None)
+    if old_llm_calls is not None:
+        os.environ["LLM_CALLS_LOG_PATH"] = old_llm_calls
+    else:
+        os.environ.pop("LLM_CALLS_LOG_PATH", None)

@@ -93,11 +93,18 @@ class RateLimiter:
 
 
 class LLMClient:
-    def __init__(self, config_path: Union[str, Path] = DEFAULT_CONFIG_PATH):
-        self.config_path = Path(config_path)
+    def __init__(self, config_path: Optional[Union[str, Path]] = None):
+        has_explicit_config = config_path is not None
+        self.config_path = Path(config_path) if has_explicit_config else DEFAULT_CONFIG_PATH
         self.config = self._load_config()
         self.cache_dir = ROOT_DIR / self.config.get("cache_dir", ".cache/llm")
-        self.log_file = ROOT_DIR / self.config.get("log_file", "runs/llm_calls.jsonl")
+        env_log = os.getenv("LLM_LOG_PATH") or os.getenv("LLM_CALLS_LOG_PATH")
+        if not has_explicit_config and env_log:
+            self.log_file = Path(env_log)
+        else:
+            raw_log = self.config.get("log_file", "runs/llm_calls.jsonl")
+            log_p = Path(raw_log)
+            self.log_file = log_p if log_p.is_absolute() else ROOT_DIR / log_p
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.log_file.parent.mkdir(parents=True, exist_ok=True)
         self._genai_client = None

@@ -9,7 +9,7 @@ and workflow stage. Halts or pauses consequential actions before mutation occurs
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
@@ -28,6 +28,7 @@ class PreCheckResult:
     requires_operator:  bool            = False
     mismatch_detail:    Optional[str]   = None
     latency_ms:         float           = 0.0
+    matched_rules:      List[str]       = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -38,6 +39,7 @@ class PreCheckResult:
             "is_consequential":   self.is_consequential,
             "requires_operator":  self.requires_operator,
             "mismatch_detail":    self.mismatch_detail,
+            "matched_rules":      self.matched_rules,
         }
 
 
@@ -224,6 +226,14 @@ class PreActionGate:
             raw_html=action.get("raw_html"),
         )
         canonical_res = canonical_gate.check(proposed, page_text)
+        try:
+            matched_rules = [
+                inc.check_type for inc in canonical_gate._verifier.verify(
+                    canonical_gate.trusted_intent.to_locked_intent(), proposed.to_model(), page_text
+                ).inconsistencies
+            ]
+        except Exception:
+            matched_rules = []
 
         canonical_dec_map = {
             Decision.BLOCK: "BLOCK",
@@ -260,4 +270,5 @@ class PreActionGate:
             is_consequential=is_consequential,
             requires_operator=requires_operator,
             mismatch_detail=mismatch_detail,
+            matched_rules=matched_rules,
         )
